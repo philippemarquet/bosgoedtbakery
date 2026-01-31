@@ -7,7 +7,8 @@ import {
   Euro,
   LogOut,
   Menu,
-  X
+  X,
+  Factory
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,11 +17,13 @@ import UserManagement from "@/components/dashboard/UserManagement";
 import BackOffice from "@/components/dashboard/BackOffice";
 import OrderOverview from "@/components/dashboard/OrderOverview";
 import Financials from "@/components/dashboard/Financials";
+import Production from "@/components/dashboard/Production";
 
 const navigationItems = [
   { name: "Gebruikersbeheer", icon: Users, href: "/dashboard/users", bakerOnly: true },
   { name: "Back-office", icon: ClipboardList, href: "/dashboard/backoffice" },
   { name: "Bestellingen", icon: ShoppingCart, href: "/dashboard/orders" },
+  { name: "Productie", icon: Factory, href: "/dashboard/production", bakerOnly: true },
   { name: "Financieel", icon: Euro, href: "/dashboard/financials", bakerOnly: true },
 ];
 
@@ -87,6 +90,8 @@ const Dashboard = () => {
         return <BackOffice />;
       case "Bestellingen":
         return <OrderOverview />;
+      case "Productie":
+        return <Production />;
       case "Financieel":
         return <Financials />;
       default:
