@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { User, UserCheck, UserX } from "lucide-react";
-
+import { User, UserCheck, UserX, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import AddCustomerDialog from "./AddCustomerDialog";
 interface UserWithRole {
   user_id: string;
   email: string;
@@ -15,6 +16,7 @@ interface UserWithRole {
 const UserManagement = () => {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const fetchUsers = async () => {
@@ -152,8 +154,14 @@ const UserManagement = () => {
             Beheer gebruikersrollen en toegang
           </p>
         </div>
-        <div className="text-sm text-muted-foreground">
-          {users.length} gebruiker{users.length !== 1 ? "s" : ""}
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-muted-foreground">
+            {users.length} gebruiker{users.length !== 1 ? "s" : ""}
+          </span>
+          <Button onClick={() => setAddDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nieuwe klant
+          </Button>
         </div>
       </div>
 
@@ -271,6 +279,12 @@ const UserManagement = () => {
           </div>
         </div>
       )}
+
+      <AddCustomerDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        onCustomerAdded={fetchUsers}
+      />
     </div>
   );
 };

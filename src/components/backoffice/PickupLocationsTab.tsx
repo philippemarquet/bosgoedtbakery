@@ -1,0 +1,340 @@
+import { useState, useEffect } from "react";
+import { Plus, Pencil, Trash2, Search, MapPin } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+
+interface PickupLocation {
+  id: string;
+  title: string;
+  street: string;
+  house_number: string | null;
+  postal_code: string;
+  city: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+const PickupLocationsTab = () => {
+  const [locations, setLocations] = useState<PickupLocation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<PickupLocation | null>(null);
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+
+  const [formData, setFormData] = useState({
+    title: "",
+    street: "",
+    house_number: "",
+    postal_code: "",
+    city: "",
+    is_active: true,
+  });
+
+  const fetchLocations = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("pickup_locations")
+      .select("*")
+      .order("title");
+
+    if (error) {
+      toast({ title: "Fout", description: "Kon afhaallocaties niet laden", variant: "destructive" });
+    } else {
+      setLocations(data || []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchLocations();
+  }, []);
+
+  useEffect(() => {
+    if (dialogOpen) {
+      if (editingLocation) {
+        setFormData({
+          title: editingLocation.title,
+          street: editingLocation.street,
+          house_number: editingLocation.house_number || "",
+          postal_code: editingLocation.postal_code,
+          city: editingLocation.city,
+          is_active: editingLocation.is_active,
+        });
+      } else {
+        setFormData({
+          title: "",
+          street: "",
+          house_number: "",
+          postal_code: "",
+          city: "",
+          is_active: true,
+        });
+      }
+    }
+  }, [dialogOpen, editingLocation]);
+
+  const filteredLocations = locations.filter((l) =>
+    l.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    l.city.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const openCreateDialog = () => {
+    setEditingLocation(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (location: PickupLocation) => {
+    setEditingLocation(location);
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.title.trim() || !formData.street.trim() || !formData.postal_code.trim() || !formData.city.trim()) {
+      toast({ title: "Fout", description: "Vul alle verplichte velden in", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+
+    const payload = {
+      title: formData.title.trim(),
+      street: formData.street.trim(),
+      house_number: formData.house_number.trim() || null,
+      postal_code: formData.postal_code.trim(),
+      city: formData.city.trim(),
+      is_active: formData.is_active,
+    };
+
+    if (editingLocation) {
+      const { error } = await supabase
+        .from("pickup_locations")
+        .update(payload)
+        .eq("id", editingLocation.id);
+
+      if (error) {
+        toast({ title: "Fout", description: "Kon locatie niet bijwerken", variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+      toast({ title: "Opgeslagen", description: "Afhaallocatie bijgewerkt" });
+    } else {
+      const { error } = await supabase.from("pickup_locations").insert(payload);
+
+      if (error) {
+        toast({ title: "Fout", description: "Kon locatie niet aanmaken", variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+      toast({ title: "Toegevoegd", description: "Nieuwe afhaallocatie aangemaakt" });
+    }
+
+    setSaving(false);
+    setDialogOpen(false);
+    fetchLocations();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Weet je zeker dat je deze afhaallocatie wilt verwijderen?")) return;
+
+    const { error } = await supabase.from("pickup_locations").delete().eq("id", id);
+
+    if (error) {
+      toast({ title: "Fout", description: "Kon locatie niet verwijderen", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Verwijderd", description: "Afhaallocatie verwijderd" });
+    fetchLocations();
+  };
+
+  const formatAddress = (location: PickupLocation) => {
+    const parts = [location.street];
+    if (location.house_number) parts[0] += ` ${location.house_number}`;
+    parts.push(`${location.postal_code} ${location.city}`);
+    return parts.join(", ");
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-4 justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Zoek afhaallocatie..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button onClick={openCreateDialog}>
+          <Plus className="w-4 h-4 mr-2" />
+          Nieuwe locatie
+        </Button>
+      </div>
+
+      <div className="bakery-card overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Naam</TableHead>
+              <TableHead>Adres</TableHead>
+              <TableHead className="text-center">Status</TableHead>
+              <TableHead className="w-[100px]">Acties</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  Laden...
+                </TableCell>
+              </TableRow>
+            ) : filteredLocations.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  {searchQuery ? "Geen locaties gevonden" : "Nog geen afhaallocaties. Maak er een aan!"}
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredLocations.map((location) => (
+                <TableRow key={location.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-muted-foreground" />
+                      {location.title}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatAddress(location)}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {location.is_active ? (
+                      <Badge className="bg-green-500 hover:bg-green-600">Actief</Badge>
+                    ) : (
+                      <Badge variant="secondary">Inactief</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(location)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(location.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingLocation ? "Afhaallocatie bewerken" : "Nieuwe afhaallocatie"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Naam *</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="bijv. Bakkerij Centrum"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="street">Straat *</Label>
+                <Input
+                  id="street"
+                  value={formData.street}
+                  onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                  placeholder="Hoofdstraat"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="house_number">Huisnummer</Label>
+                <Input
+                  id="house_number"
+                  value={formData.house_number}
+                  onChange={(e) => setFormData({ ...formData, house_number: e.target.value })}
+                  placeholder="123"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="postal_code">Postcode *</Label>
+                <Input
+                  id="postal_code"
+                  value={formData.postal_code}
+                  onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                  placeholder="1234 AB"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="city">Plaats *</Label>
+                <Input
+                  id="city"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  placeholder="Amsterdam"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="is_active"
+                checked={formData.is_active}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+              />
+              <Label htmlFor="is_active">Actief (zichtbaar voor klanten)</Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Opslaan..." : editingLocation ? "Opslaan" : "Toevoegen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default PickupLocationsTab;

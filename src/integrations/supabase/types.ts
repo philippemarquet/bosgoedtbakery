@@ -204,6 +204,7 @@ export type Database = {
           discount_amount: number
           id: string
           notes: string | null
+          pickup_location_id: string | null
           status: string
           subtotal: number
           total: number
@@ -217,6 +218,7 @@ export type Database = {
           discount_amount?: number
           id?: string
           notes?: string | null
+          pickup_location_id?: string | null
           status?: string
           subtotal?: number
           total?: number
@@ -230,6 +232,7 @@ export type Database = {
           discount_amount?: number
           id?: string
           notes?: string | null
+          pickup_location_id?: string | null
           status?: string
           subtotal?: number
           total?: number
@@ -245,6 +248,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "orders_pickup_location_id_fkey"
+            columns: ["pickup_location_id"]
+            isOneToOne: false
+            referencedRelation: "pickup_locations"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "orders_weekly_menu_id_fkey"
             columns: ["weekly_menu_id"]
             isOneToOne: false
@@ -252,6 +262,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pickup_locations: {
+        Row: {
+          city: string
+          created_at: string
+          house_number: string | null
+          id: string
+          is_active: boolean
+          postal_code: string
+          street: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          city: string
+          created_at?: string
+          house_number?: string | null
+          id?: string
+          is_active?: boolean
+          postal_code: string
+          street: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          house_number?: string | null
+          id?: string
+          is_active?: boolean
+          postal_code?: string
+          street?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       product_discount_groups: {
         Row: {
@@ -327,6 +373,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          image_url: string | null
           is_orderable: boolean
           name: string
           selling_price: number
@@ -339,6 +386,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          image_url?: string | null
           is_orderable?: boolean
           name: string
           selling_price?: number
@@ -351,6 +399,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          image_url?: string | null
           is_orderable?: boolean
           name?: string
           selling_price?: number
