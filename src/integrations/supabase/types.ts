@@ -400,7 +400,14 @@ export type Database = {
     }
     Enums: {
       app_role: "baker" | "customer"
-      measurement_unit: "kg" | "gram" | "liter" | "ml" | "stuks" | "uur"
+      measurement_unit:
+        | "kg"
+        | "gram"
+        | "liter"
+        | "ml"
+        | "stuks"
+        | "uur"
+        | "eetlepel"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -529,7 +536,15 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["baker", "customer"],
-      measurement_unit: ["kg", "gram", "liter", "ml", "stuks", "uur"],
+      measurement_unit: [
+        "kg",
+        "gram",
+        "liter",
+        "ml",
+        "stuks",
+        "uur",
+        "eetlepel",
+      ],
     },
   },
 } as const
