@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { Package, ClipboardList, AlertTriangle, Calendar, Loader2 } from "lucide-react";
+import { Package, Wheat, ChevronRight, ArrowLeft, Loader2, Calendar } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -35,12 +37,44 @@ interface IngredientNeed {
   totalNeeded: number;
 }
 
+interface ProductIngredient {
+  ingredientId: string;
+  ingredientName: string;
+  unit: string;
+  quantityPerProduct: number;
+  totalNeeded: number;
+}
+
+// Convert to grams/ml for display
+const convertToDisplayUnit = (value: number, unit: string): { value: number; unit: string } => {
+  if (unit === "kg") {
+    return { value: value * 1000, unit: "gram" };
+  }
+  if (unit === "liter") {
+    return { value: value * 1000, unit: "ml" };
+  }
+  return { value, unit };
+};
+
+const formatQuantity = (value: number, unit: string): string => {
+  const converted = convertToDisplayUnit(value, unit);
+  // Round to 1 decimal for cleaner display
+  const rounded = Math.round(converted.value * 10) / 10;
+  return `${rounded} ${converted.unit}`;
+};
+
 const Production = () => {
   const [loading, setLoading] = useState(true);
   const [productionItems, setProductionItems] = useState<ProductionItem[]>([]);
-  const [ingredientNeeds, setIngredientNeeds] = useState<IngredientNeed[]>([]);
+  const [allIngredientNeeds, setAllIngredientNeeds] = useState<IngredientNeed[]>([]);
   const [weeklyMenus, setWeeklyMenus] = useState<{ id: string; name: string; delivery_date: string | null }[]>([]);
   const [selectedMenuId, setSelectedMenuId] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<"products" | "ingredients">("products");
+  
+  // For product detail view
+  const [selectedProduct, setSelectedProduct] = useState<ProductionItem | null>(null);
+  const [productIngredients, setProductIngredients] = useState<ProductIngredient[]>([]);
+  const [loadingProductDetail, setLoadingProductDetail] = useState(false);
 
   useEffect(() => {
     fetchWeeklyMenus();
@@ -61,6 +95,7 @@ const Production = () => {
 
   const fetchProductionData = async () => {
     setLoading(true);
+    setSelectedProduct(null);
 
     // Fetch orders that are pending or in_production
     let ordersQuery = supabase
@@ -81,7 +116,7 @@ const Production = () => {
 
     if (!orders || orders.length === 0) {
       setProductionItems([]);
-      setIngredientNeeds([]);
+      setAllIngredientNeeds([]);
       setLoading(false);
       return;
     }
@@ -132,7 +167,7 @@ const Production = () => {
 
     setProductionItems(Array.from(productMap.values()).sort((a, b) => b.totalQuantity - a.totalQuantity));
 
-    // Fetch ingredient needs
+    // Fetch ingredient needs for all products
     const productIds = Array.from(productMap.keys());
     const { data: recipeIngredients } = await supabase
       .from("recipe_ingredients")
@@ -164,10 +199,45 @@ const Production = () => {
         ingredientMap.get(ri.ingredient.id)!.totalNeeded += totalForProduct;
       }
 
-      setIngredientNeeds(Array.from(ingredientMap.values()).sort((a, b) => a.ingredientName.localeCompare(b.ingredientName)));
+      setAllIngredientNeeds(Array.from(ingredientMap.values()).sort((a, b) => a.ingredientName.localeCompare(b.ingredientName)));
     }
 
     setLoading(false);
+  };
+
+  const fetchProductIngredients = async (product: ProductionItem) => {
+    setLoadingProductDetail(true);
+    setSelectedProduct(product);
+
+    const { data: recipeIngredients } = await supabase
+      .from("recipe_ingredients")
+      .select(`
+        quantity,
+        ingredient:ingredients(id, name, unit)
+      `)
+      .eq("product_id", product.productId);
+
+    if (recipeIngredients) {
+      const ingredients: ProductIngredient[] = recipeIngredients
+        .filter(ri => ri.ingredient)
+        .map(ri => ({
+          ingredientId: ri.ingredient!.id,
+          ingredientName: ri.ingredient!.name,
+          unit: ri.ingredient!.unit,
+          quantityPerProduct: ri.quantity,
+          totalNeeded: ri.quantity * product.totalQuantity,
+        }))
+        .sort((a, b) => a.ingredientName.localeCompare(b.ingredientName));
+
+      setProductIngredients(ingredients);
+    }
+
+    setLoadingProductDetail(false);
+  };
+
+  const goBackToProductList = () => {
+    setSelectedProduct(null);
+    setProductIngredients([]);
   };
 
   return (
@@ -204,92 +274,172 @@ const Production = () => {
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Product totals */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Te produceren producten
-              </CardTitle>
-              <CardDescription>
-                Totaal aantal per product voor alle openstaande bestellingen
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {productionItems.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>Geen openstaande bestellingen</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead className="text-right">Aantal</TableHead>
-                      <TableHead className="text-right">Bestellingen</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {productionItems.map((item) => (
-                      <TableRow key={item.productId}>
-                        <TableCell className="font-medium">{item.productName}</TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant="secondary">{item.totalQuantity}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {item.orders.length}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "ingredients")}>
+          <TabsList>
+            <TabsTrigger value="products" className="gap-2">
+              <Package className="w-4 h-4" />
+              Producten
+            </TabsTrigger>
+            <TabsTrigger value="ingredients" className="gap-2">
+              <Wheat className="w-4 h-4" />
+              Ingrediënten
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Ingredient needs */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ClipboardList className="w-5 h-5" />
-                Benodigde ingrediënten
-              </CardTitle>
-              <CardDescription>
-                Totale hoeveelheden ingrediënten voor productie
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {ingredientNeeds.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>Geen ingrediënten gevonden</p>
-                  <p className="text-xs mt-1">Voeg recepten toe aan je producten</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Ingrediënt</TableHead>
-                      <TableHead className="text-right">Hoeveelheid</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ingredientNeeds.map((item) => (
-                      <TableRow key={item.ingredientId}>
-                        <TableCell className="font-medium">{item.ingredientName}</TableCell>
-                        <TableCell className="text-right">
-                          {item.totalNeeded.toFixed(2)} {item.unit}
-                        </TableCell>
+          <TabsContent value="products" className="mt-4">
+            {selectedProduct ? (
+              // Product detail view - ingredients for this product
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onClick={goBackToProductList}>
+                      <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        {selectedProduct.productName}
+                        <Badge variant="secondary">{selectedProduct.totalQuantity}x</Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        Benodigde ingrediënten voor {selectedProduct.totalQuantity} stuks
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loadingProductDetail ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : productIngredients.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Wheat className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>Geen ingrediënten gekoppeld aan dit product</p>
+                      <p className="text-xs mt-1">Voeg een recept toe in Back-office → Producten</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Ingrediënt</TableHead>
+                          <TableHead className="text-right">Per stuk</TableHead>
+                          <TableHead className="text-right">Totaal nodig</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {productIngredients.map((ing) => (
+                          <TableRow key={ing.ingredientId}>
+                            <TableCell className="font-medium">{ing.ingredientName}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {formatQuantity(ing.quantityPerProduct, ing.unit)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatQuantity(ing.totalNeeded, ing.unit)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              // Product list view
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="w-5 h-5" />
+                    Te produceren producten
+                  </CardTitle>
+                  <CardDescription>
+                    Klik op een product om de benodigde ingrediënten te zien
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {productionItems.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>Geen openstaande bestellingen</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead className="text-right">Aantal</TableHead>
+                          <TableHead className="text-right">Bestellingen</TableHead>
+                          <TableHead className="w-[50px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {productionItems.map((item) => (
+                          <TableRow 
+                            key={item.productId} 
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => fetchProductIngredients(item)}
+                          >
+                            <TableCell className="font-medium">{item.productName}</TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="secondary">{item.totalQuantity}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {item.orders.length}
+                            </TableCell>
+                            <TableCell>
+                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="ingredients" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wheat className="w-5 h-5" />
+                  Totaal benodigde ingrediënten
+                </CardTitle>
+                <CardDescription>
+                  Alle ingrediënten die je nodig hebt voor de openstaande bestellingen
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {allIngredientNeeds.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Wheat className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p>Geen ingrediënten gevonden</p>
+                    <p className="text-xs mt-1">Voeg recepten toe aan je producten</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Ingrediënt</TableHead>
+                        <TableHead className="text-right">Totaal nodig</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                    </TableHeader>
+                    <TableBody>
+                      {allIngredientNeeds.map((item) => (
+                        <TableRow key={item.ingredientId}>
+                          <TableCell className="font-medium">{item.ingredientName}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatQuantity(item.totalNeeded, item.unit)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
