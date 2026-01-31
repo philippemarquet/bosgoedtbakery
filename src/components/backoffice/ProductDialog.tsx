@@ -375,9 +375,19 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
   };
 
   const updateRecipeIngredient = (index: number, field: keyof RecipeIngredient, value: string) => {
-    const updated = [...recipeIngredients];
-    updated[index] = { ...updated[index], [field]: value };
-    setRecipeIngredients(updated);
+    setRecipeIngredients(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const updateRecipeIngredientMultiple = (index: number, updates: Partial<RecipeIngredient>) => {
+    setRecipeIngredients(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], ...updates };
+      return updated;
+    });
   };
 
   const addRecipeFixedCost = () => {
@@ -550,10 +560,10 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                         onValueChange={(value) => {
                           // When ingredient changes, reset display_unit to ingredient's base unit
                           const newIngredient = ingredients.find(i => i.id === value);
-                          updateRecipeIngredient(index, "ingredient_id", value);
-                          if (newIngredient) {
-                            updateRecipeIngredient(index, "display_unit", newIngredient.unit);
-                          }
+                          updateRecipeIngredientMultiple(index, {
+                            ingredient_id: value,
+                            display_unit: newIngredient?.unit || "kg",
+                          });
                         }}
                       >
                         <SelectTrigger className="flex-1">
