@@ -2,95 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* Bosgoedt Bakery Design System
+   Inspired by minimalist artisanal bakery aesthetics
+   Warm earth tones, clean typography, generous whitespace
 */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Warm cream background */
+    --background: 40 33% 97%;
+    --foreground: 30 10% 15%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Card surfaces - slightly warmer */
+    --card: 40 30% 99%;
+    --card-foreground: 30 10% 15%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    /* Popover */
+    --popover: 40 30% 99%;
+    --popover-foreground: 30 10% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary - Warm brown (bread crust color) */
+    --primary: 28 45% 35%;
+    --primary-foreground: 40 33% 97%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - Light warm beige */
+    --secondary: 35 25% 92%;
+    --secondary-foreground: 30 10% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted - Subtle warm gray */
+    --muted: 35 15% 90%;
+    --muted-foreground: 30 8% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent - Golden wheat */
+    --accent: 42 65% 55%;
+    --accent-foreground: 30 10% 15%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive */
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 40 33% 97%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Borders - soft warm gray */
+    --border: 35 20% 88%;
+    --input: 35 20% 88%;
+    --ring: 28 45% 35%;
 
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Sidebar */
+    --sidebar-background: 35 20% 96%;
+    --sidebar-foreground: 30 10% 25%;
+    --sidebar-primary: 28 45% 35%;
+    --sidebar-primary-foreground: 40 33% 97%;
+    --sidebar-accent: 35 25% 92%;
+    --sidebar-accent-foreground: 30 10% 25%;
+    --sidebar-border: 35 20% 88%;
+    --sidebar-ring: 28 45% 35%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Custom bakery tokens */
+    --wheat: 42 65% 55%;
+    --crust: 28 50% 30%;
+    --flour: 40 33% 97%;
+    --wood: 25 35% 25%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 30 15% 10%;
+    --foreground: 40 20% 95%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 30 15% 12%;
+    --card-foreground: 40 20% 95%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 30 15% 12%;
+    --popover-foreground: 40 20% 95%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 42 55% 60%;
+    --primary-foreground: 30 15% 10%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 30 15% 18%;
+    --secondary-foreground: 40 20% 90%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 30 12% 20%;
+    --muted-foreground: 35 10% 60%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 42 55% 50%;
+    --accent-foreground: 40 20% 95%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 40 20% 95%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 30 12% 22%;
+    --input: 30 12% 22%;
+    --ring: 42 55% 60%;
+
+    --sidebar-background: 30 15% 8%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 42 55% 60%;
+    --sidebar-primary-foreground: 30 15% 10%;
+    --sidebar-accent: 30 12% 18%;
+    --sidebar-accent-foreground: 40 20% 90%;
+    --sidebar-border: 30 12% 20%;
+    --sidebar-ring: 42 55% 60%;
+
+    --wheat: 42 55% 50%;
+    --crust: 28 40% 45%;
+    --flour: 40 15% 85%;
+    --wood: 25 25% 40%;
   }
 }
 
@@ -100,6 +118,46 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .bakery-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    @apply text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight;
+  }
+
+  .bakery-subtitle {
+    font-family: 'Inter', sans-serif;
+    @apply text-sm md:text-base font-light tracking-[0.2em] uppercase;
+  }
+
+  .bakery-card {
+    @apply bg-card border border-border rounded-lg shadow-sm;
+  }
+
+  .bakery-input {
+    @apply bg-background border border-border rounded-md px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-200;
+  }
+
+  .bakery-button-primary {
+    @apply bg-primary text-primary-foreground px-6 py-3 rounded-md font-medium tracking-wide uppercase text-sm transition-all duration-200 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+  }
+
+  .bakery-button-secondary {
+    @apply bg-secondary text-secondary-foreground px-6 py-3 rounded-md font-medium tracking-wide uppercase text-sm transition-all duration-200 hover:bg-secondary/80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
   }
 }
