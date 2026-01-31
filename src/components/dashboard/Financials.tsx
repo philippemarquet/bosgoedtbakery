@@ -1,0 +1,21 @@
+import { Euro } from "lucide-react";
+
+const Financials = () => {
+  return (
+    <div className="space-y-6">
+      <div className="bakery-card p-12 text-center">
+        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+          <Euro className="w-8 h-8 text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-serif font-semibold text-foreground mb-2">
+          Financieel Overzicht
+        </h3>
+        <p className="text-muted-foreground">
+          Facturen, inkomsten en uitgaven komen hier.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default Financials;

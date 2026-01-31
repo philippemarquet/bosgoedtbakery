@@ -1,44 +1,67 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  Home, 
-  ShoppingCart, 
   Users, 
-  Package, 
-  Calculator, 
-  FileText, 
-  Settings, 
+  ClipboardList, 
+  ShoppingCart, 
+  Euro,
   LogOut,
   Menu,
-  X,
-  ChefHat
+  X
 } from "lucide-react";
-
-// Placeholder for the current user - will be replaced with actual auth
-const mockUser = {
-  name: "Baker Admin",
-  role: "admin" as const,
-};
+import { useAuth } from "@/contexts/AuthContext";
+import UserManagement from "@/components/dashboard/UserManagement";
+import BackOffice from "@/components/dashboard/BackOffice";
+import OrderOverview from "@/components/dashboard/OrderOverview";
+import Financials from "@/components/dashboard/Financials";
 
 const navigationItems = [
-  { name: "Dashboard", icon: Home, href: "/dashboard" },
+  { name: "Gebruikersbeheer", icon: Users, href: "/dashboard/users", bakerOnly: true },
+  { name: "Back-office", icon: ClipboardList, href: "/dashboard/backoffice" },
   { name: "Bestellingen", icon: ShoppingCart, href: "/dashboard/orders" },
-  { name: "Klanten", icon: Users, href: "/dashboard/customers" },
-  { name: "Producten", icon: Package, href: "/dashboard/products" },
-  { name: "Recepten", icon: ChefHat, href: "/dashboard/recipes" },
-  { name: "Calculaties", icon: Calculator, href: "/dashboard/calculations" },
-  { name: "Facturen", icon: FileText, href: "/dashboard/invoices" },
-  { name: "Instellingen", icon: Settings, href: "/dashboard/settings" },
+  { name: "Financieel", icon: Euro, href: "/dashboard/financials", bakerOnly: true },
 ];
 
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("Dashboard");
+  const [activeTab, setActiveTab] = useState("Gebruikersbeheer");
   const navigate = useNavigate();
+  const { user, signOut, isBaker, role } = useAuth();
 
-  const handleLogout = () => {
-    // TODO: Implement actual logout
+  const handleLogout = async () => {
+    await signOut();
     navigate("/");
+  };
+
+  // Filter navigation items based on role
+  const visibleNavItems = navigationItems.filter(
+    item => !item.bakerOnly || isBaker
+  );
+
+  // Set default tab based on role
+  const getDefaultTab = () => {
+    if (isBaker) return "Gebruikersbeheer";
+    return "Back-office";
+  };
+
+  // Ensure activeTab is valid for current role
+  const currentTab = visibleNavItems.find(item => item.name === activeTab) 
+    ? activeTab 
+    : getDefaultTab();
+
+  const renderContent = () => {
+    switch (currentTab) {
+      case "Gebruikersbeheer":
+        return <UserManagement />;
+      case "Back-office":
+        return <BackOffice />;
+      case "Bestellingen":
+        return <OrderOverview />;
+      case "Financieel":
+        return <Financials />;
+      default:
+        return <BackOffice />;
+    }
   };
 
   return (
@@ -74,14 +97,17 @@ const Dashboard = () => {
 
         {/* Navigation */}
         <nav className="p-4 space-y-1">
-          {navigationItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <button
               key={item.name}
-              onClick={() => setActiveTab(item.name)}
+              onClick={() => {
+                setActiveTab(item.name);
+                setSidebarOpen(false);
+              }}
               className={`
                 w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium
                 transition-colors duration-150
-                ${activeTab === item.name 
+                ${currentTab === item.name 
                   ? "bg-sidebar-primary text-sidebar-primary-foreground" 
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 }
@@ -98,15 +124,15 @@ const Dashboard = () => {
           <div className="flex items-center gap-3 px-4 py-3 rounded-md bg-sidebar-accent">
             <div className="w-10 h-10 rounded-full bg-sidebar-primary flex items-center justify-center">
               <span className="text-sm font-semibold text-sidebar-primary-foreground">
-                {mockUser.name.charAt(0)}
+                {user?.email?.charAt(0).toUpperCase() || "U"}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {mockUser.name}
+                {user?.email || "Gebruiker"}
               </p>
               <p className="text-xs text-muted-foreground capitalize">
-                {mockUser.role}
+                {role === "baker" ? "Bakker" : role === "customer" ? "Klant" : "Geen rol"}
               </p>
             </div>
             <button
@@ -132,7 +158,7 @@ const Dashboard = () => {
               <Menu className="w-6 h-6" />
             </button>
             <h2 className="text-xl font-serif font-semibold text-foreground">
-              {activeTab}
+              {currentTab}
             </h2>
           </div>
           <div className="text-sm text-muted-foreground">
@@ -147,106 +173,8 @@ const Dashboard = () => {
 
         {/* Page content */}
         <main className="p-6">
-          {activeTab === "Dashboard" && <DashboardContent />}
-          {activeTab !== "Dashboard" && (
-            <div className="bakery-card p-12 text-center">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                <Package className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-serif font-semibold text-foreground mb-2">
-                {activeTab}
-              </h3>
-              <p className="text-muted-foreground">
-                Deze pagina wordt binnenkort toegevoegd.
-              </p>
-            </div>
-          )}
+          {renderContent()}
         </main>
-      </div>
-    </div>
-  );
-};
-
-const DashboardContent = () => {
-  const stats = [
-    { label: "Openstaande bestellingen", value: "12", change: "+3 vandaag" },
-    { label: "Te bakken vandaag", value: "48", change: "broden" },
-    { label: "Klanten", value: "24", change: "actieve klanten" },
-    { label: "Omzet deze week", value: "€ 1.240", change: "+15% vs vorige week" },
-  ];
-
-  return (
-    <div className="space-y-6">
-      {/* Stats grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => (
-          <div 
-            key={stat.label}
-            className="bakery-card p-6 animate-fade-in"
-            style={{ animationDelay: `${index * 0.1}s` }}
-          >
-            <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
-            <p className="text-3xl font-serif font-semibold text-foreground mb-1">
-              {stat.value}
-            </p>
-            <p className="text-xs text-muted-foreground">{stat.change}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Quick actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bakery-card p-6 animate-fade-in" style={{ animationDelay: "0.4s" }}>
-          <h3 className="text-lg font-serif font-semibold text-foreground mb-4">
-            Vandaag te bakken
-          </h3>
-          <div className="space-y-3">
-            {[
-              { name: "Zuurdesembrood", quantity: 12 },
-              { name: "Volkoren", quantity: 8 },
-              { name: "Roggebrood", quantity: 6 },
-              { name: "Ciabatta", quantity: 10 },
-              { name: "Focaccia", quantity: 12 },
-            ].map((item) => (
-              <div key={item.name} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                <span className="text-foreground">{item.name}</span>
-                <span className="text-sm font-medium text-primary bg-secondary px-3 py-1 rounded-full">
-                  {item.quantity}×
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bakery-card p-6 animate-fade-in" style={{ animationDelay: "0.5s" }}>
-          <h3 className="text-lg font-serif font-semibold text-foreground mb-4">
-            Recente bestellingen
-          </h3>
-          <div className="space-y-3">
-            {[
-              { customer: "Jan de Vries", items: 3, status: "In behandeling" },
-              { customer: "Marie Bakker", items: 2, status: "Gereed" },
-              { customer: "Pieter Jansen", items: 5, status: "In behandeling" },
-              { customer: "Lisa van Dam", items: 1, status: "Afgehaald" },
-            ].map((order, index) => (
-              <div key={index} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                <div>
-                  <p className="text-foreground font-medium">{order.customer}</p>
-                  <p className="text-sm text-muted-foreground">{order.items} items</p>
-                </div>
-                <span className={`text-xs font-medium px-3 py-1 rounded-full ${
-                  order.status === "Gereed" 
-                    ? "bg-accent/20 text-accent-foreground" 
-                    : order.status === "Afgehaald"
-                    ? "bg-muted text-muted-foreground"
-                    : "bg-secondary text-secondary-foreground"
-                }`}>
-                  {order.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
