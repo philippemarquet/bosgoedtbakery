@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Users, 
@@ -10,6 +10,7 @@ import {
   X
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import ProfileDialog from "@/components/ProfileDialog";
 import UserManagement from "@/components/dashboard/UserManagement";
 import BackOffice from "@/components/dashboard/BackOffice";
@@ -26,12 +27,40 @@ const navigationItems = [
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Gebruikersbeheer");
+  const [userName, setUserName] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user, signOut, isBaker, role } = useAuth();
+
+  // Fetch user's name from profile
+  useEffect(() => {
+    const fetchUserName = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", user.id)
+          .single();
+
+        if (!error && data) {
+          setUserName(data.full_name);
+        }
+      } catch (err) {
+        console.error("Error fetching user name:", err);
+      }
+    };
+
+    fetchUserName();
+  }, [user]);
 
   const handleLogout = async () => {
     await signOut();
     navigate("/");
+  };
+
+  const handleProfileUpdate = (newName: string) => {
+    setUserName(newName);
   };
 
   // Filter navigation items based on role
@@ -64,6 +93,9 @@ const Dashboard = () => {
         return <BackOffice />;
     }
   };
+
+  // Display name: prefer full_name, fallback to email
+  const displayName = userName || user?.email || "Gebruiker";
 
   return (
     <div className="min-h-screen bg-background">
@@ -125,18 +157,18 @@ const Dashboard = () => {
           <div className="flex items-center gap-3 px-4 py-3 rounded-md bg-sidebar-accent">
             <div className="w-10 h-10 rounded-full bg-sidebar-primary flex items-center justify-center">
               <span className="text-sm font-semibold text-sidebar-primary-foreground">
-                {user?.email?.charAt(0).toUpperCase() || "U"}
+                {displayName.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {user?.email || "Gebruiker"}
+                {displayName}
               </p>
               <p className="text-xs text-muted-foreground capitalize">
                 {role === "baker" ? "Bakker" : role === "customer" ? "Klant" : "Geen rol"}
               </p>
             </div>
-            <ProfileDialog />
+            <ProfileDialog onProfileUpdate={handleProfileUpdate} />
             <button
               onClick={handleLogout}
               className="p-2 text-muted-foreground hover:text-destructive transition-colors"
