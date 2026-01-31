@@ -16,29 +16,41 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
-          address: string | null
+          city: string | null
+          country: string | null
           created_at: string
           full_name: string | null
+          house_number: string | null
           id: string
           phone: string | null
+          postal_code: string | null
+          street: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
-          address?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           full_name?: string | null
+          house_number?: string | null
           id?: string
           phone?: string | null
+          postal_code?: string | null
+          street?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
-          address?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           full_name?: string | null
+          house_number?: string | null
           id?: string
           phone?: string | null
+          postal_code?: string | null
+          street?: string | null
           updated_at?: string
           user_id?: string
         }

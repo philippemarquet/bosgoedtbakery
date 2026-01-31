@@ -18,17 +18,29 @@ import { Label } from "@/components/ui/label";
 interface ProfileData {
   full_name: string;
   phone: string;
-  address: string;
+  street: string;
+  house_number: string;
+  postal_code: string;
+  city: string;
+  country: string;
 }
 
-const ProfileDialog = () => {
+interface ProfileDialogProps {
+  onProfileUpdate?: (name: string) => void;
+}
+
+const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [profile, setProfile] = useState<ProfileData>({
     full_name: "",
     phone: "",
-    address: "",
+    street: "",
+    house_number: "",
+    postal_code: "",
+    city: "",
+    country: "Nederland",
   });
   const { user } = useAuth();
   const { toast } = useToast();
@@ -40,7 +52,7 @@ const ProfileDialog = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("full_name, phone, address")
+        .select("full_name, phone, street, house_number, postal_code, city, country")
         .eq("user_id", user.id)
         .single();
 
@@ -49,7 +61,11 @@ const ProfileDialog = () => {
       setProfile({
         full_name: data?.full_name || "",
         phone: data?.phone || "",
-        address: data?.address || "",
+        street: data?.street || "",
+        house_number: data?.house_number || "",
+        postal_code: data?.postal_code || "",
+        city: data?.city || "",
+        country: data?.country || "Nederland",
       });
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -68,32 +84,20 @@ const ProfileDialog = () => {
     if (!user) return;
 
     // Basic validation
-    const trimmedName = profile.full_name.trim();
-    const trimmedPhone = profile.phone.trim();
-    const trimmedAddress = profile.address.trim();
+    const trimmedData = {
+      full_name: profile.full_name.trim(),
+      phone: profile.phone.trim(),
+      street: profile.street.trim(),
+      house_number: profile.house_number.trim(),
+      postal_code: profile.postal_code.trim(),
+      city: profile.city.trim(),
+      country: profile.country.trim(),
+    };
 
-    if (trimmedName.length > 100) {
+    if (trimmedData.full_name.length > 100) {
       toast({
         title: "Fout",
         description: "Naam mag maximaal 100 tekens zijn",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (trimmedPhone.length > 20) {
-      toast({
-        title: "Fout",
-        description: "Telefoonnummer mag maximaal 20 tekens zijn",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (trimmedAddress.length > 255) {
-      toast({
-        title: "Fout",
-        description: "Adres mag maximaal 255 tekens zijn",
         variant: "destructive",
       });
       return;
@@ -104,9 +108,13 @@ const ProfileDialog = () => {
       const { error } = await supabase
         .from("profiles")
         .update({
-          full_name: trimmedName || null,
-          phone: trimmedPhone || null,
-          address: trimmedAddress || null,
+          full_name: trimmedData.full_name || null,
+          phone: trimmedData.phone || null,
+          street: trimmedData.street || null,
+          house_number: trimmedData.house_number || null,
+          postal_code: trimmedData.postal_code || null,
+          city: trimmedData.city || null,
+          country: trimmedData.country || null,
         })
         .eq("user_id", user.id);
 
@@ -116,6 +124,12 @@ const ProfileDialog = () => {
         title: "Opgeslagen",
         description: "Je profiel is bijgewerkt",
       });
+      
+      // Notify parent of name change
+      if (onProfileUpdate) {
+        onProfileUpdate(trimmedData.full_name);
+      }
+      
       setOpen(false);
     } catch (error) {
       console.error("Error saving profile:", error);
@@ -190,15 +204,66 @@ const ProfileDialog = () => {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="address">Adres</Label>
-              <Input
-                id="address"
-                value={profile.address}
-                onChange={(e) => setProfile({ ...profile, address: e.target.value })}
-                placeholder="Straatnaam 123, 1234 AB Plaats"
-                maxLength={255}
-              />
+            {/* Address fields */}
+            <div className="pt-2 border-t border-border">
+              <p className="text-sm font-medium text-foreground mb-3">Adresgegevens</p>
+              
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="street">Straat</Label>
+                  <Input
+                    id="street"
+                    value={profile.street}
+                    onChange={(e) => setProfile({ ...profile, street: e.target.value })}
+                    placeholder="Bakkerstraat"
+                    maxLength={100}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="house_number">Huisnr.</Label>
+                  <Input
+                    id="house_number"
+                    value={profile.house_number}
+                    onChange={(e) => setProfile({ ...profile, house_number: e.target.value })}
+                    placeholder="12a"
+                    maxLength={10}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div className="space-y-2">
+                  <Label htmlFor="postal_code">Postcode</Label>
+                  <Input
+                    id="postal_code"
+                    value={profile.postal_code}
+                    onChange={(e) => setProfile({ ...profile, postal_code: e.target.value })}
+                    placeholder="1234 AB"
+                    maxLength={10}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city">Stad</Label>
+                  <Input
+                    id="city"
+                    value={profile.city}
+                    onChange={(e) => setProfile({ ...profile, city: e.target.value })}
+                    placeholder="Amsterdam"
+                    maxLength={50}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-2">
+                <Label htmlFor="country">Land</Label>
+                <Input
+                  id="country"
+                  value={profile.country}
+                  onChange={(e) => setProfile({ ...profile, country: e.target.value })}
+                  placeholder="Nederland"
+                  maxLength={50}
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
