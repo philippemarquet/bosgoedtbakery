@@ -164,6 +164,11 @@ const WeeklyMenusTab = () => {
     return `${format(startDate, "d MMM", { locale: nl })} - ${format(endDate, "d MMM yyyy", { locale: nl })}`;
   };
 
+  const formatDeliveryDate = (date: string | null) => {
+    if (!date) return "-";
+    return format(parseISO(date), "EEEE d MMM", { locale: nl });
+  };
+
   const getMarginColor = (margin: number) => {
     if (margin < 0) return "text-destructive";
     if (margin < 5) return "text-yellow-600";
@@ -193,7 +198,8 @@ const WeeklyMenusTab = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Naam</TableHead>
-              <TableHead>Periode</TableHead>
+              <TableHead>Week</TableHead>
+              <TableHead>Leverdag</TableHead>
               <TableHead className="text-center">Producten</TableHead>
               <TableHead className="text-right">Kostprijs</TableHead>
               <TableHead className="text-right">Verkoopprijs</TableHead>
@@ -205,13 +211,13 @@ const WeeklyMenusTab = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filteredMenus.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   {searchQuery ? "Geen weekmenu's gevonden" : "Nog geen weekmenu's. Maak er een aan!"}
                 </TableCell>
               </TableRow>
@@ -224,6 +230,9 @@ const WeeklyMenusTab = () => {
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       {formatDateRange(menu.week_start_date, menu.week_end_date)}
                     </div>
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    {formatDeliveryDate(menu.delivery_date)}
                   </TableCell>
                   <TableCell className="text-center">{menu.productCount}</TableCell>
                   <TableCell className="text-right">

@@ -35,6 +35,62 @@ export type Database = {
         }
         Relationships: []
       }
+      discount_group_tiers: {
+        Row: {
+          created_at: string
+          discount_group_id: string
+          discount_percentage: number
+          id: string
+          min_quantity: number
+        }
+        Insert: {
+          created_at?: string
+          discount_group_id: string
+          discount_percentage?: number
+          id?: string
+          min_quantity?: number
+        }
+        Update: {
+          created_at?: string
+          discount_group_id?: string
+          discount_percentage?: number
+          id?: string
+          min_quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_group_tiers_discount_group_id_fkey"
+            columns: ["discount_group_id"]
+            isOneToOne: false
+            referencedRelation: "discount_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discount_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       fixed_costs: {
         Row: {
           created_at: string
@@ -88,6 +144,150 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      order_items: {
+        Row: {
+          created_at: string
+          discount_amount: number
+          id: string
+          is_weekly_menu_item: boolean
+          order_id: string
+          product_id: string
+          quantity: number
+          total: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          discount_amount?: number
+          id?: string
+          is_weekly_menu_item?: boolean
+          order_id: string
+          product_id: string
+          quantity?: number
+          total: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          discount_amount?: number
+          id?: string
+          is_weekly_menu_item?: boolean
+          order_id?: string
+          product_id?: string
+          quantity?: number
+          total?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          created_at: string
+          created_by: string
+          customer_id: string
+          discount_amount: number
+          id: string
+          notes: string | null
+          status: string
+          subtotal: number
+          total: number
+          updated_at: string
+          weekly_menu_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          customer_id: string
+          discount_amount?: number
+          id?: string
+          notes?: string | null
+          status?: string
+          subtotal?: number
+          total?: number
+          updated_at?: string
+          weekly_menu_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          customer_id?: string
+          discount_amount?: number
+          id?: string
+          notes?: string | null
+          status?: string
+          subtotal?: number
+          total?: number
+          updated_at?: string
+          weekly_menu_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_weekly_menu_id_fkey"
+            columns: ["weekly_menu_id"]
+            isOneToOne: false
+            referencedRelation: "weekly_menus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_discount_groups: {
+        Row: {
+          created_at: string
+          discount_group_id: string
+          id: string
+          product_id: string
+        }
+        Insert: {
+          created_at?: string
+          discount_group_id: string
+          id?: string
+          product_id: string
+        }
+        Update: {
+          created_at?: string
+          discount_group_id?: string
+          id?: string
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_discount_groups_discount_group_id_fkey"
+            columns: ["discount_group_id"]
+            isOneToOne: false
+            referencedRelation: "discount_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_discount_groups_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_price_tiers: {
         Row: {
@@ -354,6 +554,7 @@ export type Database = {
       weekly_menus: {
         Row: {
           created_at: string
+          delivery_date: string | null
           description: string | null
           id: string
           name: string
@@ -364,6 +565,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          delivery_date?: string | null
           description?: string | null
           id?: string
           name: string
@@ -374,6 +576,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          delivery_date?: string | null
           description?: string | null
           id?: string
           name?: string
