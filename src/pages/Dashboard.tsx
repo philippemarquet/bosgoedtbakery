@@ -10,6 +10,7 @@ import {
   X
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import ProfileDialog from "@/components/ProfileDialog";
 import UserManagement from "@/components/dashboard/UserManagement";
 import BackOffice from "@/components/dashboard/BackOffice";
 import OrderOverview from "@/components/dashboard/OrderOverview";
@@ -135,6 +136,7 @@ const Dashboard = () => {
                 {role === "baker" ? "Bakker" : role === "customer" ? "Klant" : "Geen rol"}
               </p>
             </div>
+            <ProfileDialog />
             <button
               onClick={handleLogout}
               className="p-2 text-muted-foreground hover:text-destructive transition-colors"
