@@ -55,6 +55,7 @@ const WeeklyMenuDialog = ({ open, onOpenChange, editingMenu, onSave }: WeeklyMen
     name: "",
     description: "",
     week_start_date: new Date(),
+    delivery_date: null as Date | null,
     price: "",
   });
 
@@ -81,6 +82,7 @@ const WeeklyMenuDialog = ({ open, onOpenChange, editingMenu, onSave }: WeeklyMen
           name: "",
           description: "",
           week_start_date: weekStart,
+          delivery_date: null,
           price: "",
         });
         setMenuProducts([]);
@@ -91,6 +93,7 @@ const WeeklyMenuDialog = ({ open, onOpenChange, editingMenu, onSave }: WeeklyMen
         name: editingMenu.name,
         description: editingMenu.description || "",
         week_start_date: new Date(editingMenu.week_start_date),
+        delivery_date: editingMenu.delivery_date ? new Date(editingMenu.delivery_date) : null,
         price: String(editingMenu.price),
       });
 
@@ -130,6 +133,7 @@ const WeeklyMenuDialog = ({ open, onOpenChange, editingMenu, onSave }: WeeklyMen
       description: formData.description.trim() || null,
       week_start_date: format(weekStart, "yyyy-MM-dd"),
       week_end_date: format(weekEnd, "yyyy-MM-dd"),
+      delivery_date: formData.delivery_date ? format(formData.delivery_date, "yyyy-MM-dd") : null,
       price: parseFloat(formData.price) || 0,
     };
 
@@ -267,17 +271,51 @@ const WeeklyMenuDialog = ({ open, onOpenChange, editingMenu, onSave }: WeeklyMen
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="price">Prijs (€)</Label>
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                placeholder="0.00"
-              />
+              <Label>Leverdag *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.delivery_date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.delivery_date 
+                      ? format(formData.delivery_date, "EEEE d MMMM yyyy", { locale: nl })
+                      : "Selecteer leverdag"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.delivery_date || undefined}
+                    onSelect={(date) => setFormData({ ...formData, delivery_date: date || null })}
+                    locale={nl}
+                    weekStartsOn={1}
+                    disabled={(date) => {
+                      const weekStart = startOfWeek(formData.week_start_date, { weekStartsOn: 1 });
+                      const weekEnd = endOfWeek(formData.week_start_date, { weekStartsOn: 1 });
+                      return date < weekStart || date > weekEnd;
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="price">Prijs weekmenu (€)</Label>
+            <Input
+              id="price"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              placeholder="0.00"
+            />
           </div>
 
           <div className="border-t pt-4 mt-4">

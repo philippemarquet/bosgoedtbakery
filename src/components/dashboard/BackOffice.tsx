@@ -1,16 +1,17 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Wheat, Receipt, Calendar, Tag } from "lucide-react";
+import { Package, Wheat, Receipt, Calendar, Tag, Percent } from "lucide-react";
 import ProductsTab from "@/components/backoffice/ProductsTab";
 import IngredientsTab from "@/components/backoffice/IngredientsTab";
 import FixedCostsTab from "@/components/backoffice/FixedCostsTab";
 import CategoriesTab from "@/components/backoffice/CategoriesTab";
 import WeeklyMenusTab from "@/components/backoffice/WeeklyMenusTab";
+import DiscountGroupsTab from "@/components/backoffice/DiscountGroupsTab";
 
 const BackOffice = () => {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="products" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-flex">
+        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
           <TabsTrigger value="products" className="gap-2">
             <Package className="w-4 h-4 hidden sm:block" />
             Producten
@@ -26,6 +27,10 @@ const BackOffice = () => {
           <TabsTrigger value="categories" className="gap-2">
             <Tag className="w-4 h-4 hidden sm:block" />
             Categorieën
+          </TabsTrigger>
+          <TabsTrigger value="discount-groups" className="gap-2">
+            <Percent className="w-4 h-4 hidden sm:block" />
+            Kortingen
           </TabsTrigger>
           <TabsTrigger value="weekly-menus" className="gap-2">
             <Calendar className="w-4 h-4 hidden sm:block" />
@@ -47,6 +52,10 @@ const BackOffice = () => {
 
         <TabsContent value="categories" className="mt-6">
           <CategoriesTab />
+        </TabsContent>
+
+        <TabsContent value="discount-groups" className="mt-6">
+          <DiscountGroupsTab />
         </TabsContent>
 
         <TabsContent value="weekly-menus" className="mt-6">
