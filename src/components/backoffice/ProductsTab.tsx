@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -32,7 +31,7 @@ const ProductsTab = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  // Removed expandedProduct state - no longer needed
   const { toast } = useToast();
 
   const fetchProducts = async () => {
@@ -120,6 +119,26 @@ const ProductsTab = () => {
     p.category?.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Group products by category
+  const groupedProducts = useMemo(() => {
+    const groups: Record<string, ProductWithDetails[]> = {};
+    
+    filteredProducts.forEach((product) => {
+      const categoryName = product.category?.name || "Zonder categorie";
+      if (!groups[categoryName]) {
+        groups[categoryName] = [];
+      }
+      groups[categoryName].push(product);
+    });
+    
+    // Sort categories alphabetically, but keep "Zonder categorie" at the end
+    return Object.entries(groups).sort(([a], [b]) => {
+      if (a === "Zonder categorie") return 1;
+      if (b === "Zonder categorie") return -1;
+      return a.localeCompare(b);
+    });
+  }, [filteredProducts]);
+
   const openCreateDialog = () => {
     setEditingProduct(null);
     setDialogOpen(true);
@@ -175,83 +194,70 @@ const ProductsTab = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[40px]"></TableHead>
+              <TableHead className="w-[50px]"></TableHead>
               <TableHead>Product</TableHead>
-              <TableHead>Categorie</TableHead>
-              <TableHead>Opbrengst</TableHead>
+              <TableHead>Aantal</TableHead>
               <TableHead className="text-right">Kostprijs</TableHead>
               <TableHead className="text-right">Verkoopprijs</TableHead>
               <TableHead className="text-right">Marge</TableHead>
               <TableHead className="text-center">Bestelbaar</TableHead>
-              <TableHead className="w-[100px]">Acties</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
-            ) : filteredProducts.length === 0 ? (
+            ) : groupedProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   {searchQuery ? "Geen producten gevonden" : "Nog geen producten. Voeg er een toe!"}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6"
-                      onClick={() => setExpandedProduct(
-                        expandedProduct === product.id ? null : product.id
-                      )}
-                    >
-                      {expandedProduct === product.id ? (
-                        <ChevronUp className="w-4 h-4" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </TableCell>
-                  <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell>
-                    {product.category ? (
-                      <Badge variant="secondary">{product.category.name}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {product.yield_quantity} {product.yield_unit}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(product.totalCost || 0)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(Number(product.selling_price))}
-                  </TableCell>
-                  <TableCell className={`text-right font-semibold ${getMarginColor(product.margin || 0)}`}>
-                    {formatCurrency(product.margin || 0)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Checkbox checked={product.is_orderable} disabled />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(product)}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(product.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+              groupedProducts.map(([categoryName, categoryProducts]) => (
+                <>
+                  {/* Category header row */}
+                  <TableRow key={`category-${categoryName}`} className="bg-muted/50 hover:bg-muted/50">
+                    <TableCell colSpan={8} className="font-semibold text-sm py-2">
+                      {categoryName} ({categoryProducts.length})
+                    </TableCell>
+                  </TableRow>
+                  {/* Products in this category */}
+                  {categoryProducts.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(product)}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>
+                        {product.yield_quantity} {product.yield_unit}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(product.totalCost || 0)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(Number(product.selling_price))}
+                      </TableCell>
+                      <TableCell className={`text-right font-semibold ${getMarginColor(product.margin || 0)}`}>
+                        {formatCurrency(product.margin || 0)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Checkbox checked={product.is_orderable} disabled />
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(product.id)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </>
               ))
             )}
           </TableBody>
