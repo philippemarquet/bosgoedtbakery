@@ -26,6 +26,7 @@ interface Order {
   total: number;
   created_at: string;
   updated_at: string;
+  pickup_location_id: string | null;
   customer: {
     id: string;
     full_name: string | null;
@@ -34,6 +35,10 @@ interface Order {
     id: string;
     name: string;
     delivery_date: string | null;
+  } | null;
+  pickup_location: {
+    id: string;
+    title: string;
   } | null;
 }
 
@@ -53,7 +58,8 @@ const OrderOverview = () => {
       .select(`
         *,
         customer:profiles!orders_customer_id_fkey(id, full_name),
-        weekly_menu:weekly_menus(id, name, delivery_date)
+        weekly_menu:weekly_menus(id, name, delivery_date),
+        pickup_location:pickup_locations(id, title)
       `)
       .order("created_at", { ascending: false });
 

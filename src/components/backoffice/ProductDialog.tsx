@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, Trash2, Upload, X, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,7 +126,13 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     yield_unit: "stuks" as MeasurementUnit,
     selling_price: "",
     is_orderable: false,
+    image_url: "",
   });
+
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [recipeIngredients, setRecipeIngredients] = useState<RecipeIngredient[]>([]);
   const [recipeFixedCosts, setRecipeFixedCosts] = useState<RecipeFixedCost[]>([]);
@@ -164,10 +170,13 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
           yield_unit: "stuks",
           selling_price: "",
           is_orderable: false,
+          image_url: "",
         });
         setRecipeIngredients([]);
         setRecipeFixedCosts([]);
         setPriceTiers([]);
+        setImageFile(null);
+        setImagePreview(null);
         return;
       }
 
@@ -180,7 +189,10 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
         yield_unit: editingProduct.yield_unit,
         selling_price: String(editingProduct.selling_price),
         is_orderable: editingProduct.is_orderable,
+        image_url: editingProduct.image_url || "",
       });
+      setImagePreview(editingProduct.image_url || null);
+      setImageFile(null);
 
       // Load recipe ingredients with display_unit
       const { data: ingData } = await supabase
@@ -250,6 +262,32 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
 
     setLoading(true);
 
+    // Upload image if selected
+    let imageUrl = formData.image_url;
+    if (imageFile) {
+      setUploadingImage(true);
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, imageFile);
+
+      if (uploadError) {
+        toast({ title: "Fout", description: "Kon afbeelding niet uploaden", variant: "destructive" });
+        setLoading(false);
+        setUploadingImage(false);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(fileName);
+
+      imageUrl = urlData.publicUrl;
+      setUploadingImage(false);
+    }
+
     const productPayload = {
       name: formData.name.trim(),
       description: formData.description.trim() || null,
@@ -258,6 +296,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       yield_unit: formData.yield_unit,
       selling_price: parseFloat(formData.selling_price) || 0,
       is_orderable: formData.is_orderable,
+      image_url: imageUrl || null,
     };
 
     let productId: string;
@@ -426,6 +465,27 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     return fixedCosts.find((f) => f.id === id)?.unit || "";
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setFormData({ ...formData, image_url: "" });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -463,6 +523,55 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                 placeholder="Optionele beschrijving..."
                 rows={3}
               />
+            </div>
+
+            {/* Image Upload */}
+            <div className="space-y-2">
+              <Label>Productafbeelding</Label>
+              <div className="flex items-start gap-4">
+                {imagePreview ? (
+                  <div className="relative w-24 h-24 rounded-lg overflow-hidden border">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute top-1 right-1 p-1 bg-destructive text-destructive-foreground rounded-full"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 rounded-lg border-2 border-dashed flex items-center justify-center bg-muted/50">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {imagePreview ? "Wijzigen" : "Uploaden"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    JPG, PNG of WebP, max 5MB
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">

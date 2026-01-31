@@ -1,17 +1,18 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Wheat, Receipt, Calendar, Tag, Percent } from "lucide-react";
+import { Package, Wheat, Receipt, Calendar, Tag, Percent, MapPin } from "lucide-react";
 import ProductsTab from "@/components/backoffice/ProductsTab";
 import IngredientsTab from "@/components/backoffice/IngredientsTab";
 import FixedCostsTab from "@/components/backoffice/FixedCostsTab";
 import CategoriesTab from "@/components/backoffice/CategoriesTab";
 import WeeklyMenusTab from "@/components/backoffice/WeeklyMenusTab";
 import DiscountGroupsTab from "@/components/backoffice/DiscountGroupsTab";
+import PickupLocationsTab from "@/components/backoffice/PickupLocationsTab";
 
 const BackOffice = () => {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="products" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
+        <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-flex">
           <TabsTrigger value="products" className="gap-2">
             <Package className="w-4 h-4 hidden sm:block" />
             Producten
@@ -31,6 +32,10 @@ const BackOffice = () => {
           <TabsTrigger value="discount-groups" className="gap-2">
             <Percent className="w-4 h-4 hidden sm:block" />
             Kortingen
+          </TabsTrigger>
+          <TabsTrigger value="pickup-locations" className="gap-2">
+            <MapPin className="w-4 h-4 hidden sm:block" />
+            Afhaallocaties
           </TabsTrigger>
           <TabsTrigger value="weekly-menus" className="gap-2">
             <Calendar className="w-4 h-4 hidden sm:block" />
@@ -56,6 +61,10 @@ const BackOffice = () => {
 
         <TabsContent value="discount-groups" className="mt-6">
           <DiscountGroupsTab />
+        </TabsContent>
+
+        <TabsContent value="pickup-locations" className="mt-6">
+          <PickupLocationsTab />
         </TabsContent>
 
         <TabsContent value="weekly-menus" className="mt-6">

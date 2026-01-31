@@ -1,12 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Trash2, Calendar, User, Package } from "lucide-react";
-import { format, parseISO, isAfter, startOfDay } from "date-fns";
+import { Plus, Trash2, Calendar, User, Package, MapPin, Image as ImageIcon } from "lucide-react";
+import { format, parseISO, startOfDay } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -23,7 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,6 +36,7 @@ interface Order {
   created_at: string;
   customer: { id: string; full_name: string | null } | null;
   weekly_menu: { id: string; name: string; delivery_date: string | null } | null;
+  pickup_location_id?: string | null;
 }
 
 interface Profile {
@@ -58,13 +57,16 @@ interface Product {
   name: string;
   selling_price: number;
   category_name?: string;
+  image_url?: string | null;
 }
 
-interface OrderItem {
-  product_id: string;
-  quantity: number;
-  unit_price: number;
-  is_weekly_menu_item: boolean;
+interface PickupLocation {
+  id: string;
+  title: string;
+  street: string;
+  house_number: string | null;
+  postal_code: string;
+  city: string;
 }
 
 interface DiscountGroup {
@@ -88,9 +90,11 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
   const [weeklyMenus, setWeeklyMenus] = useState<WeeklyMenu[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [discountGroups, setDiscountGroups] = useState<DiscountGroup[]>([]);
+  const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [selectedMenuId, setSelectedMenuId] = useState<string>("");
+  const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [extraItems, setExtraItems] = useState<{ product_id: string; quantity: number }[]>([]);
 
@@ -122,12 +126,12 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
     fetchMenus();
   }, []);
 
-  // Fetch orderable products
+  // Fetch orderable products with images
   useEffect(() => {
     const fetchProducts = async () => {
       const { data } = await supabase
         .from("products")
-        .select("id, name, selling_price, category:categories(name)")
+        .select("id, name, selling_price, image_url, category:categories(name)")
         .eq("is_orderable", true)
         .order("name");
       if (data) {
@@ -136,10 +140,24 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
           name: p.name,
           selling_price: Number(p.selling_price),
           category_name: p.category?.name || "Zonder categorie",
+          image_url: p.image_url,
         })));
       }
     };
     fetchProducts();
+  }, []);
+
+  // Fetch pickup locations
+  useEffect(() => {
+    const fetchPickupLocations = async () => {
+      const { data } = await supabase
+        .from("pickup_locations")
+        .select("*")
+        .eq("is_active", true)
+        .order("title");
+      if (data) setPickupLocations(data);
+    };
+    fetchPickupLocations();
   }, []);
 
   // Fetch discount groups with tiers and products
@@ -183,6 +201,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
       if (!editingOrder) {
         setSelectedCustomerId("");
         setSelectedMenuId("");
+        setSelectedPickupLocationId("");
         setNotes("");
         setExtraItems([]);
         return;
@@ -190,6 +209,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
 
       setSelectedCustomerId(editingOrder.customer?.id || "");
       setSelectedMenuId(editingOrder.weekly_menu?.id || "");
+      setSelectedPickupLocationId(editingOrder.pickup_location_id || "");
       setNotes(editingOrder.notes || "");
 
       // Load order items
@@ -309,11 +329,12 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
     const orderPayload = {
       customer_id: selectedCustomerId,
       weekly_menu_id: selectedMenuId || null,
+      pickup_location_id: selectedPickupLocationId || null,
       notes: notes.trim() || null,
       subtotal,
       discount_amount: discountAmount,
       total,
-      created_by: user?.id!,
+      created_by: user!.id,
     };
 
     let orderId: string;
@@ -456,6 +477,36 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
             )}
           </div>
 
+          {/* Pickup Location Selection */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <MapPin className="w-4 h-4" />
+              Afhaallocatie
+            </Label>
+            <Select value={selectedPickupLocationId} onValueChange={setSelectedPickupLocationId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecteer afhaallocatie" />
+              </SelectTrigger>
+              <SelectContent>
+                {pickupLocations.map((location) => (
+                  <SelectItem key={location.id} value={location.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{location.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {location.street} {location.house_number}, {location.postal_code} {location.city}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {pickupLocations.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Geen afhaallocaties beschikbaar. Maak er eerst een aan in de back-office.
+              </p>
+            )}
+          </div>
+
           <Separator />
 
           {/* Extra Products */}
@@ -476,11 +527,26 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                 Geen extra producten. Klik op "Product toevoegen" om losse producten toe te voegen.
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {extraItems.map((item, index) => {
                   const product = products.find(p => p.id === item.product_id);
                   return (
-                    <div key={index} className="flex gap-2 items-center">
+                    <div key={index} className="flex gap-3 items-center p-2 border rounded-lg bg-muted/30">
+                      {/* Product image */}
+                      <div className="w-12 h-12 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                        {product?.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      
                       <Select
                         value={item.product_id}
                         onValueChange={(value) => updateExtraItem(index, "product_id", value)}
@@ -496,7 +562,13 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                               </div>
                               {categoryProducts.map((p) => (
                                 <SelectItem key={p.id} value={p.id}>
-                                  {p.name} - {formatCurrency(p.selling_price)}
+                                  <div className="flex items-center gap-2">
+                                    {p.image_url && (
+                                      <img src={p.image_url} alt="" className="w-6 h-6 rounded object-cover" />
+                                    )}
+                                    <span>{p.name}</span>
+                                    <span className="text-muted-foreground">- {formatCurrency(p.selling_price)}</span>
+                                  </div>
                                 </SelectItem>
                               ))}
                             </div>
@@ -510,7 +582,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                         onChange={(e) => updateExtraItem(index, "quantity", parseInt(e.target.value) || 1)}
                         className="w-20"
                       />
-                      <span className="text-sm text-muted-foreground w-20 text-right">
+                      <span className="text-sm font-medium w-20 text-right">
                         {product ? formatCurrency(product.selling_price * item.quantity) : "-"}
                       </span>
                       <Button
