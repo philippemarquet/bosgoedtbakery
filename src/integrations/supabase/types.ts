@@ -252,6 +252,7 @@ export type Database = {
       recipe_ingredients: {
         Row: {
           created_at: string
+          display_unit: Database["public"]["Enums"]["measurement_unit"] | null
           id: string
           ingredient_id: string
           product_id: string
@@ -259,6 +260,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          display_unit?: Database["public"]["Enums"]["measurement_unit"] | null
           id?: string
           ingredient_id: string
           product_id: string
@@ -266,6 +268,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          display_unit?: Database["public"]["Enums"]["measurement_unit"] | null
           id?: string
           ingredient_id?: string
           product_id?: string
