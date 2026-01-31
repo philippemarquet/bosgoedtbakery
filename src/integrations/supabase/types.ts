@@ -14,6 +14,160 @@ export type Database = {
   }
   public: {
     Tables: {
+      categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fixed_costs: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          price_per_unit: number
+          unit: Database["public"]["Enums"]["measurement_unit"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          price_per_unit?: number
+          unit?: Database["public"]["Enums"]["measurement_unit"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          price_per_unit?: number
+          unit?: Database["public"]["Enums"]["measurement_unit"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ingredients: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          price_per_unit: number
+          unit: Database["public"]["Enums"]["measurement_unit"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          price_per_unit?: number
+          unit?: Database["public"]["Enums"]["measurement_unit"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          price_per_unit?: number
+          unit?: Database["public"]["Enums"]["measurement_unit"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      product_price_tiers: {
+        Row: {
+          created_at: string
+          id: string
+          min_quantity: number
+          price: number
+          product_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          min_quantity?: number
+          price: number
+          product_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          min_quantity?: number
+          price?: number
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_price_tiers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_orderable: boolean
+          name: string
+          selling_price: number
+          updated_at: string
+          yield_quantity: number
+          yield_unit: Database["public"]["Enums"]["measurement_unit"]
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_orderable?: boolean
+          name: string
+          selling_price?: number
+          updated_at?: string
+          yield_quantity?: number
+          yield_unit?: Database["public"]["Enums"]["measurement_unit"]
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_orderable?: boolean
+          name?: string
+          selling_price?: number
+          updated_at?: string
+          yield_quantity?: number
+          yield_unit?: Database["public"]["Enums"]["measurement_unit"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           city: string | null
@@ -56,6 +210,84 @@ export type Database = {
         }
         Relationships: []
       }
+      recipe_fixed_costs: {
+        Row: {
+          created_at: string
+          fixed_cost_id: string
+          id: string
+          product_id: string
+          quantity: number
+        }
+        Insert: {
+          created_at?: string
+          fixed_cost_id: string
+          id?: string
+          product_id: string
+          quantity?: number
+        }
+        Update: {
+          created_at?: string
+          fixed_cost_id?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_fixed_costs_fixed_cost_id_fkey"
+            columns: ["fixed_cost_id"]
+            isOneToOne: false
+            referencedRelation: "fixed_costs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipe_fixed_costs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipe_ingredients: {
+        Row: {
+          created_at: string
+          id: string
+          ingredient_id: string
+          product_id: string
+          quantity: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ingredient_id: string
+          product_id: string
+          quantity?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ingredient_id?: string
+          product_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_ingredients_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "ingredients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipe_ingredients_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -74,6 +306,78 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      weekly_menu_products: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          quantity: number
+          weekly_menu_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity?: number
+          weekly_menu_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+          weekly_menu_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_menu_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_menu_products_weekly_menu_id_fkey"
+            columns: ["weekly_menu_id"]
+            isOneToOne: false
+            referencedRelation: "weekly_menus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_menus: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          price: number
+          updated_at: string
+          week_end_date: string
+          week_start_date: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          price?: number
+          updated_at?: string
+          week_end_date: string
+          week_start_date: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          price?: number
+          updated_at?: string
+          week_end_date?: string
+          week_start_date?: string
         }
         Relationships: []
       }
@@ -96,6 +400,7 @@ export type Database = {
     }
     Enums: {
       app_role: "baker" | "customer"
+      measurement_unit: "kg" | "gram" | "liter" | "ml" | "stuks" | "uur"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -224,6 +529,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["baker", "customer"],
+      measurement_unit: ["kg", "gram", "liter", "ml", "stuks", "uur"],
     },
   },
 } as const
