@@ -91,7 +91,9 @@ const ProductsTab = () => {
         });
 
         // Calculate cost per unit
-        const costPerUnit = product.yield_quantity > 0 
+        // Only divide by yield_quantity when yield_unit is 'stuks'
+        // For other units (gram, kg, etc.), the total cost IS the cost per batch/product
+        const costPerUnit = product.yield_unit === 'stuks' && product.yield_quantity > 1
           ? totalCost / Number(product.yield_quantity) 
           : totalCost;
 
