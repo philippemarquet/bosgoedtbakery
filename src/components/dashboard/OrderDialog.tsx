@@ -449,12 +449,12 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
               <Calendar className="w-4 h-4" />
               Weekmenu (optioneel)
             </Label>
-            <Select value={selectedMenuId} onValueChange={setSelectedMenuId}>
+            <Select value={selectedMenuId || "none"} onValueChange={(val) => setSelectedMenuId(val === "none" ? "" : val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecteer weekmenu" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Geen weekmenu</SelectItem>
+                <SelectItem value="none">Geen weekmenu</SelectItem>
                 {weeklyMenus.map((menu) => (
                   <SelectItem key={menu.id} value={menu.id}>
                     <div className="flex items-center gap-2">
