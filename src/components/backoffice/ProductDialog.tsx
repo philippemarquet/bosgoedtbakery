@@ -263,10 +263,24 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       );
     }
 
-    // Insert price tiers
+    // Insert price tiers - min_quantity must be >= yield_quantity
+    const yieldQty = parseFloat(formData.yield_quantity) || 1;
     const validTiers = priceTiers.filter(
-      (t) => parseInt(t.min_quantity) > 0 && parseFloat(t.price) > 0
+      (t) => parseInt(t.min_quantity) >= yieldQty && parseFloat(t.price) > 0
     );
+    
+    // Check if any tiers were filtered out due to min_quantity being less than yield
+    const invalidTiers = priceTiers.filter(
+      (t) => parseInt(t.min_quantity) > 0 && parseInt(t.min_quantity) < yieldQty && parseFloat(t.price) > 0
+    );
+    if (invalidTiers.length > 0) {
+      toast({ 
+        title: "Let op", 
+        description: `${invalidTiers.length} staffelkorting(en) overgeslagen: minimale hoeveelheid moet minimaal ${yieldQty} ${formData.yield_unit} zijn`, 
+        variant: "destructive" 
+      });
+    }
+    
     if (validTiers.length > 0) {
       await supabase.from("product_price_tiers").insert(
         validTiers.map((t) => ({
