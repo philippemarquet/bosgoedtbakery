@@ -100,13 +100,28 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
 
   const { toast } = useToast();
 
-  // Fetch customers (profiles with customer role)
+  // Fetch customers (profiles with customer role only)
   useEffect(() => {
     const fetchCustomers = async () => {
+      // Get user_ids with 'customer' role
+      const { data: customerRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "customer");
+      
+      if (!customerRoles || customerRoles.length === 0) {
+        setCustomers([]);
+        return;
+      }
+
+      const customerUserIds = customerRoles.map(r => r.user_id);
+      
       const { data } = await supabase
         .from("profiles")
         .select("id, full_name, user_id")
+        .in("user_id", customerUserIds)
         .order("full_name");
+      
       if (data) setCustomers(data);
     };
     fetchCustomers();
@@ -562,13 +577,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                               </div>
                               {categoryProducts.map((p) => (
                                 <SelectItem key={p.id} value={p.id}>
-                                  <div className="flex items-center gap-2">
-                                    {p.image_url && (
-                                      <img src={p.image_url} alt="" className="w-6 h-6 rounded object-cover" />
-                                    )}
-                                    <span>{p.name}</span>
-                                    <span className="text-muted-foreground">- {formatCurrency(p.selling_price)}</span>
-                                  </div>
+                                  {p.name}
                                 </SelectItem>
                               ))}
                             </div>
