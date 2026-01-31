@@ -33,7 +33,58 @@ type FixedCost = Database["public"]["Tables"]["fixed_costs"]["Row"];
 interface RecipeIngredient {
   ingredient_id: string;
   quantity: string;
+  display_unit: MeasurementUnit | "";
 }
+
+// Unit conversion helpers
+const UNIT_CONVERSIONS: Record<string, { compatibleUnits: MeasurementUnit[]; toBase: Record<string, number> }> = {
+  kg: { 
+    compatibleUnits: ["kg", "gram"], 
+    toBase: { kg: 1, gram: 0.001 } 
+  },
+  gram: { 
+    compatibleUnits: ["kg", "gram"], 
+    toBase: { kg: 1, gram: 0.001 } 
+  },
+  liter: { 
+    compatibleUnits: ["liter", "ml"], 
+    toBase: { liter: 1, ml: 0.001 } 
+  },
+  ml: { 
+    compatibleUnits: ["liter", "ml"], 
+    toBase: { liter: 1, ml: 0.001 } 
+  },
+  stuks: { 
+    compatibleUnits: ["stuks"], 
+    toBase: { stuks: 1 } 
+  },
+  uur: { 
+    compatibleUnits: ["uur"], 
+    toBase: { uur: 1 } 
+  },
+  eetlepel: { 
+    compatibleUnits: ["eetlepel"], 
+    toBase: { eetlepel: 1 } 
+  },
+};
+
+const getCompatibleUnits = (baseUnit: MeasurementUnit): MeasurementUnit[] => {
+  return UNIT_CONVERSIONS[baseUnit]?.compatibleUnits || [baseUnit];
+};
+
+const convertToBaseUnit = (quantity: number, fromUnit: MeasurementUnit, baseUnit: MeasurementUnit): number => {
+  const conversion = UNIT_CONVERSIONS[baseUnit];
+  if (!conversion) return quantity;
+  const factor = conversion.toBase[fromUnit] || 1;
+  return quantity * factor;
+};
+
+const convertFromBaseUnit = (quantity: number, toUnit: MeasurementUnit, baseUnit: MeasurementUnit): number => {
+  const conversion = UNIT_CONVERSIONS[baseUnit];
+  if (!conversion) return quantity;
+  const factor = conversion.toBase[toUnit] || 1;
+  return quantity / factor;
+};
 
 interface RecipeFixedCost {
   fixed_cost_id: string;
@@ -131,18 +182,26 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
         is_orderable: editingProduct.is_orderable,
       });
 
-      // Load recipe ingredients
+      // Load recipe ingredients with display_unit
       const { data: ingData } = await supabase
         .from("recipe_ingredients")
-        .select("ingredient_id, quantity")
+        .select("ingredient_id, quantity, display_unit")
         .eq("product_id", editingProduct.id);
 
       if (ingData) {
         setRecipeIngredients(
-          ingData.map((i) => ({
-            ingredient_id: i.ingredient_id,
-            quantity: String(i.quantity),
-          }))
+          ingData.map((i) => {
+            const ingredient = ingredients.find(ing => ing.id === i.ingredient_id);
+            const baseUnit = ingredient?.unit || "kg";
+            const displayUnit = (i.display_unit || baseUnit) as MeasurementUnit;
+            // Convert from base unit to display unit for editing
+            const displayQuantity = convertFromBaseUnit(Number(i.quantity), displayUnit, baseUnit);
+            return {
+              ingredient_id: i.ingredient_id,
+              quantity: String(displayQuantity),
+              display_unit: displayUnit,
+            };
+          })
         );
       }
 
@@ -235,17 +294,24 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       productId = data.id;
     }
 
-    // Insert recipe ingredients
+    // Insert recipe ingredients - convert to base unit
     const validIngredients = recipeIngredients.filter(
       (i) => i.ingredient_id && parseFloat(i.quantity) > 0
     );
     if (validIngredients.length > 0) {
       await supabase.from("recipe_ingredients").insert(
-        validIngredients.map((i) => ({
-          product_id: productId,
-          ingredient_id: i.ingredient_id,
-          quantity: parseFloat(i.quantity),
-        }))
+        validIngredients.map((i) => {
+          const ingredient = ingredients.find(ing => ing.id === i.ingredient_id);
+          const baseUnit = ingredient?.unit || "kg";
+          const displayUnit = (i.display_unit || baseUnit) as MeasurementUnit;
+          const baseQuantity = convertToBaseUnit(parseFloat(i.quantity), displayUnit, baseUnit);
+          return {
+            product_id: productId,
+            ingredient_id: i.ingredient_id,
+            quantity: baseQuantity,
+            display_unit: displayUnit,
+          };
+        })
       );
     }
 
@@ -301,7 +367,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
   };
 
   const addRecipeIngredient = () => {
-    setRecipeIngredients([...recipeIngredients, { ingredient_id: "", quantity: "" }]);
+    setRecipeIngredients([...recipeIngredients, { ingredient_id: "", quantity: "", display_unit: "" }]);
   };
 
   const removeRecipeIngredient = (index: number) => {
@@ -471,49 +537,75 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
               </p>
             ) : (
               <div className="space-y-2">
-                {recipeIngredients.map((item, index) => (
-                  <div key={index} className="flex gap-2 items-center">
-                    <Select
-                      value={item.ingredient_id}
-                      onValueChange={(value) =>
-                        updateRecipeIngredient(index, "ingredient_id", value)
-                      }
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Selecteer ingrediënt" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ingredients.map((ing) => (
-                          <SelectItem key={ing.id} value={ing.id}>
-                            {ing.name} (€{Number(ing.price_per_unit).toFixed(2)}/{ing.unit})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        updateRecipeIngredient(index, "quantity", e.target.value)
-                      }
-                      className="w-24"
-                      placeholder="0"
-                    />
-                    <span className="w-16 text-sm text-muted-foreground">
-                      {getIngredientUnit(item.ingredient_id)}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeRecipeIngredient(index)}
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
-                ))}
+                {recipeIngredients.map((item, index) => {
+                  const selectedIngredient = ingredients.find(i => i.id === item.ingredient_id);
+                  const baseUnit = selectedIngredient?.unit || "kg";
+                  const compatibleUnits = getCompatibleUnits(baseUnit as MeasurementUnit);
+                  const currentDisplayUnit = item.display_unit || baseUnit;
+                  
+                  return (
+                    <div key={index} className="flex gap-2 items-center">
+                      <Select
+                        value={item.ingredient_id}
+                        onValueChange={(value) => {
+                          // When ingredient changes, reset display_unit to ingredient's base unit
+                          const newIngredient = ingredients.find(i => i.id === value);
+                          updateRecipeIngredient(index, "ingredient_id", value);
+                          if (newIngredient) {
+                            updateRecipeIngredient(index, "display_unit", newIngredient.unit);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Selecteer ingrediënt" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ingredients.map((ing) => (
+                            <SelectItem key={ing.id} value={ing.id}>
+                              {ing.name} (€{Number(ing.price_per_unit).toFixed(2)}/{ing.unit})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        value={item.quantity}
+                        onChange={(e) =>
+                          updateRecipeIngredient(index, "quantity", e.target.value)
+                        }
+                        className="w-24"
+                        placeholder="0"
+                      />
+                      <Select
+                        value={currentDisplayUnit}
+                        onValueChange={(value) =>
+                          updateRecipeIngredient(index, "display_unit", value)
+                        }
+                      >
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {compatibleUnits.map((unit) => (
+                            <SelectItem key={unit} value={unit}>
+                              {unit}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeRecipeIngredient(index)}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
