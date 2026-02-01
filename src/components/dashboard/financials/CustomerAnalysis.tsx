@@ -89,10 +89,10 @@ const CustomerAnalysis = () => {
 
       setLoading(true);
 
-      // Fetch orders
+      // Fetch orders with weekly menu price
       const { data: ordersData } = await supabase
         .from("orders")
-        .select("id, status, total, created_at, weekly_menu:weekly_menus(name)")
+        .select("id, status, total, created_at, weekly_menu_id, weekly_menu:weekly_menus(name, price)")
         .eq("customer_id", selectedCustomerId)
         .order("created_at", { ascending: false });
 
@@ -130,21 +130,17 @@ const CustomerAnalysis = () => {
         const weeklyMenuOrders = ordersData.filter(o => o.weekly_menu);
         if (weeklyMenuOrders.length > 0) {
           const weeklyMenuRevenue = weeklyMenuOrders.reduce((sum, o) => {
-            // Use total if it's a pure weekly menu order (check if there are items)
-            const orderItemsTotal = items?.filter(i => orderIds.includes(o.id))
-              .reduce((s, i) => s + i.total, 0) || 0;
-            // Weekly menu portion is total minus individual items
-            return sum + Math.max(0, o.total - orderItemsTotal);
+            // Use the weekly menu price from the joined data
+            const menuPrice = (o.weekly_menu as { name: string; price: number } | null)?.price || 0;
+            return sum + menuPrice;
           }, 0);
 
-          if (weeklyMenuRevenue > 0 || weeklyMenuOrders.length > 0) {
-            statsMap.set("weekmenu", {
-              product_id: "weekmenu",
-              product_name: "Weekmenu",
-              total_quantity: weeklyMenuOrders.length,
-              total_revenue: weeklyMenuRevenue,
-            });
-          }
+          statsMap.set("weekmenu", {
+            product_id: "weekmenu",
+            product_name: "Weekmenu",
+            total_quantity: weeklyMenuOrders.length,
+            total_revenue: weeklyMenuRevenue,
+          });
         }
 
         setProductStats(
