@@ -43,6 +43,7 @@ interface Profile {
   id: string;
   full_name: string | null;
   user_id: string | null;
+  discount_percentage: number;
 }
 
 interface WeeklyMenu {
@@ -106,7 +107,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
       // Get all non-archived profiles
       const { data: allProfiles } = await supabase
         .from("profiles")
-        .select("id, full_name, user_id")
+        .select("id, full_name, user_id, discount_percentage")
         .eq("is_archived", false)
         .order("full_name");
 
@@ -273,7 +274,11 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
     });
   }, [products]);
 
-  // Calculate totals with discount groups
+  // Get selected customer for discount percentage
+  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+  const customerDiscountPercentage = selectedCustomer?.discount_percentage || 0;
+
+  // Calculate totals with discount groups and customer discount
   const { subtotal, discountAmount, total } = useMemo(() => {
     let subtotal = 0;
 
@@ -291,7 +296,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
     });
 
     // Calculate discount based on discount groups
-    let discountAmount = 0;
+    let groupDiscountAmount = 0;
 
     discountGroups.forEach(group => {
       // Count total quantity of products in this group
@@ -311,16 +316,21 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
       // Find applicable tier (highest min_quantity that's <= totalQty)
       const applicableTier = group.tiers.find(t => totalQty >= t.min_quantity);
       if (applicableTier) {
-        discountAmount += groupItemsValue * (applicableTier.discount_percentage / 100);
+        groupDiscountAmount += groupItemsValue * (applicableTier.discount_percentage / 100);
       }
     });
 
+    // Apply customer discount to the remaining amount after group discounts
+    const afterGroupDiscount = subtotal - groupDiscountAmount;
+    const customerDiscountAmount = afterGroupDiscount * (customerDiscountPercentage / 100);
+    const totalDiscountAmount = groupDiscountAmount + customerDiscountAmount;
+
     return {
       subtotal,
-      discountAmount,
-      total: subtotal - discountAmount,
+      discountAmount: totalDiscountAmount,
+      total: subtotal - totalDiscountAmount,
     };
-  }, [selectedMenu, extraItems, products, discountGroups]);
+  }, [selectedMenu, extraItems, products, discountGroups, customerDiscountPercentage]);
 
   const addExtraItem = () => {
     setExtraItems([...extraItems, { product_id: "", quantity: 1 }]);

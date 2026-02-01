@@ -422,6 +422,7 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string
+          discount_percentage: number
           full_name: string | null
           house_number: string | null
           id: string
@@ -436,6 +437,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
+          discount_percentage?: number
           full_name?: string | null
           house_number?: string | null
           id?: string
@@ -450,6 +452,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
+          discount_percentage?: number
           full_name?: string | null
           house_number?: string | null
           id?: string
