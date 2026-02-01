@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Search, ShoppingCart, Calendar, User, MapPin, Settings, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ShoppingCart, MapPin, MessageCircle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { format, parseISO } from "date-fns";
@@ -10,14 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -27,6 +19,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import OrderDialog from "./OrderDialog";
 import PickupLocationsTab from "@/components/backoffice/PickupLocationsTab";
+import WhatsAppSettingsTab from "./WhatsAppSettingsTab";
 
 interface Order {
   id: string;
@@ -43,6 +36,7 @@ interface Order {
   customer: {
     id: string;
     full_name: string | null;
+    phone: string | null;
   } | null;
   weekly_menu: {
     id: string;
@@ -69,6 +63,7 @@ const OrderOverview = () => {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState("orders");
   const [statusFilter, setStatusFilter] = useState<string>("confirmed");
+  const [whatsappTemplate, setWhatsappTemplate] = useState("");
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -79,7 +74,7 @@ const OrderOverview = () => {
       .from("orders")
       .select(`
         *,
-        customer:profiles!orders_customer_id_fkey(id, full_name),
+        customer:profiles!orders_customer_id_fkey(id, full_name, phone),
         weekly_menu:weekly_menus(id, name, delivery_date),
         pickup_location:pickup_locations(id, title)
       `)
@@ -95,12 +90,25 @@ const OrderOverview = () => {
     setLoading(false);
   };
 
+  const fetchWhatsAppTemplate = async () => {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "whatsapp_message_template")
+      .single();
+    
+    if (data) {
+      setWhatsappTemplate(data.value);
+    }
+  };
+
   const refreshOrders = useCallback(() => {
     fetchOrders();
   }, []);
 
   useEffect(() => {
     fetchOrders();
+    fetchWhatsAppTemplate();
   }, []);
 
   // Refresh data when tab becomes visible again
@@ -165,9 +173,28 @@ const OrderOverview = () => {
     return `https://bunq.me/BosgoedtBakery/${amount}/${order.order_number}`;
   };
 
-  const openPaymentLink = (order: Order) => {
-    const link = generatePaymentLink(order);
-    window.open(link, '_blank');
+  const openWhatsApp = (order: Order) => {
+    const phone = order.customer?.phone;
+    if (!phone) {
+      toast({ title: "Fout", description: "Klant heeft geen telefoonnummer", variant: "destructive" });
+      return;
+    }
+
+    // Clean phone number (remove spaces, dashes, etc.) and ensure it starts with country code
+    let cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    // Remove leading 0 if present and add +31 for Dutch numbers
+    if (cleanPhone.startsWith('0') && !cleanPhone.startsWith('00')) {
+      cleanPhone = '+31' + cleanPhone.substring(1);
+    }
+    // Remove leading + for wa.me format
+    cleanPhone = cleanPhone.replace(/^\+/, '');
+
+    const paymentLink = generatePaymentLink(order);
+    const message = whatsappTemplate.replace('{{betaallink}}', paymentLink);
+    const encodedMessage = encodeURIComponent(message);
+    
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   const getStatusBadge = (status: string) => {
@@ -202,6 +229,10 @@ const OrderOverview = () => {
             <TabsTrigger value="pickup-locations" className="gap-2">
               <MapPin className="w-4 h-4" />
               Afhaallocaties
+            </TabsTrigger>
+            <TabsTrigger value="whatsapp" className="gap-2">
+              <MessageCircle className="w-4 h-4" />
+              WhatsApp
             </TabsTrigger>
           </TabsList>
         )}
@@ -321,11 +352,11 @@ const OrderOverview = () => {
                           <div className="flex justify-end gap-1">
                             {order.status === "ready" && (
                               <button
-                                onClick={() => openPaymentLink(order)}
-                                className="p-2 text-purple-500 hover:text-purple-700 transition-colors"
-                                title="Betaallink openen"
+                                onClick={() => openWhatsApp(order)}
+                                className="p-2 text-green-500 hover:text-green-700 transition-colors"
+                                title="WhatsApp openen"
                               >
-                                <ExternalLink className="w-4 h-4" />
+                                <MessageCircle className="w-4 h-4" />
                               </button>
                             )}
                             {!isMobile && (
@@ -356,9 +387,14 @@ const OrderOverview = () => {
         </TabsContent>
 
         {!isMobile && (
-          <TabsContent value="pickup-locations" className="mt-6">
-            <PickupLocationsTab />
-          </TabsContent>
+          <>
+            <TabsContent value="pickup-locations" className="mt-6">
+              <PickupLocationsTab />
+            </TabsContent>
+            <TabsContent value="whatsapp" className="mt-6">
+              <WhatsAppSettingsTab />
+            </TabsContent>
+          </>
         )}
       </Tabs>
 
