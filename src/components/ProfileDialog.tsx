@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { User, Lock, Eye, EyeOff } from "lucide-react";
+import { User as UserIcon, Lock, Eye, EyeOff } from "lucide-react";
+import { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -27,10 +27,11 @@ interface ProfileData {
 }
 
 interface ProfileDialogProps {
+  user: User | null;
   onProfileUpdate?: (name: string) => void;
 }
 
-const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
+const ProfileDialog = ({ user, onProfileUpdate }: ProfileDialogProps) => {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +54,6 @@ const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   
-  const { user } = useAuth();
   const { toast } = useToast();
 
   const fetchProfile = async () => {
@@ -207,7 +207,7 @@ const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
           className="p-2 text-muted-foreground hover:text-foreground transition-colors"
           title="Profiel bewerken"
         >
-          <User className="w-4 h-4" />
+          <UserIcon className="w-4 h-4" />
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -227,7 +227,7 @@ const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="profile" className="flex items-center gap-2">
-                <User className="w-4 h-4" />
+                <UserIcon className="w-4 h-4" />
                 Profiel
               </TabsTrigger>
               <TabsTrigger value="password" className="flex items-center gap-2">

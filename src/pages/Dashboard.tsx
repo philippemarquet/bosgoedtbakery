@@ -173,7 +173,7 @@ const Dashboard = () => {
                 {role === "baker" ? "Bakker" : role === "customer" ? "Klant" : "Geen rol"}
               </p>
             </div>
-            <ProfileDialog onProfileUpdate={handleProfileUpdate} />
+            <ProfileDialog user={user} onProfileUpdate={handleProfileUpdate} />
             <button
               onClick={handleLogout}
               className="p-2 text-muted-foreground hover:text-destructive transition-colors"
