@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Package, Wheat, ChevronRight, ArrowLeft, Loader2, Calendar } from "lucide-react";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
-import { format, parseISO } from "date-fns";
-import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,13 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface ProductionItem {
   productId: string;
@@ -68,8 +59,6 @@ const Production = () => {
   const [loading, setLoading] = useState(true);
   const [productionItems, setProductionItems] = useState<ProductionItem[]>([]);
   const [allIngredientNeeds, setAllIngredientNeeds] = useState<IngredientNeed[]>([]);
-  const [weeklyMenus, setWeeklyMenus] = useState<{ id: string; name: string; delivery_date: string | null }[]>([]);
-  const [selectedMenuId, setSelectedMenuId] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"products" | "ingredients">("products");
   
   // For product detail view
@@ -78,51 +67,30 @@ const Production = () => {
   const [loadingProductDetail, setLoadingProductDetail] = useState(false);
 
   const refreshData = useCallback(() => {
-    fetchWeeklyMenus();
     fetchProductionData();
-  }, [selectedMenuId]);
-
-  useEffect(() => {
-    fetchWeeklyMenus();
   }, []);
 
   useEffect(() => {
     fetchProductionData();
-  }, [selectedMenuId]);
+  }, []);
 
   // Refresh data when tab becomes visible again
   useVisibilityRefresh(refreshData);
 
-  const fetchWeeklyMenus = async () => {
-    const { data } = await supabase
-      .from("weekly_menus")
-      .select("id, name, delivery_date")
-      .eq("status", "active")
-      .order("delivery_date", { ascending: false });
-    
-    if (data) setWeeklyMenus(data);
-  };
 
   const fetchProductionData = async () => {
     setLoading(true);
     setSelectedProduct(null);
 
-    // Fetch orders that are pending or in_production
-    let ordersQuery = supabase
+    // Fetch orders with status "confirmed" only
+    const { data: orders } = await supabase
       .from("orders")
       .select(`
         id,
         status,
-        customer:profiles!orders_customer_id_fkey(full_name),
-        weekly_menu_id
+        customer:profiles!orders_customer_id_fkey(full_name)
       `)
-      .in("status", ["pending", "confirmed", "in_production"]);
-
-    if (selectedMenuId !== "all") {
-      ordersQuery = ordersQuery.eq("weekly_menu_id", selectedMenuId);
-    }
-
-    const { data: orders } = await ordersQuery;
+      .eq("status", "confirmed");
 
     if (!orders || orders.length === 0) {
       setProductionItems([]);
@@ -252,31 +220,11 @@ const Production = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <div>
-          <h2 className="text-lg font-semibold">Productie overzicht</h2>
-          <p className="text-sm text-muted-foreground">
-            Bekijk hoeveel producten je nodig hebt en welke ingrediënten je moet inkopen.
-          </p>
-        </div>
-        <Select value={selectedMenuId} onValueChange={setSelectedMenuId}>
-          <SelectTrigger className="w-[240px]">
-            <SelectValue placeholder="Filter op weekmenu" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle openstaande bestellingen</SelectItem>
-            {weeklyMenus.map((menu) => (
-              <SelectItem key={menu.id} value={menu.id}>
-                {menu.name}
-                {menu.delivery_date && (
-                  <span className="text-muted-foreground ml-2">
-                    ({format(parseISO(menu.delivery_date), "d MMM", { locale: nl })})
-                  </span>
-                )}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div>
+        <h2 className="text-lg font-semibold">Productie overzicht</h2>
+        <p className="text-sm text-muted-foreground">
+          Alle bestellingen met status "Bevestigd" — dit moet nog geproduceerd worden.
+        </p>
       </div>
 
       {loading ? (
