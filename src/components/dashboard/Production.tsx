@@ -97,6 +97,7 @@ const Production = () => {
     const { data } = await supabase
       .from("weekly_menus")
       .select("id, name, delivery_date")
+      .eq("status", "active")
       .order("delivery_date", { ascending: false });
     
     if (data) setWeeklyMenus(data);
