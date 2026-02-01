@@ -42,10 +42,25 @@ const ProductAnalysis = () => {
           product:products(name, category:categories(name))
         `);
 
-      if (items) {
-        const statsMap = new Map<string, ProductStats>();
-        const orderProductMap = new Map<string, Set<string>>();
+      // Fetch all orders to get weekly menu info
+      const { data: ordersData } = await supabase
+        .from("orders")
+        .select("id, total, weekly_menu_id");
 
+      const statsMap = new Map<string, ProductStats>();
+      const orderProductMap = new Map<string, Set<string>>();
+
+      // Calculate totals per order from items to determine weekly menu portion
+      const orderItemTotals = new Map<string, number>();
+      if (items) {
+        items.forEach(item => {
+          const current = orderItemTotals.get(item.order_id) || 0;
+          orderItemTotals.set(item.order_id, current + item.total);
+        });
+      }
+
+      // Add individual product items
+      if (items) {
         items.forEach(item => {
           const existing = statsMap.get(item.product_id);
           if (existing) {
@@ -68,19 +83,41 @@ const ProductAnalysis = () => {
           }
           orderProductMap.get(item.product_id)!.add(item.order_id);
         });
-
-        // Add order counts
-        orderProductMap.forEach((orders, productId) => {
-          const stat = statsMap.get(productId);
-          if (stat) {
-            stat.total_orders = orders.size;
-          }
-        });
-
-        setProductStats(
-          Array.from(statsMap.values()).sort((a, b) => b.total_quantity - a.total_quantity)
-        );
       }
+
+      // Add weekly menu orders as "Weekmenu" product
+      if (ordersData) {
+        const weeklyMenuOrders = ordersData.filter(o => o.weekly_menu_id);
+        if (weeklyMenuOrders.length > 0) {
+          let weeklyMenuRevenue = 0;
+          weeklyMenuOrders.forEach(order => {
+            const itemsTotal = orderItemTotals.get(order.id) || 0;
+            weeklyMenuRevenue += Math.max(0, order.total - itemsTotal);
+          });
+
+          statsMap.set("weekmenu", {
+            product_id: "weekmenu",
+            product_name: "Weekmenu",
+            category_name: "Weekmenu's",
+            total_quantity: weeklyMenuOrders.length,
+            total_orders: weeklyMenuOrders.length,
+            total_revenue: weeklyMenuRevenue,
+          });
+          orderProductMap.set("weekmenu", new Set(weeklyMenuOrders.map(o => o.id)));
+        }
+      }
+
+      // Add order counts
+      orderProductMap.forEach((orders, productId) => {
+        const stat = statsMap.get(productId);
+        if (stat && productId !== "weekmenu") {
+          stat.total_orders = orders.size;
+        }
+      });
+
+      setProductStats(
+        Array.from(statsMap.values()).sort((a, b) => b.total_quantity - a.total_quantity)
+      );
 
       setLoading(false);
     };

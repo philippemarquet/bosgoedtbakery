@@ -106,8 +106,10 @@ const CustomerAnalysis = () => {
           .select("product_id, quantity, total, product:products(name)")
           .in("order_id", orderIds);
 
+        const statsMap = new Map<string, ProductStats>();
+
+        // Add individual product items
         if (items) {
-          const statsMap = new Map<string, ProductStats>();
           items.forEach(item => {
             const existing = statsMap.get(item.product_id);
             if (existing) {
@@ -122,10 +124,32 @@ const CustomerAnalysis = () => {
               });
             }
           });
-          setProductStats(
-            Array.from(statsMap.values()).sort((a, b) => b.total_quantity - a.total_quantity)
-          );
         }
+
+        // Add weekly menu orders as "Weekmenu" product
+        const weeklyMenuOrders = ordersData.filter(o => o.weekly_menu);
+        if (weeklyMenuOrders.length > 0) {
+          const weeklyMenuRevenue = weeklyMenuOrders.reduce((sum, o) => {
+            // Use total if it's a pure weekly menu order (check if there are items)
+            const orderItemsTotal = items?.filter(i => orderIds.includes(o.id))
+              .reduce((s, i) => s + i.total, 0) || 0;
+            // Weekly menu portion is total minus individual items
+            return sum + Math.max(0, o.total - orderItemsTotal);
+          }, 0);
+
+          if (weeklyMenuRevenue > 0 || weeklyMenuOrders.length > 0) {
+            statsMap.set("weekmenu", {
+              product_id: "weekmenu",
+              product_name: "Weekmenu",
+              total_quantity: weeklyMenuOrders.length,
+              total_revenue: weeklyMenuRevenue,
+            });
+          }
+        }
+
+        setProductStats(
+          Array.from(statsMap.values()).sort((a, b) => b.total_quantity - a.total_quantity)
+        );
       } else {
         setProductStats([]);
       }
