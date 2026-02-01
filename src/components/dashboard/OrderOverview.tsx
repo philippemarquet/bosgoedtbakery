@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Search, ShoppingCart, MapPin, MessageCircle } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Plus, Pencil, Trash2, Search, ShoppingCart, MapPin, MessageCircle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { format, parseISO } from "date-fns";
@@ -20,6 +20,9 @@ import { useToast } from "@/hooks/use-toast";
 import OrderDialog from "./OrderDialog";
 import PickupLocationsTab from "@/components/backoffice/PickupLocationsTab";
 import WhatsAppSettingsTab from "./WhatsAppSettingsTab";
+
+type SortOption = "date-desc" | "date-asc" | "customer-asc" | "customer-desc";
+type GroupOption = "none" | "date" | "customer";
 
 interface Order {
   id: string;
@@ -55,6 +58,111 @@ const ORDER_STATUSES = [
   { value: "paid", label: "Betaald", color: "emerald" },
 ] as const;
 
+// Extracted OrderRow component for reusability
+interface OrderRowProps {
+  order: Order;
+  isMobile: boolean;
+  onEdit: (order: Order) => void;
+  onDelete: (id: string) => void;
+  onStatusChange: (orderId: string, newStatus: string) => void;
+  onWhatsApp: (order: Order) => void;
+  getStatusBadge: (status: string) => React.ReactNode;
+  formatCurrency: (value: number) => string;
+}
+
+const OrderRow = ({ 
+  order, 
+  isMobile, 
+  onEdit, 
+  onDelete, 
+  onStatusChange, 
+  onWhatsApp,
+  getStatusBadge,
+  formatCurrency 
+}: OrderRowProps) => (
+  <tr className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+    <td className="py-4 px-0">
+      <div className="flex flex-col">
+        <span className="text-foreground text-sm font-light">
+          {order.customer?.full_name || "Onbekend"}
+        </span>
+        {isMobile && (
+          <span className="text-xs text-muted-foreground">
+            {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
+          </span>
+        )}
+      </div>
+    </td>
+    {!isMobile && (
+      <td className="py-4 px-4 text-muted-foreground tabular-nums text-sm font-light">
+        {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
+      </td>
+    )}
+    {!isMobile && (
+      <td className="py-4 px-4">
+        {order.weekly_menu ? (
+          <span className="text-foreground text-sm font-light">{order.weekly_menu.name}</span>
+        ) : (
+          <span className="text-muted-foreground text-sm font-light">—</span>
+        )}
+      </td>
+    )}
+    <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">
+      {formatCurrency(order.total)}
+    </td>
+    {!isMobile && (
+      <td className="py-4 px-4">
+        <Select
+          value={order.status}
+          onValueChange={(value) => onStatusChange(order.id, value)}
+        >
+          <SelectTrigger className="w-28 h-8 border-0 bg-transparent px-0 focus:ring-0">
+            <SelectValue>
+              {getStatusBadge(order.status)}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {ORDER_STATUSES.map((status) => (
+              <SelectItem key={status.value} value={status.value}>
+                {status.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </td>
+    )}
+    <td className="py-4 px-0">
+      <div className="flex justify-end gap-1">
+        {order.status === "ready" && (
+          <button
+            onClick={() => onWhatsApp(order)}
+            className="p-2 text-green-500 hover:text-green-700 transition-colors"
+            title="WhatsApp openen"
+          >
+            <MessageCircle className="w-4 h-4" />
+          </button>
+        )}
+        {!isMobile && (
+          <>
+            <button
+              onClick={() => onEdit(order)}
+              className="p-2 text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => onDelete(order.id)}
+              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </>
+        )}
+      </div>
+    </td>
+  </tr>
+);
+
 const OrderOverview = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +171,8 @@ const OrderOverview = () => {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState("orders");
   const [statusFilter, setStatusFilter] = useState<string>("confirmed");
+  const [sortOption, setSortOption] = useState<SortOption>("date-desc");
+  const [groupOption, setGroupOption] = useState<GroupOption>("none");
   const [whatsappTemplate, setWhatsappTemplate] = useState("");
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -114,14 +224,70 @@ const OrderOverview = () => {
   // Refresh data when tab becomes visible again
   useVisibilityRefresh(refreshOrders);
 
-  const filteredOrders = orders.filter((o) => {
-    const customerName = o.customer?.full_name?.toLowerCase() || "";
-    const menuName = o.weekly_menu?.name?.toLowerCase() || "";
-    const query = searchQuery.toLowerCase();
-    const matchesSearch = customerName.includes(query) || menuName.includes(query);
-    const matchesStatus = o.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Filter, sort, and group orders
+  const { processedOrders, groupedOrders } = useMemo(() => {
+    // First filter
+    let filtered = orders.filter((o) => {
+      const customerName = o.customer?.full_name?.toLowerCase() || "";
+      const menuName = o.weekly_menu?.name?.toLowerCase() || "";
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = customerName.includes(query) || menuName.includes(query);
+      const matchesStatus = o.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+    // Then sort
+    filtered.sort((a, b) => {
+      switch (sortOption) {
+        case "date-desc":
+          return new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime();
+        case "date-asc":
+          return new Date(a.invoice_date).getTime() - new Date(b.invoice_date).getTime();
+        case "customer-asc":
+          return (a.customer?.full_name || "").localeCompare(b.customer?.full_name || "");
+        case "customer-desc":
+          return (b.customer?.full_name || "").localeCompare(a.customer?.full_name || "");
+        default:
+          return 0;
+      }
+    });
+
+    // Group if needed
+    if (groupOption === "none") {
+      return { processedOrders: filtered, groupedOrders: null };
+    }
+
+    const groups: Record<string, Order[]> = {};
+    filtered.forEach((order) => {
+      let key: string;
+      if (groupOption === "date") {
+        key = format(parseISO(order.invoice_date), "EEEE d MMMM yyyy", { locale: nl });
+      } else {
+        key = order.customer?.full_name || "Onbekend";
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(order);
+    });
+
+    // Sort group keys
+    const sortedGroups: Record<string, Order[]> = {};
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      if (groupOption === "date") {
+        // For date grouping, use the first order's date in each group
+        const dateA = groups[a][0]?.invoice_date || "";
+        const dateB = groups[b][0]?.invoice_date || "";
+        return sortOption.includes("desc") 
+          ? new Date(dateB).getTime() - new Date(dateA).getTime()
+          : new Date(dateA).getTime() - new Date(dateB).getTime();
+      }
+      return sortOption.includes("desc") ? b.localeCompare(a) : a.localeCompare(b);
+    });
+    sortedKeys.forEach(key => {
+      sortedGroups[key] = groups[key];
+    });
+
+    return { processedOrders: filtered, groupedOrders: sortedGroups };
+  }, [orders, searchQuery, statusFilter, sortOption, groupOption]);
 
   const getOrderCountByStatus = (status: string) => {
     return orders.filter(o => o.status === status).length;
@@ -267,6 +433,53 @@ const OrderOverview = () => {
                   ))}
                 </TabsList>
               </Tabs>
+
+              {/* Sort & Group Options */}
+              <div className="flex flex-wrap gap-2">
+                <Select value={sortOption} onValueChange={(val) => setSortOption(val as SortOption)}>
+                  <SelectTrigger className="w-[160px] h-9">
+                    <ArrowUpDown className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                    <SelectValue placeholder="Sorteren" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date-desc">
+                      <span className="flex items-center gap-2">
+                        <ArrowDown className="w-3 h-3" />
+                        Datum (nieuwste)
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="date-asc">
+                      <span className="flex items-center gap-2">
+                        <ArrowUp className="w-3 h-3" />
+                        Datum (oudste)
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="customer-asc">
+                      <span className="flex items-center gap-2">
+                        <ArrowUp className="w-3 h-3" />
+                        Klant (A-Z)
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="customer-desc">
+                      <span className="flex items-center gap-2">
+                        <ArrowDown className="w-3 h-3" />
+                        Klant (Z-A)
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={groupOption} onValueChange={(val) => setGroupOption(val as GroupOption)}>
+                  <SelectTrigger className="w-[150px] h-9">
+                    <SelectValue placeholder="Groeperen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Geen groepering</SelectItem>
+                    <SelectItem value="date">Groepeer op datum</SelectItem>
+                    <SelectItem value="customer">Groepeer op klant</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -288,96 +501,54 @@ const OrderOverview = () => {
                         Laden...
                       </td>
                     </tr>
-                  ) : filteredOrders.length === 0 ? (
+                  ) : processedOrders.length === 0 ? (
                     <tr>
                       <td colSpan={isMobile ? 3 : 6} className="text-center py-12 text-muted-foreground">
                         <ShoppingCart className="w-6 h-6 mx-auto mb-2 opacity-50" />
                         {searchQuery ? "Geen bestellingen gevonden" : "Nog geen bestellingen"}
                       </td>
                     </tr>
-                  ) : (
-                    filteredOrders.map((order) => (
-                      <tr key={order.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="py-4 px-0">
-                          <div className="flex flex-col">
-                            <span className="text-foreground text-sm font-light">
-                              {order.customer?.full_name || "Onbekend"}
+                  ) : groupedOrders ? (
+                    // Grouped view
+                    Object.entries(groupedOrders).map(([groupKey, groupOrders]) => (
+                      <>
+                        <tr key={`group-${groupKey}`} className="bg-muted/50">
+                          <td colSpan={isMobile ? 3 : 6} className="py-2 px-2">
+                            <span className="font-medium text-sm">{groupKey}</span>
+                            <span className="text-muted-foreground text-xs ml-2">
+                              ({groupOrders.length} {groupOrders.length === 1 ? "bestelling" : "bestellingen"})
                             </span>
-                            {isMobile && (
-                              <span className="text-xs text-muted-foreground">
-                                {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        {!isMobile && (
-                          <td className="py-4 px-4 text-muted-foreground tabular-nums text-sm font-light">
-                            {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
                           </td>
-                        )}
-                        {!isMobile && (
-                          <td className="py-4 px-4">
-                            {order.weekly_menu ? (
-                              <span className="text-foreground text-sm font-light">{order.weekly_menu.name}</span>
-                            ) : (
-                              <span className="text-muted-foreground text-sm font-light">—</span>
-                            )}
-                          </td>
-                        )}
-                        <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">
-                          {formatCurrency(order.total)}
-                        </td>
-                        {!isMobile && (
-                          <td className="py-4 px-4">
-                            <Select
-                              value={order.status}
-                              onValueChange={(value) => handleStatusChange(order.id, value)}
-                            >
-                              <SelectTrigger className="w-28 h-8 border-0 bg-transparent px-0 focus:ring-0">
-                                <SelectValue>
-                                  {getStatusBadge(order.status)}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {ORDER_STATUSES.map((status) => (
-                                  <SelectItem key={status.value} value={status.value}>
-                                    {status.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                        )}
-                        <td className="py-4 px-0">
-                          <div className="flex justify-end gap-1">
-                            {order.status === "ready" && (
-                              <button
-                                onClick={() => openWhatsApp(order)}
-                                className="p-2 text-green-500 hover:text-green-700 transition-colors"
-                                title="WhatsApp openen"
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                              </button>
-                            )}
-                            {!isMobile && (
-                              <>
-                                <button
-                                  onClick={() => openEditDialog(order)}
-                                  className="p-2 text-muted-foreground hover:text-primary transition-colors"
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(order.id)}
-                                  className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                        </tr>
+                        {groupOrders.map((order) => (
+                          <OrderRow 
+                            key={order.id} 
+                            order={order} 
+                            isMobile={isMobile}
+                            onEdit={openEditDialog}
+                            onDelete={handleDelete}
+                            onStatusChange={handleStatusChange}
+                            onWhatsApp={openWhatsApp}
+                            getStatusBadge={getStatusBadge}
+                            formatCurrency={formatCurrency}
+                          />
+                        ))}
+                      </>
+                    ))
+                  ) : (
+                    // Flat view
+                    processedOrders.map((order) => (
+                      <OrderRow 
+                        key={order.id} 
+                        order={order} 
+                        isMobile={isMobile}
+                        onEdit={openEditDialog}
+                        onDelete={handleDelete}
+                        onStatusChange={handleStatusChange}
+                        onWhatsApp={openWhatsApp}
+                        getStatusBadge={getStatusBadge}
+                        formatCurrency={formatCurrency}
+                      />
                     ))
                   )}
                 </tbody>
