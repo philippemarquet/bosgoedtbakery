@@ -65,7 +65,7 @@ const OrderOverview = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState("orders");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("confirmed");
   const { toast } = useToast();
 
   const fetchOrders = async () => {
@@ -107,7 +107,7 @@ const OrderOverview = () => {
     const menuName = o.weekly_menu?.name?.toLowerCase() || "";
     const query = searchQuery.toLowerCase();
     const matchesSearch = customerName.includes(query) || menuName.includes(query);
-    const matchesStatus = statusFilter === "all" || o.status === statusFilter;
+    const matchesStatus = o.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -209,9 +209,6 @@ const OrderOverview = () => {
             
             <Tabs value={statusFilter} onValueChange={setStatusFilter}>
               <TabsList>
-                <TabsTrigger value="all">
-                  Alle ({orders.length})
-                </TabsTrigger>
                 {ORDER_STATUSES.map((status) => (
                   <TabsTrigger key={status.value} value={status.value}>
                     {status.label} ({getOrderCountByStatus(status.value)})
