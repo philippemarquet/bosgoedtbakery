@@ -279,129 +279,99 @@ const UserManagement = () => {
               </Button>
             </div>
           ) : (
-            <div className="bakery-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/50">
-                      <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Naam</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Telefoon</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Adres</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Inlog</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Bestellingen</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Acties</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeCustomers.map((user) => (
-                      <tr key={user.profile_id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                        <td className="py-4 px-4">
-                          <p className="font-medium text-foreground">
-                            {user.full_name || "Onbekend"}
-                          </p>
-                        </td>
-                        <td className="py-4 px-4 text-muted-foreground">
-                          {user.phone || "-"}
-                        </td>
-                        <td className="py-4 px-4 text-muted-foreground text-sm">
-                          {user.street ? (
-                            <>
-                              {user.street} {user.house_number}
-                              {user.postal_code && <>, {user.postal_code}</>}
-                              {user.city && <> {user.city}</>}
-                            </>
-                          ) : "-"}
-                        </td>
-                        <td className="py-4 px-4">
-                          {user.user_id ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                              <Mail className="w-3 h-3" />
-                              Ja
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-                              <KeyRound className="w-3 h-3" />
-                              Nee
-                            </span>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Naam</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Inlog</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Bestellingen</th>
+                    <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acties</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeCustomers.map((user) => (
+                    <tr key={user.profile_id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                      <td className="py-4 px-0">
+                        <span className="font-normal text-foreground">
+                          {user.full_name || "Onbekend"}
+                        </span>
+                        {user.discount_percentage > 0 && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {user.discount_percentage}% korting
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4">
+                        {user.user_id ? (
+                          <span className="text-xs text-primary">Ja</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Nee</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4 text-right tabular-nums text-muted-foreground">
+                        {user.order_count}
+                      </td>
+                      <td className="py-4 px-0">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleEditCustomer(user)}
+                            className="p-2 text-muted-foreground hover:text-primary transition-colors"
+                            title="Bewerken"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setArchiveDialog({ open: true, user })}
+                            className="p-2 text-muted-foreground hover:text-yellow-600 transition-colors"
+                            title="Archiveren"
+                          >
+                            <Archive className="w-4 h-4" />
+                          </button>
+                          {user.order_count === 0 && (
+                            <button
+                              onClick={() => setDeleteDialog({ open: true, user })}
+                              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+                              title="Verwijderen"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           )}
-                        </td>
-                        <td className="py-4 px-4">
-                          <Badge variant="secondary">{user.order_count}</Badge>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleEditCustomer(user)}
-                              className="px-3 py-1.5 text-xs font-medium rounded-md bg-muted hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                              title="Bewerken"
-                            >
-                              <Edit className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => setArchiveDialog({ open: true, user })}
-                              className="px-3 py-1.5 text-xs font-medium rounded-md bg-muted hover:bg-yellow-500/10 text-muted-foreground hover:text-yellow-600 transition-colors"
-                              title="Archiveren"
-                            >
-                              <Archive className="w-3 h-3" />
-                            </button>
-                            {user.order_count === 0 && (
-                              <button
-                                onClick={() => setDeleteDialog({ open: true, user })}
-                                className="px-3 py-1.5 text-xs font-medium rounded-md bg-muted hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                                title="Verwijderen"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
 
           {/* Archived customers */}
           {archivedCustomers.length > 0 && (
-            <div className="bakery-card overflow-hidden opacity-75">
-              <div className="px-4 py-3 bg-muted/30 border-b border-border">
-                <h4 className="font-medium text-muted-foreground flex items-center gap-2">
-                  <Archive className="w-4 h-4" />
-                  Gearchiveerde klanten ({archivedCustomers.length})
-                </h4>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <tbody>
-                    {archivedCustomers.map((user) => (
-                      <tr key={user.profile_id} className="border-b border-border last:border-0">
-                        <td className="py-3 px-4">
-                          <p className="font-medium text-muted-foreground">
-                            {user.full_name || "Onbekend"}
-                          </p>
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground">
-                          {user.phone || "-"}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge variant="outline">{user.order_count} bestellingen</Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleArchiveUser(user)}
-                          >
-                            <ArchiveRestore className="w-3 h-3 mr-1" />
-                            Activeren
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="mt-8 pt-6 border-t border-border">
+              <h4 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
+                <Archive className="w-4 h-4" />
+                Gearchiveerd ({archivedCustomers.length})
+              </h4>
+              <div className="space-y-2">
+                {archivedCustomers.map((user) => (
+                  <div key={user.profile_id} className="flex items-center justify-between py-2">
+                    <span className="text-muted-foreground">
+                      {user.full_name || "Onbekend"}
+                    </span>
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {user.order_count} bestellingen
+                      </span>
+                      <button
+                        onClick={() => toggleArchiveUser(user)}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Activeren
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -410,50 +380,34 @@ const UserManagement = () => {
         {/* Bakers Tab */}
         <TabsContent value="bakers" className="space-y-4">
           {bakers.length === 0 ? (
-            <div className="bakery-card p-12 text-center">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                <ChefHat className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-serif font-semibold text-foreground mb-2">
-                Geen bakkers
-              </h3>
-              <p className="text-muted-foreground">
-                Er zijn nog geen bakkers geregistreerd.
-              </p>
+            <div className="py-12 text-center">
+              <ChefHat className="w-8 h-8 text-muted-foreground/50 mx-auto mb-3" />
+              <p className="text-muted-foreground">Geen bakkers geregistreerd</p>
             </div>
           ) : (
-            <div className="bakery-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/50">
-                      <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Naam</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Telefoon</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Status</th>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Naam</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bakers.map((user) => (
+                    <tr key={user.profile_id} className="border-b border-border/50 last:border-0">
+                      <td className="py-4 px-0">
+                        <span className="text-foreground">
+                          {user.full_name || "Onbekend"}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className="text-xs text-primary">Bakker</span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {bakers.map((user) => (
-                      <tr key={user.profile_id} className="border-b border-border last:border-0">
-                        <td className="py-4 px-4">
-                          <p className="font-medium text-foreground">
-                            {user.full_name || "Onbekend"}
-                          </p>
-                        </td>
-                        <td className="py-4 px-4 text-muted-foreground">
-                          {user.phone || "-"}
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                            <UserCheck className="w-3 h-3" />
-                            Bakker
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </TabsContent>

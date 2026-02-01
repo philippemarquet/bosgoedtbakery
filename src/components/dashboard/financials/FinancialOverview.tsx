@@ -302,233 +302,157 @@ const FinancialOverview = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardDescription>Totale omzet</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <Euro className="w-5 h-5 text-primary" />
-              <span className="text-2xl font-bold">{formatCurrency(overallStats.totalRevenue)}</span>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {overallStats.totalOrders} bestellingen
-            </p>
-          </CardContent>
-        </Card>
+    <div className="space-y-8">
+      {/* Key Metrics - Clean minimal cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Totale omzet</p>
+          <p className="text-2xl font-light tabular-nums tracking-tight">{formatCurrency(overallStats.totalRevenue)}</p>
+          <p className="text-xs text-muted-foreground mt-1">{overallStats.totalOrders} bestellingen</p>
+        </div>
 
-        <Card className={
-          overallStats.marginPercentage >= 60 
-            ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
-            : overallStats.marginPercentage >= 30
-            ? "border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20"
-            : "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20"
-        }>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1">
-              <TrendingUp className={`w-4 h-4 ${
-                overallStats.marginPercentage >= 60 ? "text-emerald-600" 
-                : overallStats.marginPercentage >= 30 ? "text-orange-600" 
-                : "text-red-600"
-              }`} />
-              Marge
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <span className={`text-2xl font-bold ${
-              overallStats.marginPercentage >= 60 ? "text-emerald-700 dark:text-emerald-400" 
-              : overallStats.marginPercentage >= 30 ? "text-orange-700 dark:text-orange-400" 
-              : "text-red-700 dark:text-red-400"
-            }`}>
-              {formatCurrency(overallStats.totalMargin)}
-            </span>
-            <p className="text-sm text-muted-foreground mt-1">
-              {overallStats.marginPercentage.toFixed(1)}% · kosten {formatCurrency(overallStats.totalCost)}
-            </p>
-          </CardContent>
-        </Card>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Marge</p>
+          <p className={`text-2xl font-light tabular-nums tracking-tight ${
+            overallStats.marginPercentage >= 60 ? "text-emerald-600" 
+            : overallStats.marginPercentage >= 30 ? "text-orange-600" 
+            : "text-red-600"
+          }`}>
+            {formatCurrency(overallStats.totalMargin)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {overallStats.marginPercentage.toFixed(1)}%
+          </p>
+        </div>
 
-        <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1">
-              <PiggyBank className="w-4 h-4 text-emerald-600" />
-              Ontvangen
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <span className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-              {formatCurrency(overallStats.paidRevenue)}
-            </span>
-            <p className="text-sm text-muted-foreground mt-1">
-              {overallStats.paidOrders} betaald
-            </p>
-          </CardContent>
-        </Card>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Ontvangen</p>
+          <p className="text-2xl font-light tabular-nums tracking-tight text-emerald-600">
+            {formatCurrency(overallStats.paidRevenue)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">{overallStats.paidOrders} betaald</p>
+        </div>
 
-        <Card className={overallStats.openRevenue > 0 ? "border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20" : ""}>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1">
-              <Receipt className="w-4 h-4" />
-              Openstaand
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <span className={`text-2xl font-bold ${overallStats.openRevenue > 0 ? "text-orange-700 dark:text-orange-400" : ""}`}>
-              {formatCurrency(overallStats.openRevenue)}
-            </span>
-            <p className="text-sm text-muted-foreground mt-1">
-              {overallStats.totalOrders - overallStats.paidOrders} open
-            </p>
-          </CardContent>
-        </Card>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Openstaand</p>
+          <p className={`text-2xl font-light tabular-nums tracking-tight ${overallStats.openRevenue > 0 ? "text-orange-600" : ""}`}>
+            {formatCurrency(overallStats.openRevenue)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">{overallStats.totalOrders - overallStats.paidOrders} open</p>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1">
-              <Percent className="w-4 h-4" />
-              Gem. bestelling
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <span className="text-2xl font-bold">
-              {formatCurrency(overallStats.avgOrderValue)}
-            </span>
-            <p className="text-sm text-muted-foreground mt-1">
-              {formatCurrency(overallStats.totalDiscounts)} korting gegeven
-            </p>
-          </CardContent>
-        </Card>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Gem. bestelling</p>
+          <p className="text-2xl font-light tabular-nums tracking-tight">
+            {formatCurrency(overallStats.avgOrderValue)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">{formatCurrency(overallStats.totalDiscounts)} korting</p>
+        </div>
       </div>
 
       {/* Revenue & Margin Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Omzet & Marge
-          </CardTitle>
-          <CardDescription>
-            Omzet, kosten en marge per periode
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {chartData.some(m => m.revenue > 0) ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="periodLabel" tick={{ fontSize: 11 }} angle={-20} textAnchor="end" height={60} />
-                <YAxis 
-                  tickFormatter={(value) => `€${value}`}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip 
-                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--popover))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Bar dataKey="Omzet" fill="hsl(var(--primary))" opacity={0.8} />
-                <Bar dataKey="Kosten" fill="hsl(var(--muted-foreground))" opacity={0.5} />
-                <Line 
-                  type="monotone" 
-                  dataKey="Marge" 
-                  stroke="hsl(142, 76%, 36%)" 
-                  strokeWidth={2}
-                  dot={{ fill: 'hsl(142, 76%, 36%)' }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-center py-12 text-muted-foreground">
-              Nog geen historische data beschikbaar
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <div className="border-t border-border pt-8">
+        <div className="mb-6">
+          <h3 className="text-lg font-serif font-medium">Omzet & Marge</h3>
+          <p className="text-sm text-muted-foreground">Per periode</p>
+        </div>
+        {chartData.some(m => m.revenue > 0) ? (
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+              <XAxis dataKey="periodLabel" tick={{ fontSize: 11 }} angle={-20} textAnchor="end" height={60} stroke="hsl(var(--muted-foreground))" />
+              <YAxis 
+                tickFormatter={(value) => `€${value}`}
+                tick={{ fontSize: 11 }}
+                stroke="hsl(var(--muted-foreground))"
+              />
+              <Tooltip 
+                formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--popover))', 
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                  fontSize: '13px'
+                }}
+              />
+              <Bar dataKey="Omzet" fill="hsl(var(--primary))" opacity={0.8} radius={[2, 2, 0, 0]} />
+              <Bar dataKey="Kosten" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[2, 2, 0, 0]} />
+              <Line 
+                type="monotone" 
+                dataKey="Marge" 
+                stroke="hsl(142, 76%, 36%)" 
+                strokeWidth={2}
+                dot={{ fill: 'hsl(142, 76%, 36%)', r: 3 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-center py-12 text-muted-foreground">
+            Nog geen historische data
+          </p>
+        )}
+      </div>
 
       {/* Period-based Results */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                Resultaten per periode
-              </CardTitle>
-              <CardDescription>
-                Overzicht van omzet, kosten en marge per {periodView === "week" ? "week" : "maand"}
-              </CardDescription>
-            </div>
-            <Tabs value={periodView} onValueChange={(v) => setPeriodView(v as "week" | "month")}>
-              <TabsList>
-                <TabsTrigger value="week">Per week</TabsTrigger>
-                <TabsTrigger value="month">Per maand</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Periode</TableHead>
-                <TableHead className="text-right">Bestellingen</TableHead>
-                <TableHead className="text-right">Omzet</TableHead>
-                <TableHead className="text-right">Kosten</TableHead>
-                <TableHead className="text-right">Marge</TableHead>
-                <TableHead className="text-right">Gem. bestelling</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {periodStats.slice().reverse().map((period) => (
-                <TableRow key={period.period}>
-                  <TableCell className="font-medium">{period.periodLabel}</TableCell>
-                  <TableCell className="text-right">
-                    <Badge variant="secondary">{period.orders}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(period.revenue)}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatCurrency(period.cost)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <span className={`font-semibold ${
-                        period.marginPercentage >= 60 ? "text-emerald-600" 
-                        : period.marginPercentage >= 30 ? "text-orange-600" 
-                        : "text-red-600"
-                      }`}>
-                        {formatCurrency(period.margin)}
-                      </span>
-                      <Badge variant="outline" className={
-                        period.marginPercentage >= 60 ? "border-emerald-300 text-emerald-700" 
-                        : period.marginPercentage >= 30 ? "border-orange-300 text-orange-700" 
-                        : "border-red-300 text-red-700"
-                      }>
-                        {period.marginPercentage.toFixed(0)}%
-                      </Badge>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatCurrency(period.avgOrderValue)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {periodStats.length === 0 && (
-            <p className="text-center py-8 text-muted-foreground">
-              Nog geen bestellingen
+      <div className="border-t border-border pt-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h3 className="text-lg font-serif font-medium">Resultaten per periode</h3>
+            <p className="text-sm text-muted-foreground">
+              Per {periodView === "week" ? "week" : "maand"}
             </p>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+          <Tabs value={periodView} onValueChange={(v) => setPeriodView(v as "week" | "month")}>
+            <TabsList>
+              <TabsTrigger value="week">Week</TabsTrigger>
+              <TabsTrigger value="month">Maand</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Periode</th>
+                <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">#</th>
+                <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Omzet</th>
+                <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Kosten</th>
+                <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Marge</th>
+                <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Gem.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {periodStats.slice().reverse().map((period) => (
+                <tr key={period.period} className="border-b border-border/50 last:border-0">
+                  <td className="py-3 px-0 text-foreground">{period.periodLabel}</td>
+                  <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">{period.orders}</td>
+                  <td className="py-3 px-4 text-right tabular-nums font-medium">{formatCurrency(period.revenue)}</td>
+                  <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">{formatCurrency(period.cost)}</td>
+                  <td className="py-3 px-4 text-right">
+                    <span className={`tabular-nums font-medium ${
+                      period.marginPercentage >= 60 ? "text-emerald-600" 
+                      : period.marginPercentage >= 30 ? "text-orange-600" 
+                      : "text-red-600"
+                    }`}>
+                      {formatCurrency(period.margin)}
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      ({period.marginPercentage.toFixed(0)}%)
+                    </span>
+                  </td>
+                  <td className="py-3 px-0 text-right tabular-nums text-muted-foreground">{formatCurrency(period.avgOrderValue)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {periodStats.length === 0 && (
+          <p className="text-center py-8 text-muted-foreground">
+            Nog geen bestellingen
+          </p>
+        )}
+      </div>
     </div>
   );
 };

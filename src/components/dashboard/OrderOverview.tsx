@@ -177,7 +177,7 @@ const OrderOverview = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="orders" className="gap-2">
@@ -190,7 +190,7 @@ const OrderOverview = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="orders" className="mt-4 space-y-4">
+        <TabsContent value="orders" className="mt-6 space-y-6">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row gap-4 justify-between">
               <div className="relative flex-1 max-w-sm">
@@ -219,69 +219,59 @@ const OrderOverview = () => {
             </Tabs>
           </div>
 
-          <div className="bakery-card overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Klant</TableHead>
-                  <TableHead>Factuurdatum</TableHead>
-                  <TableHead>Weekmenu</TableHead>
-                  <TableHead className="text-right">Subtotaal</TableHead>
-                  <TableHead className="text-right">Korting</TableHead>
-                  <TableHead className="text-right">Totaal</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[100px]">Acties</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Klant</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Datum</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Menu</th>
+                  <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                  <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider w-20"></th>
+                </tr>
+              </thead>
+              <tbody>
                 {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <tr>
+                    <td colSpan={6} className="text-center py-12 text-muted-foreground">
                       Laden...
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : filteredOrders.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      <div className="flex flex-col items-center gap-2">
-                        <ShoppingCart className="w-8 h-8 text-muted-foreground/50" />
-                        {searchQuery ? "Geen bestellingen gevonden" : "Nog geen bestellingen. Maak er een aan!"}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <tr>
+                    <td colSpan={6} className="text-center py-12 text-muted-foreground">
+                      <ShoppingCart className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                      {searchQuery ? "Geen bestellingen gevonden" : "Nog geen bestellingen"}
+                    </td>
+                  </tr>
                 ) : (
                   filteredOrders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-muted-foreground" />
-                          {order.customer?.full_name || "Onbekende klant"}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-muted-foreground" />
-                          {format(parseISO(order.invoice_date), "d MMM yyyy", { locale: nl })}
-                        </div>
-                      </TableCell>
-                      <TableCell>
+                    <tr key={order.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                      <td className="py-4 px-0">
+                        <span className="text-foreground">
+                          {order.customer?.full_name || "Onbekend"}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-muted-foreground tabular-nums">
+                        {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
+                      </td>
+                      <td className="py-4 px-4">
                         {order.weekly_menu ? (
-                          <span className="font-medium">{order.weekly_menu.name}</span>
+                          <span className="text-foreground">{order.weekly_menu.name}</span>
                         ) : (
-                          <span className="text-muted-foreground">-</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(order.subtotal)}</TableCell>
-                      <TableCell className="text-right text-green-600">
-                        {order.discount_amount > 0 ? `-${formatCurrency(order.discount_amount)}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(order.total)}</TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="py-4 px-4 text-right tabular-nums font-medium">
+                        {formatCurrency(order.total)}
+                      </td>
+                      <td className="py-4 px-4">
                         <Select
                           value={order.status}
                           onValueChange={(value) => handleStatusChange(order.id, value)}
                         >
-                          <SelectTrigger className="w-[150px] h-8">
+                          <SelectTrigger className="w-28 h-8 border-0 bg-transparent px-0 focus:ring-0">
                             <SelectValue>
                               {getStatusBadge(order.status)}
                             </SelectValue>
@@ -294,26 +284,32 @@ const OrderOverview = () => {
                             ))}
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => openEditDialog(order)}>
+                      </td>
+                      <td className="py-4 px-0">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => openEditDialog(order)}
+                            className="p-2 text-muted-foreground hover:text-primary transition-colors"
+                          >
                             <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(order.id)}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+                          </button>
+                          <button
+                            onClick={() => handleDelete(order.id)}
+                            className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         </TabsContent>
 
-        <TabsContent value="pickup-locations" className="mt-4">
+        <TabsContent value="pickup-locations" className="mt-6">
           <PickupLocationsTab />
         </TabsContent>
       </Tabs>

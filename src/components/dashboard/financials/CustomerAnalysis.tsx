@@ -218,61 +218,31 @@ const CustomerAnalysis = () => {
 
       {selectedCustomerId && !loading && (
         <>
-          {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Totaal bestellingen</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-2xl font-bold">{stats.totalOrders}</span>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Stats Overview - Clean minimal layout */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Bestellingen</p>
+              <p className="text-2xl font-light tabular-nums">{stats.totalOrders}</p>
+            </div>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Totale omzet</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Totale omzet</p>
+              <p className="text-2xl font-light tabular-nums">{formatCurrency(stats.totalRevenue)}</p>
+            </div>
 
-            <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20">
-              <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-1">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  Betaald
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-                  {formatCurrency(stats.paidRevenue)}
-                </div>
-                <p className="text-sm text-muted-foreground">{stats.paidOrders} bestellingen</p>
-              </CardContent>
-            </Card>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Betaald</p>
+              <p className="text-2xl font-light tabular-nums text-emerald-600">{formatCurrency(stats.paidRevenue)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{stats.paidOrders} bestellingen</p>
+            </div>
 
-            <Card className={stats.openRevenue > 0 ? "border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20" : ""}>
-              <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-1">
-                  <AlertCircle className={`w-4 h-4 ${stats.openRevenue > 0 ? "text-orange-600" : "text-muted-foreground"}`} />
-                  Openstaand
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-2xl font-bold ${stats.openRevenue > 0 ? "text-orange-700 dark:text-orange-400" : ""}`}>
-                  {formatCurrency(stats.openRevenue)}
-                </div>
-                <p className="text-sm text-muted-foreground">{stats.openOrders} bestellingen</p>
-              </CardContent>
-            </Card>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Openstaand</p>
+              <p className={`text-2xl font-light tabular-nums ${stats.openRevenue > 0 ? "text-orange-600" : ""}`}>
+                {formatCurrency(stats.openRevenue)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">{stats.openOrders} bestellingen</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
