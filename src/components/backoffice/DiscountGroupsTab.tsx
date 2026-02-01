@@ -142,53 +142,54 @@ const DiscountGroupsTab = () => {
         <Table>
           <TableHeader>
             <TableRow className="border-b border-border hover:bg-transparent">
+              <TableHead className="w-10"></TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Naam</TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Beschrijving</TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-center">Producten</TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Staffelkorting</TableHead>
-              <TableHead className="w-20"></TableHead>
+              <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filteredGroups.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                   {searchQuery ? "Geen kortingsgroepen gevonden" : "Nog geen kortingsgroepen. Maak er een aan!"}
                 </TableCell>
               </TableRow>
             ) : (
               filteredGroups.map((group) => (
                 <TableRow key={group.id} className="border-0 hover:bg-muted/30">
-                  <TableCell className="py-3">
+                  <TableCell className="py-2.5 w-10">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(group)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  </TableCell>
+                  <TableCell className="py-2.5">
                     <div className="flex items-center gap-2">
                       <Tag className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="font-normal">{group.name}</span>
+                      <span className="text-sm font-light">{group.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="py-3 text-muted-foreground">
+                  <TableCell className="py-2.5 text-sm text-muted-foreground">
                     {group.description || "-"}
                   </TableCell>
-                  <TableCell className="py-3 text-center">
+                  <TableCell className="py-2.5 text-center">
                     <span className="text-sm tabular-nums">{group.productCount}</span>
                   </TableCell>
-                  <TableCell className="py-3 text-sm text-muted-foreground">
+                  <TableCell className="py-2.5 text-sm text-muted-foreground">
                     {formatTiers(group.tiers)}
                   </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex gap-1 justify-end">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(group)}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(group.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
+                  <TableCell className="py-2.5 w-10">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(group.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
