@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Pencil, Trash2, Search, ShoppingCart, Calendar, User, MapPin, Settings } from "lucide-react";
+import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { format, parseISO } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,9 +94,16 @@ const OrderOverview = () => {
     setLoading(false);
   };
 
+  const refreshOrders = useCallback(() => {
+    fetchOrders();
+  }, []);
+
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  // Refresh data when tab becomes visible again
+  useVisibilityRefresh(refreshOrders);
 
   const filteredOrders = orders.filter((o) => {
     const customerName = o.customer?.full_name?.toLowerCase() || "";

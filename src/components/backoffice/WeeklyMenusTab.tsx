@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { Plus, Pencil, Trash2, Search, Calendar, Check } from "lucide-react";
 import { format, isWithinInterval, parseISO, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { nl } from "date-fns/locale";
@@ -123,9 +124,15 @@ const WeeklyMenusTab = () => {
     setLoading(false);
   };
 
+  const refreshMenus = useCallback(() => {
+    fetchMenus();
+  }, []);
+
   useEffect(() => {
     fetchMenus();
   }, []);
+
+  useVisibilityRefresh(refreshMenus);
 
   const filteredMenus = menus.filter((m) =>
     m.name.toLowerCase().includes(searchQuery.toLowerCase())

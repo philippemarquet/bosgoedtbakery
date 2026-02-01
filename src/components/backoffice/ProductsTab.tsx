@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -110,9 +111,16 @@ const ProductsTab = () => {
     setLoading(false);
   };
 
+  const refreshProducts = useCallback(() => {
+    fetchProducts();
+  }, []);
+
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  // Refresh data when tab becomes visible again
+  useVisibilityRefresh(refreshProducts);
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

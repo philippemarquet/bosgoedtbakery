@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Package, Wheat, ChevronRight, ArrowLeft, Loader2, Calendar } from "lucide-react";
+import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { format, parseISO } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,6 +77,11 @@ const Production = () => {
   const [productIngredients, setProductIngredients] = useState<ProductIngredient[]>([]);
   const [loadingProductDetail, setLoadingProductDetail] = useState(false);
 
+  const refreshData = useCallback(() => {
+    fetchWeeklyMenus();
+    fetchProductionData();
+  }, [selectedMenuId]);
+
   useEffect(() => {
     fetchWeeklyMenus();
   }, []);
@@ -83,6 +89,9 @@ const Production = () => {
   useEffect(() => {
     fetchProductionData();
   }, [selectedMenuId]);
+
+  // Refresh data when tab becomes visible again
+  useVisibilityRefresh(refreshData);
 
   const fetchWeeklyMenus = async () => {
     const { data } = await supabase

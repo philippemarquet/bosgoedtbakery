@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -69,9 +70,15 @@ const FixedCostsTab = () => {
     setLoading(false);
   };
 
+  const refreshFixedCosts = useCallback(() => {
+    fetchFixedCosts();
+  }, []);
+
   useEffect(() => {
     fetchFixedCosts();
   }, []);
+
+  useVisibilityRefresh(refreshFixedCosts);
 
   const filteredCosts = fixedCosts.filter((c) =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())

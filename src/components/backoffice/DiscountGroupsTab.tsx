@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { Plus, Pencil, Trash2, Search, Tag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -75,9 +76,15 @@ const DiscountGroupsTab = () => {
     setLoading(false);
   };
 
+  const refreshGroups = useCallback(() => {
+    fetchGroups();
+  }, []);
+
   useEffect(() => {
     fetchGroups();
   }, []);
+
+  useVisibilityRefresh(refreshGroups);
 
   const filteredGroups = groups.filter((g) =>
     g.name.toLowerCase().includes(searchQuery.toLowerCase())
