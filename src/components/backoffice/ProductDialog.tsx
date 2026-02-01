@@ -333,83 +333,36 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       productId = data.id;
     }
 
-    // Save recipe ingredients - convert to base unit + merge duplicates (same ingredient twice)
+    // Delete existing recipe ingredients and insert fresh (duplicates allowed)
+    await supabase.from("recipe_ingredients").delete().eq("product_id", productId);
+
     const validIngredients = recipeIngredients.filter(
       (i) => i.ingredient_id && parseFloat(i.quantity) > 0
     );
-
-    if (validIngredients.length === 0) {
-      // No recipe: remove existing ingredients for this product
-      const { error: deleteAllError } = await supabase
-        .from("recipe_ingredients")
-        .delete()
-        .eq("product_id", productId);
-
-      if (deleteAllError) {
-        toast({ title: "Fout", description: "Kon recept-ingrediënten niet opslaan", variant: "destructive" });
-        setLoading(false);
-        return;
-      }
-    } else {
-      // Merge duplicates by ingredient_id (prevents 409 unique constraint errors)
-      const merged = new Map<string, { ingredient_id: string; quantity: number; display_unit: MeasurementUnit }>();
-      for (const i of validIngredients) {
-        const ingredient = ingredients.find((ing) => ing.id === i.ingredient_id);
-        const baseUnit = ingredient?.unit || "kg";
-        const displayUnit = (i.display_unit || baseUnit) as MeasurementUnit;
-        const baseQuantity = convertToBaseUnit(parseFloat(i.quantity), displayUnit, baseUnit);
-
-        const existing = merged.get(i.ingredient_id);
-        if (existing) {
-          existing.quantity += baseQuantity;
-        } else {
-          merged.set(i.ingredient_id, {
+    if (validIngredients.length > 0) {
+      const { error: insertError } = await supabase.from("recipe_ingredients").insert(
+        validIngredients.map((i) => {
+          const ingredient = ingredients.find((ing) => ing.id === i.ingredient_id);
+          const baseUnit = ingredient?.unit || "kg";
+          const displayUnit = (i.display_unit || baseUnit) as MeasurementUnit;
+          const baseQuantity = convertToBaseUnit(parseFloat(i.quantity), displayUnit, baseUnit);
+          return {
+            product_id: productId,
             ingredient_id: i.ingredient_id,
             quantity: baseQuantity,
             display_unit: displayUnit,
-          });
-        }
-      }
+          };
+        })
+      );
 
-      if (merged.size !== validIngredients.length) {
-        toast({
-          title: "Let op",
-          description: "Dubbele ingrediënten in het recept zijn samengevoegd.",
-        });
-      }
-
-      const rows = Array.from(merged.values()).map((r) => ({
-        product_id: productId,
-        ingredient_id: r.ingredient_id,
-        quantity: r.quantity,
-        display_unit: r.display_unit,
-      }));
-
-      const { error: upsertError } = await supabase
-        .from("recipe_ingredients")
-        .upsert(rows, { onConflict: "product_id,ingredient_id" });
-
-      if (upsertError) {
+      if (insertError) {
         toast({
           title: "Fout",
-          description: `Kon recept-ingrediënten niet opslaan (${upsertError.message})`,
+          description: `Kon recept-ingrediënten niet opslaan (${insertError.message})`,
           variant: "destructive",
         });
         setLoading(false);
         return;
-      }
-
-      // Cleanup: remove ingredients that are no longer in the recipe
-      const keepIds = rows.map((r) => r.ingredient_id);
-      const { error: cleanupError } = await supabase
-        .from("recipe_ingredients")
-        .delete()
-        .eq("product_id", productId)
-        .not("ingredient_id", "in", `(${keepIds.join(",")})`);
-
-      if (cleanupError) {
-        // Not fatal for saving; data is already upserted.
-        console.warn("Failed to cleanup old recipe ingredients:", cleanupError);
       }
     }
 
