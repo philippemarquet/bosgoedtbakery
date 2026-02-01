@@ -293,6 +293,47 @@ export type Database = {
           },
         ]
       }
+      payment_logs: {
+        Row: {
+          amount: number
+          counterparty_name: string | null
+          created_at: string
+          description: string | null
+          id: string
+          order_id: string | null
+          raw_payload: Json | null
+          status: string
+        }
+        Insert: {
+          amount: number
+          counterparty_name?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          order_id?: string | null
+          raw_payload?: Json | null
+          status?: string
+        }
+        Update: {
+          amount?: number
+          counterparty_name?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          order_id?: string | null
+          raw_payload?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_logs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pickup_locations: {
         Row: {
           city: string
