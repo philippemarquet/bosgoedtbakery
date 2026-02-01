@@ -262,15 +262,15 @@ const Production = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Productie overzicht</h2>
+        <h2 className="text-lg font-serif font-medium">Productie</h2>
         <p className="text-sm text-muted-foreground">
-          Alle bestellingen met status "Bevestigd" — dit moet nog geproduceerd worden.
+          Bestellingen met status "Bevestigd"
         </p>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
       ) : (
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "ingredients")}>
@@ -285,158 +285,122 @@ const Production = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="products" className="mt-4">
+          <TabsContent value="products" className="mt-6">
             {selectedProduct ? (
-              // Product detail view - ingredients for this product
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={goBackToProductList}>
-                      <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        {selectedProduct.productName}
-                        <Badge variant="secondary">{selectedProduct.totalQuantity}x</Badge>
-                      </CardTitle>
-                      <CardDescription>
-                        Benodigde ingrediënten voor {selectedProduct.totalQuantity} stuks
-                      </CardDescription>
-                    </div>
+              // Product detail view
+              <div>
+                <div className="flex items-center gap-3 mb-6">
+                  <Button variant="ghost" size="icon" onClick={goBackToProductList}>
+                    <ArrowLeft className="w-4 h-4" />
+                  </Button>
+                  <div>
+                    <h3 className="text-lg font-serif font-medium">{selectedProduct.productName}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedProduct.totalQuantity} stuks — benodigde ingrediënten
+                    </p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  {loadingProductDetail ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : productIngredients.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Wheat className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p>Geen ingrediënten gekoppeld aan dit product</p>
-                      <p className="text-xs mt-1">Voeg een recept toe in Back-office → Producten</p>
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Ingrediënt</TableHead>
-                          <TableHead className="text-right">Per stuk</TableHead>
-                          <TableHead className="text-right">Totaal nodig</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {productIngredients.map((ing) => (
-                          <TableRow key={ing.ingredientId}>
-                            <TableCell className="font-medium">{ing.ingredientName}</TableCell>
-                            <TableCell className="text-right text-muted-foreground">
-                              {formatQuantity(ing.quantityPerProduct, ing.unit)}
-                            </TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatQuantity(ing.totalNeeded, ing.unit)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+                </div>
+                
+                {loadingProductDetail ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : productIngredients.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Wheat className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                    <p>Geen ingrediënten gekoppeld</p>
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingrediënt</th>
+                        <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Per stuk</th>
+                        <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {productIngredients.map((ing) => (
+                        <tr key={ing.ingredientId} className="border-b border-border/50 last:border-0">
+                          <td className="py-3 px-0 text-foreground">{ing.ingredientName}</td>
+                          <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">
+                            {formatQuantity(ing.quantityPerProduct, ing.unit)}
+                          </td>
+                          <td className="py-3 px-0 text-right tabular-nums font-medium">
+                            {formatQuantity(ing.totalNeeded, ing.unit)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             ) : (
-              // Product list view
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="w-5 h-5" />
-                    Te produceren producten
-                  </CardTitle>
-                  <CardDescription>
-                    Klik op een product om de benodigde ingrediënten te zien
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {productionItems.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p>Geen openstaande bestellingen</p>
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Product</TableHead>
-                          <TableHead className="text-right">Aantal</TableHead>
-                          <TableHead className="text-right">Bestellingen</TableHead>
-                          <TableHead className="w-[50px]"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {productionItems.map((item) => (
-                          <TableRow 
-                            key={item.productId} 
-                            className="cursor-pointer hover:bg-muted/50"
-                            onClick={() => fetchProductIngredients(item)}
-                          >
-                            <TableCell className="font-medium">{item.productName}</TableCell>
-                            <TableCell className="text-right">
-                              <Badge variant="secondary">{item.totalQuantity}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right text-muted-foreground">
-                              {item.orders.length}
-                            </TableCell>
-                            <TableCell>
-                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+              // Product list
+              <div>
+                {productionItems.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Calendar className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                    <p>Geen openstaande bestellingen</p>
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Product</th>
+                        <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Aantal</th>
+                        <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Orders</th>
+                        <th className="w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {productionItems.map((item) => (
+                        <tr 
+                          key={item.productId} 
+                          className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-muted/30 transition-colors"
+                          onClick={() => fetchProductIngredients(item)}
+                        >
+                          <td className="py-3 px-0 text-foreground">{item.productName}</td>
+                          <td className="py-3 px-4 text-right tabular-nums font-medium">{item.totalQuantity}</td>
+                          <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">{item.orders.length}</td>
+                          <td className="py-3 px-0">
+                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             )}
           </TabsContent>
 
-          <TabsContent value="ingredients" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wheat className="w-5 h-5" />
-                  Totaal benodigde ingrediënten
-                </CardTitle>
-                <CardDescription>
-                  Alle ingrediënten die je nodig hebt voor de openstaande bestellingen
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {allIngredientNeeds.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Wheat className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>Geen ingrediënten gevonden</p>
-                    <p className="text-xs mt-1">Voeg recepten toe aan je producten</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Ingrediënt</TableHead>
-                        <TableHead className="text-right">Totaal nodig</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {allIngredientNeeds.map((item) => (
-                        <TableRow key={item.ingredientId}>
-                          <TableCell className="font-medium">{item.ingredientName}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatQuantity(item.totalNeeded, item.unit)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="ingredients" className="mt-6">
+            {allIngredientNeeds.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Wheat className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                <p>Geen ingrediënten</p>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingrediënt</th>
+                    <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal nodig</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allIngredientNeeds.map((item) => (
+                    <tr key={item.ingredientId} className="border-b border-border/50 last:border-0">
+                      <td className="py-3 px-0 text-foreground">{item.ingredientName}</td>
+                      <td className="py-3 px-0 text-right tabular-nums font-medium">
+                        {formatQuantity(item.totalNeeded, item.unit)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </TabsContent>
         </Tabs>
       )}
