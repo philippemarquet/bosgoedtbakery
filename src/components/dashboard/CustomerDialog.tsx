@@ -24,6 +24,7 @@ interface CustomerData {
   house_number: string | null;
   postal_code: string | null;
   city: string | null;
+  discount_percentage: number;
 }
 
 interface CustomerDialogProps {
@@ -44,6 +45,7 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
     house_number: "",
     postal_code: "",
     city: "",
+    discount_percentage: 0,
   });
   const { toast } = useToast();
 
@@ -61,6 +63,7 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
         house_number: customer.house_number || "",
         postal_code: customer.postal_code || "",
         city: customer.city || "",
+        discount_percentage: customer.discount_percentage || 0,
       });
       setWithLogin(!!customer.user_id);
     } else if (open && !customer) {
@@ -72,6 +75,7 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
         house_number: "",
         postal_code: "",
         city: "",
+        discount_percentage: 0,
       });
       setWithLogin(false);
     }
@@ -104,6 +108,7 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
             house_number: formData.house_number.trim() || null,
             postal_code: formData.postal_code.trim() || null,
             city: formData.city.trim() || null,
+            discount_percentage: formData.discount_percentage,
           })
           .eq("id", customer.profile_id);
 
@@ -161,6 +166,7 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
               house_number: formData.house_number.trim() || null,
               postal_code: formData.postal_code.trim() || null,
               city: formData.city.trim() || null,
+              discount_percentage: formData.discount_percentage,
             })
             .eq("user_id", newUserId);
 
@@ -175,6 +181,7 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
             house_number: formData.house_number.trim() || null,
             postal_code: formData.postal_code.trim() || null,
             city: formData.city.trim() || null,
+            discount_percentage: formData.discount_percentage,
           });
 
           if (profileError) throw profileError;
@@ -202,6 +209,7 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
       house_number: "",
       postal_code: "",
       city: "",
+      discount_percentage: 0,
     });
     setWithLogin(false);
     onOpenChange(false);
@@ -329,6 +337,26 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
                 placeholder="Plaats"
               />
             </div>
+          </div>
+
+          {/* Discount Percentage */}
+          <div className="space-y-2">
+            <Label htmlFor="discount_percentage">Vaste korting (%)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="discount_percentage"
+                type="number"
+                min="0"
+                max="100"
+                value={formData.discount_percentage}
+                onChange={(e) => setFormData({ ...formData, discount_percentage: Math.min(100, Math.max(0, Number(e.target.value))) })}
+                className="w-24"
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Deze korting wordt automatisch toegepast op alle bestellingen van deze klant.
+            </p>
           </div>
         </div>
 

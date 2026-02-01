@@ -44,6 +44,7 @@ interface UserWithRole {
   is_archived: boolean;
   created_at: string;
   order_count: number;
+  discount_percentage: number;
 }
 
 const UserManagement = () => {
@@ -66,7 +67,7 @@ const UserManagement = () => {
       // Fetch profiles with their data
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, user_id, full_name, phone, street, house_number, postal_code, city, created_at, is_archived");
+        .select("id, user_id, full_name, phone, street, house_number, postal_code, city, created_at, is_archived, discount_percentage");
 
       if (profilesError) throw profilesError;
 
@@ -106,6 +107,7 @@ const UserManagement = () => {
         is_archived: profile.is_archived || false,
         created_at: profile.created_at,
         order_count: orderCountMap.get(profile.id) || 0,
+        discount_percentage: profile.discount_percentage || 0,
       }));
 
       setUsers(usersWithRoles);
