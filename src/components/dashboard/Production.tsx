@@ -88,6 +88,7 @@ const Production = () => {
       .select(`
         id,
         status,
+        weekly_menu_id,
         customer:profiles!orders_customer_id_fkey(full_name)
       `)
       .eq("status", "confirmed");
@@ -100,8 +101,11 @@ const Production = () => {
     }
 
     const orderIds = orders.map(o => o.id);
+    const weeklyMenuIds = orders
+      .filter(o => o.weekly_menu_id)
+      .map(o => o.weekly_menu_id) as string[];
 
-    // Fetch order items
+    // Fetch order items (individual products)
     const { data: orderItems } = await supabase
       .from("order_items")
       .select(`
@@ -112,16 +116,26 @@ const Production = () => {
       `)
       .in("order_id", orderIds);
 
-    if (!orderItems) {
-      setProductionItems([]);
-      setLoading(false);
-      return;
+    // Fetch weekly menu products if any orders have a weekly_menu_id
+    let weeklyMenuProducts: { weekly_menu_id: string; product_id: string; quantity: number; product: { id: string; name: string } | null }[] = [];
+    if (weeklyMenuIds.length > 0) {
+      const { data } = await supabase
+        .from("weekly_menu_products")
+        .select(`
+          weekly_menu_id,
+          product_id,
+          quantity,
+          product:products(id, name)
+        `)
+        .in("weekly_menu_id", weeklyMenuIds);
+      weeklyMenuProducts = data || [];
     }
 
     // Aggregate products
     const productMap = new Map<string, ProductionItem>();
     
-    for (const item of orderItems) {
+    // Add order items (individual products)
+    for (const item of (orderItems || [])) {
       const order = orders.find(o => o.id === item.order_id);
       const productName = item.product?.name || "Onbekend product";
       
@@ -141,6 +155,33 @@ const Production = () => {
         customerName: order?.customer?.full_name || "Onbekend",
         quantity: item.quantity,
       });
+    }
+
+    // Add weekly menu products
+    for (const order of orders) {
+      if (!order.weekly_menu_id) continue;
+      
+      const menuProducts = weeklyMenuProducts.filter(wmp => wmp.weekly_menu_id === order.weekly_menu_id);
+      for (const wmp of menuProducts) {
+        const productName = wmp.product?.name || "Onbekend product";
+        
+        if (!productMap.has(wmp.product_id)) {
+          productMap.set(wmp.product_id, {
+            productId: wmp.product_id,
+            productName,
+            totalQuantity: 0,
+            orders: [],
+          });
+        }
+        
+        const prod = productMap.get(wmp.product_id)!;
+        prod.totalQuantity += wmp.quantity;
+        prod.orders.push({
+          orderId: order.id,
+          customerName: order.customer?.full_name || "Onbekend",
+          quantity: wmp.quantity,
+        });
+      }
     }
 
     setProductionItems(Array.from(productMap.values()).sort((a, b) => b.totalQuantity - a.totalQuantity));
