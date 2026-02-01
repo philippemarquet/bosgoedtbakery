@@ -1,19 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { Package, Wheat, ChevronRight, ArrowLeft, Loader2, Calendar } from "lucide-react";
+import { Package, Wheat, ChevronRight, ArrowLeft, Loader2, Calendar, ClipboardCheck } from "lucide-react";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import StockCheck from "./StockCheck";
 
 interface ProductionItem {
   productId: string;
@@ -59,7 +50,7 @@ const Production = () => {
   const [loading, setLoading] = useState(true);
   const [productionItems, setProductionItems] = useState<ProductionItem[]>([]);
   const [allIngredientNeeds, setAllIngredientNeeds] = useState<IngredientNeed[]>([]);
-  const [activeTab, setActiveTab] = useState<"products" | "ingredients">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "ingredients" | "stockcheck">("products");
   
   // For product detail view
   const [selectedProduct, setSelectedProduct] = useState<ProductionItem | null>(null);
@@ -273,7 +264,7 @@ const Production = () => {
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "ingredients")}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "ingredients" | "stockcheck")}>
           <TabsList>
             <TabsTrigger value="products" className="gap-2">
               <Package className="w-4 h-4" />
@@ -282,6 +273,10 @@ const Production = () => {
             <TabsTrigger value="ingredients" className="gap-2">
               <Wheat className="w-4 h-4" />
               Ingrediënten
+            </TabsTrigger>
+            <TabsTrigger value="stockcheck" className="gap-2">
+              <ClipboardCheck className="w-4 h-4" />
+              Voorraadcheck
             </TabsTrigger>
           </TabsList>
 
@@ -401,6 +396,10 @@ const Production = () => {
                 </tbody>
               </table>
             )}
+          </TabsContent>
+
+          <TabsContent value="stockcheck" className="mt-6">
+            <StockCheck />
           </TabsContent>
         </Tabs>
       )}

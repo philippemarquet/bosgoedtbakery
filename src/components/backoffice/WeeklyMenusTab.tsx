@@ -190,15 +190,9 @@ const WeeklyMenusTab = () => {
     return `€${value.toFixed(2)}`;
   };
 
-  const formatDateRange = (start: string, end: string) => {
-    const startDate = parseISO(start);
-    const endDate = parseISO(end);
-    return `${format(startDate, "d MMM", { locale: nl })} - ${format(endDate, "d MMM yyyy", { locale: nl })}`;
-  };
-
   const formatDeliveryDate = (date: string | null) => {
     if (!date) return "-";
-    return format(parseISO(date), "EEEE d MMM", { locale: nl });
+    return format(parseISO(date), "dd/MM/yy", { locale: nl });
   };
 
   const getMarginColor = (costPrice: number, sellingPrice: number) => {
@@ -247,14 +241,13 @@ const WeeklyMenusTab = () => {
           <TableHeader>
             <TableRow className="border-b border-border hover:bg-transparent">
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Naam</TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Week</TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Leverdag</TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-center">Producten</TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Kostprijs</TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Verkoopprijs</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Kost</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Verkoop</TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Marge</TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-center w-[130px]">Status</TableHead>
-              <TableHead className="w-20"></TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-center w-[110px]">Status</TableHead>
+              <TableHead className="w-16"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -273,32 +266,26 @@ const WeeklyMenusTab = () => {
             ) : (
               filteredMenus.map((menu) => (
                 <TableRow key={menu.id} className="border-0 hover:bg-muted/30">
-                  <TableCell className="py-3 font-normal">{menu.name}</TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span className="text-sm">{formatDateRange(menu.week_start_date, menu.week_end_date)}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-3 text-sm">
+                  <TableCell className="py-2.5 font-normal">{menu.name}</TableCell>
+                  <TableCell className="py-2.5 tabular-nums text-sm text-muted-foreground">
                     {formatDeliveryDate(menu.delivery_date)}
                   </TableCell>
-                  <TableCell className="py-3 text-center tabular-nums">{menu.productCount}</TableCell>
-                  <TableCell className="py-3 text-right tabular-nums">
+                  <TableCell className="py-2.5 text-center tabular-nums">{menu.productCount}</TableCell>
+                  <TableCell className="py-2.5 text-right tabular-nums">
                     {formatCurrency(menu.totalCost || 0)}
                   </TableCell>
-                  <TableCell className="py-3 text-right tabular-nums">
+                  <TableCell className="py-2.5 text-right tabular-nums">
                     {formatCurrency(Number(menu.price))}
                   </TableCell>
-                  <TableCell className={`py-3 text-right tabular-nums ${getMarginColor(menu.totalCost || 0, Number(menu.price))}`}>
-                    {formatCurrency(menu.margin || 0)} ({formatMarginPercent(menu.totalCost || 0, Number(menu.price))})
+                  <TableCell className={`py-2.5 text-right tabular-nums ${getMarginColor(menu.totalCost || 0, Number(menu.price))}`}>
+                    {formatMarginPercent(menu.totalCost || 0, Number(menu.price))}
                   </TableCell>
-                  <TableCell className="py-3 text-center">
+                  <TableCell className="py-2.5 text-center">
                     <Select
                       value={(menu as any).status || "upcoming"}
                       onValueChange={(value) => handleStatusChange(menu.id, value as MenuStatus)}
                     >
-                      <SelectTrigger className="w-[120px] h-7 text-xs border-0 bg-transparent">
+                      <SelectTrigger className="w-[100px] h-6 text-xs border-0 bg-transparent p-0">
                         <SelectValue>
                           {getStatusBadge((menu as any).status || "upcoming")}
                         </SelectValue>
@@ -314,13 +301,13 @@ const WeeklyMenusTab = () => {
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex gap-1 justify-end">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(menu)}>
-                        <Pencil className="w-3.5 h-3.5" />
+                  <TableCell className="py-2.5">
+                    <div className="flex gap-0.5 justify-end">
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(menu)}>
+                        <Pencil className="w-3 h-3" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(menu.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(menu.id)}>
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
                   </TableCell>
