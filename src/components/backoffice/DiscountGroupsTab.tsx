@@ -121,72 +121,72 @@ const DiscountGroupsTab = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Zoek kortingsgroep..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="pl-9 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
           />
         </div>
-        <Button onClick={openCreateDialog}>
+        <Button onClick={openCreateDialog} size="sm" className="font-normal">
           <Plus className="w-4 h-4 mr-2" />
           Nieuwe kortingsgroep
         </Button>
       </div>
 
-      <div className="bakery-card overflow-x-auto">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Naam</TableHead>
-              <TableHead>Beschrijving</TableHead>
-              <TableHead className="text-center">Producten</TableHead>
-              <TableHead>Staffelkorting</TableHead>
-              <TableHead className="w-[100px]">Acties</TableHead>
+            <TableRow className="border-b border-border hover:bg-transparent">
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Naam</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Beschrijving</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-center">Producten</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Staffelkorting</TableHead>
+              <TableHead className="w-20"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filteredGroups.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                   {searchQuery ? "Geen kortingsgroepen gevonden" : "Nog geen kortingsgroepen. Maak er een aan!"}
                 </TableCell>
               </TableRow>
             ) : (
               filteredGroups.map((group) => (
-                <TableRow key={group.id}>
-                  <TableCell className="font-medium">
+                <TableRow key={group.id} className="border-0 hover:bg-muted/30">
+                  <TableCell className="py-3">
                     <div className="flex items-center gap-2">
-                      <Tag className="w-4 h-4 text-muted-foreground" />
-                      {group.name}
+                      <Tag className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="font-normal">{group.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="py-3 text-muted-foreground">
                     {group.description || "-"}
                   </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="secondary">{group.productCount}</Badge>
+                  <TableCell className="py-3 text-center">
+                    <span className="text-sm tabular-nums">{group.productCount}</span>
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="py-3 text-sm text-muted-foreground">
                     {formatTiers(group.tiers)}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(group)}>
-                        <Pencil className="w-4 h-4" />
+                  <TableCell className="py-3">
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(group)}>
+                        <Pencil className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(group.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(group.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   </TableCell>

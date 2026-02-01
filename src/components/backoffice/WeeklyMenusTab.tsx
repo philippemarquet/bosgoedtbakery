@@ -225,80 +225,80 @@ const WeeklyMenusTab = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Zoek weekmenu..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="pl-9 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
           />
         </div>
-        <Button onClick={openCreateDialog}>
+        <Button onClick={openCreateDialog} size="sm" className="font-normal">
           <Plus className="w-4 h-4 mr-2" />
           Nieuw weekmenu
         </Button>
       </div>
 
-      <div className="bakery-card overflow-x-auto">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Naam</TableHead>
-              <TableHead>Week</TableHead>
-              <TableHead>Leverdag</TableHead>
-              <TableHead className="text-center">Producten</TableHead>
-              <TableHead className="text-right">Kostprijs</TableHead>
-              <TableHead className="text-right">Verkoopprijs</TableHead>
-              <TableHead className="text-right">Marge</TableHead>
-              <TableHead className="text-center w-[150px]">Status</TableHead>
-              <TableHead className="w-[100px]">Acties</TableHead>
+            <TableRow className="border-b border-border hover:bg-transparent">
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Naam</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Week</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Leverdag</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-center">Producten</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Kostprijs</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Verkoopprijs</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Marge</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-center w-[130px]">Status</TableHead>
+              <TableHead className="w-20"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filteredMenus.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                   {searchQuery ? "Geen weekmenu's gevonden" : "Nog geen weekmenu's. Maak er een aan!"}
                 </TableCell>
               </TableRow>
             ) : (
               filteredMenus.map((menu) => (
-                <TableRow key={menu.id}>
-                  <TableCell className="font-medium">{menu.name}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      {formatDateRange(menu.week_start_date, menu.week_end_date)}
+                <TableRow key={menu.id} className="border-0 hover:bg-muted/30">
+                  <TableCell className="py-3 font-normal">{menu.name}</TableCell>
+                  <TableCell className="py-3">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span className="text-sm">{formatDateRange(menu.week_start_date, menu.week_end_date)}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell className="py-3 text-sm">
                     {formatDeliveryDate(menu.delivery_date)}
                   </TableCell>
-                  <TableCell className="text-center">{menu.productCount}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="py-3 text-center tabular-nums">{menu.productCount}</TableCell>
+                  <TableCell className="py-3 text-right tabular-nums">
                     {formatCurrency(menu.totalCost || 0)}
                   </TableCell>
-                  <TableCell className="text-right font-medium">
+                  <TableCell className="py-3 text-right tabular-nums">
                     {formatCurrency(Number(menu.price))}
                   </TableCell>
-                  <TableCell className={`text-right font-semibold ${getMarginColor(menu.totalCost || 0, Number(menu.price))}`}>
+                  <TableCell className={`py-3 text-right tabular-nums ${getMarginColor(menu.totalCost || 0, Number(menu.price))}`}>
                     {formatCurrency(menu.margin || 0)} ({formatMarginPercent(menu.totalCost || 0, Number(menu.price))})
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     <Select
                       value={(menu as any).status || "upcoming"}
                       onValueChange={(value) => handleStatusChange(menu.id, value as MenuStatus)}
                     >
-                      <SelectTrigger className="w-[130px] h-8">
+                      <SelectTrigger className="w-[120px] h-7 text-xs border-0 bg-transparent">
                         <SelectValue>
                           {getStatusBadge((menu as any).status || "upcoming")}
                         </SelectValue>
@@ -314,13 +314,13 @@ const WeeklyMenusTab = () => {
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(menu)}>
-                        <Pencil className="w-4 h-4" />
+                  <TableCell className="py-3">
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(menu)}>
+                        <Pencil className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(menu.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(menu.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   </TableCell>

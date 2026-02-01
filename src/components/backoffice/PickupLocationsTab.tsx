@@ -176,72 +176,72 @@ const PickupLocationsTab = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Zoek afhaallocatie..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="pl-9 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
           />
         </div>
-        <Button onClick={openCreateDialog}>
+        <Button onClick={openCreateDialog} size="sm" className="font-normal">
           <Plus className="w-4 h-4 mr-2" />
           Nieuwe locatie
         </Button>
       </div>
 
-      <div className="bakery-card overflow-x-auto">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Naam</TableHead>
-              <TableHead>Adres</TableHead>
-              <TableHead className="text-center">Status</TableHead>
-              <TableHead className="w-[100px]">Acties</TableHead>
+            <TableRow className="border-b border-border hover:bg-transparent">
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Naam</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Adres</TableHead>
+              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-center">Status</TableHead>
+              <TableHead className="w-20"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filteredLocations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
                   {searchQuery ? "Geen locaties gevonden" : "Nog geen afhaallocaties. Maak er een aan!"}
                 </TableCell>
               </TableRow>
             ) : (
               filteredLocations.map((location) => (
-                <TableRow key={location.id}>
-                  <TableCell className="font-medium">
+                <TableRow key={location.id} className="border-0 hover:bg-muted/30">
+                  <TableCell className="py-3">
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-muted-foreground" />
-                      {location.title}
+                      <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="font-normal">{location.title}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="py-3 text-muted-foreground">
                     {formatAddress(location)}
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-3 text-center">
                     {location.is_active ? (
-                      <Badge className="bg-green-500 hover:bg-green-600">Actief</Badge>
+                      <Badge className="bg-green-500/10 text-green-600 hover:bg-green-500/10 border-0">Actief</Badge>
                     ) : (
-                      <Badge variant="secondary">Inactief</Badge>
+                      <Badge variant="secondary" className="bg-muted text-muted-foreground border-0">Inactief</Badge>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(location)}>
-                        <Pencil className="w-4 h-4" />
+                  <TableCell className="py-3">
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(location)}>
+                        <Pencil className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(location.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(location.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   </TableCell>
