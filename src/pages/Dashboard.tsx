@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 import ProfileDialog from "@/components/ProfileDialog";
 import UserManagement from "@/components/dashboard/UserManagement";
 import BackOffice from "@/components/dashboard/BackOffice";
@@ -20,11 +21,11 @@ import Financials from "@/components/dashboard/Financials";
 import Production from "@/components/dashboard/Production";
 
 const navigationItems = [
-  { name: "Gebruikersbeheer", icon: Users, href: "/dashboard/users", bakerOnly: true },
-  { name: "Back-office", icon: ClipboardList, href: "/dashboard/backoffice" },
+  { name: "Gebruikersbeheer", icon: Users, href: "/dashboard/users", bakerOnly: true, mobileHidden: true },
+  { name: "Back-office", icon: ClipboardList, href: "/dashboard/backoffice", mobileHidden: true },
   { name: "Bestellingen", icon: ShoppingCart, href: "/dashboard/orders" },
   { name: "Productie", icon: Factory, href: "/dashboard/production", bakerOnly: true },
-  { name: "Financieel", icon: Euro, href: "/dashboard/financials", bakerOnly: true },
+  { name: "Financieel", icon: Euro, href: "/dashboard/financials", bakerOnly: true, mobileHidden: true },
 ];
 
 const Dashboard = () => {
@@ -33,6 +34,7 @@ const Dashboard = () => {
   const [userName, setUserName] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user, signOut, isBaker, role } = useAuth();
+  const isMobile = useIsMobile();
 
   // Fetch user's name from profile
   useEffect(() => {
@@ -66,13 +68,16 @@ const Dashboard = () => {
     setUserName(newName);
   };
 
-  // Filter navigation items based on role
-  const visibleNavItems = navigationItems.filter(
-    item => !item.bakerOnly || isBaker
-  );
+  // Filter navigation items based on role and mobile view
+  const visibleNavItems = navigationItems.filter(item => {
+    const roleAllowed = !item.bakerOnly || isBaker;
+    const mobileAllowed = !isMobile || !item.mobileHidden;
+    return roleAllowed && mobileAllowed;
+  });
 
-  // Set default tab based on role
+  // Set default tab based on role and mobile view
   const getDefaultTab = () => {
+    if (isMobile) return "Bestellingen";
     if (isBaker) return "Gebruikersbeheer";
     return "Back-office";
   };

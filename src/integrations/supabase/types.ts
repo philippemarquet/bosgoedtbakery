@@ -205,6 +205,7 @@ export type Database = {
           id: string
           invoice_date: string
           notes: string | null
+          order_number: number
           pickup_location_id: string | null
           status: string
           subtotal: number
@@ -220,6 +221,7 @@ export type Database = {
           id?: string
           invoice_date?: string
           notes?: string | null
+          order_number?: number
           pickup_location_id?: string | null
           status?: string
           subtotal?: number
@@ -235,6 +237,7 @@ export type Database = {
           id?: string
           invoice_date?: string
           notes?: string | null
+          order_number?: number
           pickup_location_id?: string | null
           status?: string
           subtotal?: number
