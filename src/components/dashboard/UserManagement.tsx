@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { User, UserCheck, UserX, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AddCustomerDialog from "./AddCustomerDialog";
@@ -62,9 +63,16 @@ const UserManagement = () => {
     }
   };
 
+  const refreshUsers = useCallback(() => {
+    fetchUsers();
+  }, []);
+
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // Refresh data when tab becomes visible again
+  useVisibilityRefresh(refreshUsers);
 
   const updateUserRole = async (userId: string, newRole: "baker" | "customer") => {
     try {

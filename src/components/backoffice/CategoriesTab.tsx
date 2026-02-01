@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -48,9 +49,15 @@ const CategoriesTab = () => {
     setLoading(false);
   };
 
+  const refreshCategories = useCallback(() => {
+    fetchCategories();
+  }, []);
+
   useEffect(() => {
     fetchCategories();
   }, []);
+
+  useVisibilityRefresh(refreshCategories);
 
   const filteredCategories = categories.filter((c) =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())

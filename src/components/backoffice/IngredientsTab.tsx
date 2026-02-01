@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -69,9 +70,15 @@ const IngredientsTab = () => {
     setLoading(false);
   };
 
+  const refreshIngredients = useCallback(() => {
+    fetchIngredients();
+  }, []);
+
   useEffect(() => {
     fetchIngredients();
   }, []);
+
+  useVisibilityRefresh(refreshIngredients);
 
   const filteredIngredients = ingredients.filter((i) =>
     i.name.toLowerCase().includes(searchQuery.toLowerCase())
