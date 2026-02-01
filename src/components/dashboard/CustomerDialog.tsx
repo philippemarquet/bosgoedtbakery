@@ -88,6 +88,12 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
       return;
     }
 
+    // Phone is required for WhatsApp messaging
+    if (!formData.phone.trim()) {
+      toast({ title: "Fout", description: "Telefoonnummer is verplicht", variant: "destructive" });
+      return;
+    }
+
     // If enabling login for the first time, email is required
     if (withLogin && !hasExistingLogin && !formData.email.trim()) {
       toast({ title: "Fout", description: "E-mail is verplicht voor klanten met inlog", variant: "destructive" });
@@ -298,14 +304,17 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
 
           {/* Phone */}
           <div className="space-y-2">
-            <Label htmlFor="phone">Telefoonnummer</Label>
+            <Label htmlFor="phone">Telefoonnummer *</Label>
             <Input
               id="phone"
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              placeholder="06-12345678"
+              placeholder="+31612345678"
             />
+            <p className="text-xs text-muted-foreground">
+              Gebruik internationaal formaat (bijv. +31612345678) voor WhatsApp.
+            </p>
           </div>
 
           {/* Address fields */}
