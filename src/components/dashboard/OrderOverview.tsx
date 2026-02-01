@@ -53,13 +53,9 @@ interface Order {
 }
 
 const ORDER_STATUSES = [
-  { value: "pending", label: "In afwachting", color: "secondary" },
   { value: "confirmed", label: "Bevestigd", color: "blue" },
-  { value: "in_production", label: "In productie", color: "yellow" },
-  { value: "ready", label: "Klaar voor afhalen", color: "purple" },
-  { value: "delivered", label: "Geleverd", color: "green" },
+  { value: "ready", label: "Gereed", color: "purple" },
   { value: "paid", label: "Betaald", color: "emerald" },
-  { value: "cancelled", label: "Geannuleerd", color: "destructive" },
 ] as const;
 
 const OrderOverview = () => {
@@ -69,6 +65,7 @@ const OrderOverview = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState("orders");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
 
   const fetchOrders = async () => {
@@ -109,8 +106,14 @@ const OrderOverview = () => {
     const customerName = o.customer?.full_name?.toLowerCase() || "";
     const menuName = o.weekly_menu?.name?.toLowerCase() || "";
     const query = searchQuery.toLowerCase();
-    return customerName.includes(query) || menuName.includes(query);
+    const matchesSearch = customerName.includes(query) || menuName.includes(query);
+    const matchesStatus = statusFilter === "all" || o.status === statusFilter;
+    return matchesSearch && matchesStatus;
   });
+
+  const getOrderCountByStatus = (status: string) => {
+    return orders.filter(o => o.status === status).length;
+  };
 
   const openCreateDialog = () => {
     setEditingOrder(null);
@@ -157,18 +160,14 @@ const OrderOverview = () => {
     if (!statusConfig) return <Badge variant="secondary">{status}</Badge>;
 
     const colorClasses: Record<string, string> = {
-      secondary: "",
       blue: "bg-blue-500 hover:bg-blue-600 text-white",
-      yellow: "bg-yellow-500 hover:bg-yellow-600 text-white",
       purple: "bg-purple-500 hover:bg-purple-600 text-white",
-      green: "bg-green-500 hover:bg-green-600 text-white",
       emerald: "bg-emerald-600 hover:bg-emerald-700 text-white",
-      destructive: "",
     };
 
     return (
       <Badge 
-        variant={statusConfig.color === "destructive" ? "destructive" : statusConfig.color === "secondary" ? "secondary" : "default"}
+        variant="default"
         className={colorClasses[statusConfig.color] || ""}
       >
         {statusConfig.label}
@@ -191,20 +190,35 @@ const OrderOverview = () => {
         </TabsList>
 
         <TabsContent value="orders" className="mt-4 space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4 justify-between">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Zoek op klant of weekmenu..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Zoek op klant of weekmenu..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Button onClick={openCreateDialog}>
+                <Plus className="w-4 h-4 mr-2" />
+                Nieuwe bestelling
+              </Button>
             </div>
-            <Button onClick={openCreateDialog}>
-              <Plus className="w-4 h-4 mr-2" />
-              Nieuwe bestelling
-            </Button>
+            
+            <Tabs value={statusFilter} onValueChange={setStatusFilter}>
+              <TabsList>
+                <TabsTrigger value="all">
+                  Alle ({orders.length})
+                </TabsTrigger>
+                {ORDER_STATUSES.map((status) => (
+                  <TabsTrigger key={status.value} value={status.value}>
+                    {status.label} ({getOrderCountByStatus(status.value)})
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
           </div>
 
           <div className="bakery-card overflow-x-auto">
