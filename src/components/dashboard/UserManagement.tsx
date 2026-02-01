@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
-import { User, UserCheck, UserX, Plus, Archive, ArchiveRestore, AlertTriangle } from "lucide-react";
+import { User, UserCheck, UserX, Plus, Archive, ArchiveRestore, AlertTriangle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -34,6 +34,10 @@ const UserManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [archiveDialog, setArchiveDialog] = useState<{ open: boolean; user: UserWithRole | null }>({
+    open: false,
+    user: null,
+  });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; user: UserWithRole | null }>({
     open: false,
     user: null,
   });
@@ -174,6 +178,50 @@ const UserManagement = () => {
       });
     }
     setArchiveDialog({ open: false, user: null });
+  };
+
+  const deleteUser = async (user: UserWithRole) => {
+    if (user.order_count > 0) {
+      toast({
+        title: "Niet toegestaan",
+        description: "Klanten met bestellingen kunnen niet worden verwijderd.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Delete user role first
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", user.user_id);
+
+      if (roleError) throw roleError;
+
+      // Delete profile
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("id", user.profile_id);
+
+      if (profileError) throw profileError;
+
+      toast({
+        title: "Succes",
+        description: "Klant is verwijderd",
+      });
+
+      fetchUsers();
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      toast({
+        title: "Fout",
+        description: "Kon klant niet verwijderen",
+        variant: "destructive",
+      });
+    }
+    setDeleteDialog({ open: false, user: null });
   };
 
   const activeUsers = users.filter(u => !u.is_archived);
@@ -320,13 +368,24 @@ const UserManagement = () => {
                             Klant
                           </button>
                           {user.role === "customer" && (
-                            <button
-                              onClick={() => setArchiveDialog({ open: true, user })}
-                              className="px-3 py-1.5 text-xs font-medium rounded-md bg-muted hover:bg-yellow-500/10 text-muted-foreground hover:text-yellow-600 transition-colors"
-                              title="Archiveren"
-                            >
-                              <Archive className="w-3 h-3" />
-                            </button>
+                            <>
+                              <button
+                                onClick={() => setArchiveDialog({ open: true, user })}
+                                className="px-3 py-1.5 text-xs font-medium rounded-md bg-muted hover:bg-yellow-500/10 text-muted-foreground hover:text-yellow-600 transition-colors"
+                                title="Archiveren"
+                              >
+                                <Archive className="w-3 h-3" />
+                              </button>
+                              {user.order_count === 0 && (
+                                <button
+                                  onClick={() => setDeleteDialog({ open: true, user })}
+                                  className="px-3 py-1.5 text-xs font-medium rounded-md bg-muted hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                  title="Verwijderen"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
@@ -420,6 +479,38 @@ const UserManagement = () => {
             <AlertDialogCancel>Annuleren</AlertDialogCancel>
             <AlertDialogAction onClick={() => archiveDialog.user && toggleArchiveUser(archiveDialog.user)}>
               Archiveren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ open, user: deleteDialog.user })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-destructive" />
+              Klant verwijderen
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteDialog.user && (
+                <>
+                  Weet je zeker dat je <strong>{deleteDialog.user.full_name || "deze klant"}</strong> definitief wilt verwijderen?
+                  <br /><br />
+                  <span className="text-destructive font-medium">
+                    Dit kan niet ongedaan worden gemaakt!
+                  </span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => deleteDialog.user && deleteUser(deleteDialog.user)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Definitief verwijderen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
