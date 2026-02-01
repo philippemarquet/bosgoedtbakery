@@ -37,35 +37,46 @@ interface RecipeIngredient {
 }
 
 // Unit conversion helpers
-const UNIT_CONVERSIONS: Record<string, { compatibleUnits: MeasurementUnit[]; toBase: Record<string, number> }> = {
+const UNIT_CONVERSIONS: Record<string, { compatibleUnits: MeasurementUnit[]; toBase: Record<string, number>; defaultDisplayUnit: MeasurementUnit }> = {
   kg: { 
     compatibleUnits: ["kg", "gram"], 
-    toBase: { kg: 1, gram: 0.001 } 
+    toBase: { kg: 1, gram: 0.001 },
+    defaultDisplayUnit: "gram", // Users typically input grams
   },
   gram: { 
     compatibleUnits: ["kg", "gram"], 
-    toBase: { kg: 1, gram: 0.001 } 
+    toBase: { kg: 1, gram: 0.001 },
+    defaultDisplayUnit: "gram",
   },
   liter: { 
     compatibleUnits: ["liter", "ml"], 
-    toBase: { liter: 1, ml: 0.001 } 
+    toBase: { liter: 1, ml: 0.001 },
+    defaultDisplayUnit: "ml", // Users typically input ml
   },
   ml: { 
     compatibleUnits: ["liter", "ml"], 
-    toBase: { liter: 1, ml: 0.001 } 
+    toBase: { liter: 1, ml: 0.001 },
+    defaultDisplayUnit: "ml",
   },
   stuks: { 
     compatibleUnits: ["stuks"], 
-    toBase: { stuks: 1 } 
+    toBase: { stuks: 1 },
+    defaultDisplayUnit: "stuks",
   },
   uur: { 
     compatibleUnits: ["uur"], 
-    toBase: { uur: 1 } 
+    toBase: { uur: 1 },
+    defaultDisplayUnit: "uur",
   },
   eetlepel: { 
     compatibleUnits: ["eetlepel"], 
-    toBase: { eetlepel: 1 } 
+    toBase: { eetlepel: 1 },
+    defaultDisplayUnit: "eetlepel",
   },
+};
+
+const getDefaultDisplayUnit = (baseUnit: MeasurementUnit): MeasurementUnit => {
+  return UNIT_CONVERSIONS[baseUnit]?.defaultDisplayUnit || baseUnit;
 };
 
 const getCompatibleUnits = (baseUnit: MeasurementUnit): MeasurementUnit[] => {
@@ -654,78 +665,83 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
           </TabsContent>
 
           <TabsContent value="recipe" className="space-y-4 mt-4">
-            <div className="flex justify-between items-center">
-              <Label>Ingrediënten</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addRecipeIngredient}>
-                <Plus className="w-4 h-4 mr-1" />
-                Toevoegen
-              </Button>
-            </div>
-
-            {recipeIngredients.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                Nog geen ingrediënten. Klik op "Toevoegen" om te beginnen.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {recipeIngredients.map((item, index) => {
-                  const selectedIngredient = ingredients.find(i => i.id === item.ingredient_id);
-                  const baseUnit = selectedIngredient?.unit || "kg";
-                  const compatibleUnits = getCompatibleUnits(baseUnit as MeasurementUnit);
-                  const currentDisplayUnit = item.display_unit || baseUnit;
-                  
-                  return (
-                    <div key={index} className="flex gap-2 items-center">
-                      <Select
-                        value={item.ingredient_id}
-                        onValueChange={(value) => {
-                          // When ingredient changes, reset display_unit to ingredient's base unit
-                          const newIngredient = ingredients.find(i => i.id === value);
+            <Label>Ingrediënten</Label>
+            
+            <div className="space-y-2">
+              {/* Always show at least one empty row for quick adding */}
+              {[...recipeIngredients, { ingredient_id: "", quantity: "", display_unit: "" as MeasurementUnit | "" }].map((item, index) => {
+                const isEmptyRow = index === recipeIngredients.length;
+                const selectedIngredient = ingredients.find(i => i.id === item.ingredient_id);
+                const baseUnit = selectedIngredient?.unit || "kg";
+                const compatibleUnits = getCompatibleUnits(baseUnit as MeasurementUnit);
+                const currentDisplayUnit = item.display_unit || getDefaultDisplayUnit(baseUnit as MeasurementUnit);
+                
+                return (
+                  <div key={isEmptyRow ? "new-row" : index} className="flex gap-2 items-center">
+                    <Select
+                      value={item.ingredient_id}
+                      onValueChange={(value) => {
+                        const newIngredient = ingredients.find(i => i.id === value);
+                        const defaultUnit = getDefaultDisplayUnit((newIngredient?.unit || "kg") as MeasurementUnit);
+                        
+                        if (isEmptyRow) {
+                          // Add new row when selecting in empty placeholder row
+                          setRecipeIngredients([
+                            ...recipeIngredients,
+                            { ingredient_id: value, quantity: "", display_unit: defaultUnit }
+                          ]);
+                        } else {
                           updateRecipeIngredientMultiple(index, {
                             ingredient_id: value,
-                            display_unit: newIngredient?.unit || "kg",
+                            display_unit: defaultUnit,
                           });
-                        }}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Selecteer ingrediënt" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ingredients.map((ing) => (
-                            <SelectItem key={ing.id} value={ing.id}>
-                              {ing.name} (€{Number(ing.price_per_unit).toFixed(2)}/{ing.unit})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          updateRecipeIngredient(index, "quantity", e.target.value)
                         }
-                        className="w-24"
-                        placeholder="0"
-                      />
-                      <Select
-                        value={currentDisplayUnit}
-                        onValueChange={(value) =>
-                          updateRecipeIngredient(index, "display_unit", value)
-                        }
-                      >
-                        <SelectTrigger className="w-24">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {compatibleUnits.map((unit) => (
-                            <SelectItem key={unit} value={unit}>
-                              {unit}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      }}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Selecteer ingrediënt..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ingredients.map((ing) => (
+                          <SelectItem key={ing.id} value={ing.id}>
+                            {ing.name} (€{Number(ing.price_per_unit).toFixed(2)}/{ing.unit})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      value={item.quantity}
+                      onChange={(e) => {
+                        if (isEmptyRow) return; // Don't allow editing quantity on placeholder row
+                        updateRecipeIngredient(index, "quantity", e.target.value);
+                      }}
+                      className="w-24"
+                      placeholder="0"
+                      disabled={isEmptyRow}
+                    />
+                    <Select
+                      value={currentDisplayUnit}
+                      onValueChange={(value) => {
+                        if (isEmptyRow) return;
+                        updateRecipeIngredient(index, "display_unit", value);
+                      }}
+                      disabled={isEmptyRow}
+                    >
+                      <SelectTrigger className="w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {compatibleUnits.map((unit) => (
+                          <SelectItem key={unit} value={unit}>
+                            {unit}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!isEmptyRow ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -734,11 +750,17 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                       >
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    ) : (
+                      <div className="w-10" /> // Spacer for alignment
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            
+            <p className="text-xs text-muted-foreground">
+              Selecteer een ingrediënt om een nieuwe regel toe te voegen.
+            </p>
           </TabsContent>
 
           <TabsContent value="costs" className="space-y-4 mt-4">
