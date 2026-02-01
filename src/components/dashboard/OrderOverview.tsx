@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Search, ShoppingCart, MapPin, MessageCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ShoppingCart, MapPin, MessageCircle, Banknote } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { format, parseISO } from "date-fns";
@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import OrderDialog from "./OrderDialog";
 import PickupLocationsTab from "@/components/backoffice/PickupLocationsTab";
 import WhatsAppSettingsTab from "./WhatsAppSettingsTab";
+import TransactionsTab from "./TransactionsTab";
 
 type SortOption = "date-desc" | "date-asc" | "customer-asc" | "customer-desc";
 type GroupOption = "none" | "date" | "customer";
@@ -392,6 +393,10 @@ const OrderOverview = () => {
               <ShoppingCart className="w-4 h-4" />
               Bestellingen
             </TabsTrigger>
+            <TabsTrigger value="transactions" className="gap-2">
+              <Banknote className="w-4 h-4" />
+              Transacties
+            </TabsTrigger>
             <TabsTrigger value="pickup-locations" className="gap-2">
               <MapPin className="w-4 h-4" />
               Afhaallocaties
@@ -546,6 +551,9 @@ const OrderOverview = () => {
 
         {!isMobile && (
           <>
+            <TabsContent value="transactions" className="mt-6">
+              <TransactionsTab />
+            </TabsContent>
             <TabsContent value="pickup-locations" className="mt-6">
               <PickupLocationsTab />
             </TabsContent>

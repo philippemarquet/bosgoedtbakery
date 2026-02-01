@@ -68,6 +68,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Parse date if provided (expects YYYY-MM-DD or ISO format)
+    let transactionDate: string | null = null;
+    if (date) {
+      // Try to parse the date - accept various formats
+      const dateStr = typeof date === "string" ? date : String(date);
+      // Extract just the date part (YYYY-MM-DD) if it's a full ISO string
+      const dateMatch = dateStr.match(/^\d{4}-\d{2}-\d{2}/);
+      if (dateMatch) {
+        transactionDate = dateMatch[0];
+      } else {
+        // Try to parse other formats (e.g., DD-MM-YYYY)
+        const dmyMatch = dateStr.match(/^(\d{2})-(\d{2})-(\d{4})/);
+        if (dmyMatch) {
+          transactionDate = `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
+        }
+      }
+      console.log(`Parsed transaction date: ${transactionDate}`);
+    }
+
     // Create admin client with service role key
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -129,7 +148,7 @@ Deno.serve(async (req) => {
       console.log("No order number found in description");
     }
 
-    // Log the payment
+    // Log the payment with transaction date
     const { error: logError } = await supabase.from("payment_logs").insert({
       order_id: matchedOrder?.id || null,
       amount: parsedAmount,
@@ -137,6 +156,7 @@ Deno.serve(async (req) => {
       counterparty_name: counterparty_name || null,
       status: logStatus,
       raw_payload: payload,
+      transaction_date: transactionDate,
     });
 
     if (logError) {

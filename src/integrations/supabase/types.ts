@@ -303,6 +303,7 @@ export type Database = {
           order_id: string | null
           raw_payload: Json | null
           status: string
+          transaction_date: string | null
         }
         Insert: {
           amount: number
@@ -313,6 +314,7 @@ export type Database = {
           order_id?: string | null
           raw_payload?: Json | null
           status?: string
+          transaction_date?: string | null
         }
         Update: {
           amount?: number
@@ -323,6 +325,7 @@ export type Database = {
           order_id?: string | null
           raw_payload?: Json | null
           status?: string
+          transaction_date?: string | null
         }
         Relationships: [
           {
