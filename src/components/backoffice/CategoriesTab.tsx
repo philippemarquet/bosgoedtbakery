@@ -145,36 +145,37 @@ const CategoriesTab = () => {
         <Table>
           <TableHeader>
             <TableRow className="border-b border-border hover:bg-transparent">
+              <TableHead className="w-10"></TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Naam</TableHead>
-              <TableHead className="w-20"></TableHead>
+              <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={2} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filteredCategories.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={2} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
                   {searchQuery ? "Geen categorieën gevonden" : "Nog geen categorieën. Voeg er een toe!"}
                 </TableCell>
               </TableRow>
             ) : (
               filteredCategories.map((category) => (
                 <TableRow key={category.id} className="border-0 hover:bg-muted/30">
-                  <TableCell className="py-3 font-normal">{category.name}</TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex gap-1 justify-end">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(category)}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(category.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
+                  <TableCell className="py-2.5 w-10">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(category)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  </TableCell>
+                  <TableCell className="py-2.5 text-sm font-light">{category.name}</TableCell>
+                  <TableCell className="py-2.5 w-10">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(category.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

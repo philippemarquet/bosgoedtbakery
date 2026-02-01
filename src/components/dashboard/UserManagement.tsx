@@ -283,58 +283,61 @@ const UserManagement = () => {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
+                    <th className="w-10"></th>
                     <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Naam</th>
                     <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Inlog</th>
                     <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Bestellingen</th>
-                    <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acties</th>
+                    <th className="w-20"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {activeCustomers.map((user) => (
                     <tr key={user.profile_id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                      <td className="py-4 px-0">
-                        <span className="font-normal text-foreground">
+                      <td className="py-3 px-0 w-10">
+                        <button
+                          onClick={() => handleEditCustomer(user)}
+                          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                          title="Bewerken"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                      <td className="py-3 px-0">
+                        <span className="text-sm font-light text-foreground">
                           {user.full_name || "Onbekend"}
                         </span>
                         {user.discount_percentage > 0 && (
                           <span className="ml-2 text-xs text-muted-foreground">
-                            {user.discount_percentage}% korting
+                            {user.discount_percentage}%
                           </span>
                         )}
                       </td>
-                      <td className="py-4 px-4">
+                      <td className="py-3 px-4">
                         {user.user_id ? (
                           <span className="text-xs text-primary">Ja</span>
                         ) : (
                           <span className="text-xs text-muted-foreground">Nee</span>
                         )}
                       </td>
-                      <td className="py-4 px-4 text-right tabular-nums text-muted-foreground">
+                      <td className="py-3 px-4 text-right tabular-nums text-sm text-muted-foreground">
                         {user.order_count}
                       </td>
-                      <td className="py-4 px-0">
+                      <td className="py-3 px-0 w-20">
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => handleEditCustomer(user)}
-                            className="p-2 text-muted-foreground hover:text-primary transition-colors"
-                            title="Bewerken"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
                             onClick={() => setArchiveDialog({ open: true, user })}
-                            className="p-2 text-muted-foreground hover:text-yellow-600 transition-colors"
+                            className="p-1.5 text-muted-foreground hover:text-yellow-600 transition-colors"
                             title="Archiveren"
                           >
-                            <Archive className="w-4 h-4" />
+                            <Archive className="w-3.5 h-3.5" />
                           </button>
                           {user.order_count === 0 && (
                             <button
                               onClick={() => setDeleteDialog({ open: true, user })}
-                              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+                              className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
                               title="Verwijderen"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
@@ -396,12 +399,12 @@ const UserManagement = () => {
                 <tbody>
                   {bakers.map((user) => (
                     <tr key={user.profile_id} className="border-b border-border/50 last:border-0">
-                      <td className="py-4 px-0">
-                        <span className="text-foreground">
+                      <td className="py-3 px-0">
+                        <span className="text-sm font-light text-foreground">
                           {user.full_name || "Onbekend"}
                         </span>
                       </td>
-                      <td className="py-4 px-4">
+                      <td className="py-3 px-4">
                         <span className="text-xs text-primary">Bakker</span>
                       </td>
                     </tr>

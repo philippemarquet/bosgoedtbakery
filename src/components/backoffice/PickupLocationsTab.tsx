@@ -197,53 +197,54 @@ const PickupLocationsTab = () => {
         <Table>
           <TableHeader>
             <TableRow className="border-b border-border hover:bg-transparent">
+              <TableHead className="w-10"></TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Naam</TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Adres</TableHead>
               <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-center">Status</TableHead>
-              <TableHead className="w-20"></TableHead>
+              <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filteredLocations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                   {searchQuery ? "Geen locaties gevonden" : "Nog geen afhaallocaties. Maak er een aan!"}
                 </TableCell>
               </TableRow>
             ) : (
               filteredLocations.map((location) => (
                 <TableRow key={location.id} className="border-0 hover:bg-muted/30">
-                  <TableCell className="py-3">
+                  <TableCell className="py-2.5 w-10">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(location)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  </TableCell>
+                  <TableCell className="py-2.5">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="font-normal">{location.title}</span>
+                      <span className="text-sm font-light">{location.title}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="py-3 text-muted-foreground">
+                  <TableCell className="py-2.5 text-sm text-muted-foreground">
                     {formatAddress(location)}
                   </TableCell>
-                  <TableCell className="py-3 text-center">
+                  <TableCell className="py-2.5 text-center">
                     {location.is_active ? (
-                      <Badge className="bg-green-500/10 text-green-600 hover:bg-green-500/10 border-0">Actief</Badge>
+                      <Badge className="bg-green-500/10 text-green-600 hover:bg-green-500/10 border-0 text-xs">Actief</Badge>
                     ) : (
-                      <Badge variant="secondary" className="bg-muted text-muted-foreground border-0">Inactief</Badge>
+                      <Badge variant="secondary" className="bg-muted text-muted-foreground border-0 text-xs">Inactief</Badge>
                     )}
                   </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex gap-1 justify-end">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(location)}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(location.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
+                  <TableCell className="py-2.5 w-10">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(location.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
