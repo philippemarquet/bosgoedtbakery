@@ -430,7 +430,7 @@ export type Database = {
           postal_code: string | null
           street: string | null
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           city?: string | null
@@ -444,7 +444,7 @@ export type Database = {
           postal_code?: string | null
           street?: string | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           city?: string | null
@@ -458,7 +458,7 @@ export type Database = {
           postal_code?: string | null
           street?: string | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
