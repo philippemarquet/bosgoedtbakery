@@ -87,6 +87,18 @@ const FinancialOverview = () => {
 
       setOrderItems(itemsData || []);
 
+      // Fetch products to get yield info
+      const { data: productsData } = await supabase
+        .from("products")
+        .select("id, yield_quantity, yield_unit");
+
+      const productYieldMap = new Map<string, { yield_quantity: number; yield_unit: string }>();
+      if (productsData) {
+        productsData.forEach(p => {
+          productYieldMap.set(p.id, { yield_quantity: p.yield_quantity, yield_unit: p.yield_unit });
+        });
+      }
+
       // Fetch recipe ingredients with costs to calculate product costs
       const { data: recipeData } = await supabase
         .from("recipe_ingredients")
@@ -96,15 +108,48 @@ const FinancialOverview = () => {
           ingredient:ingredients(price_per_unit)
         `);
 
-      // Calculate cost per product
-      const costMap = new Map<string, number>();
+      // Fetch fixed costs for recipes
+      const { data: fixedCostsData } = await supabase
+        .from("recipe_fixed_costs")
+        .select(`
+          product_id,
+          quantity,
+          fixed_cost:fixed_costs(price_per_unit)
+        `);
+
+      // Calculate total recipe cost per product (ingredients + fixed costs)
+      const recipeTotalCostMap = new Map<string, number>();
+      
+      // Add ingredient costs
       if (recipeData) {
         recipeData.forEach(ri => {
           const ingredientCost = (ri.ingredient as { price_per_unit: number } | null)?.price_per_unit || 0;
           const lineCost = ri.quantity * ingredientCost;
-          costMap.set(ri.product_id, (costMap.get(ri.product_id) || 0) + lineCost);
+          recipeTotalCostMap.set(ri.product_id, (recipeTotalCostMap.get(ri.product_id) || 0) + lineCost);
         });
       }
+      
+      // Add fixed costs
+      if (fixedCostsData) {
+        fixedCostsData.forEach(fc => {
+          const fixedCostPrice = (fc.fixed_cost as { price_per_unit: number } | null)?.price_per_unit || 0;
+          const lineCost = fc.quantity * fixedCostPrice;
+          recipeTotalCostMap.set(fc.product_id, (recipeTotalCostMap.get(fc.product_id) || 0) + lineCost);
+        });
+      }
+
+      // Calculate cost per unit based on yield logic
+      const costMap = new Map<string, number>();
+      recipeTotalCostMap.forEach((totalRecipeCost, productId) => {
+        const yieldInfo = productYieldMap.get(productId);
+        if (yieldInfo && yieldInfo.yield_unit === 'stuks' && yieldInfo.yield_quantity > 0) {
+          // For "stuks" products: divide total recipe cost by yield quantity
+          costMap.set(productId, totalRecipeCost / yieldInfo.yield_quantity);
+        } else {
+          // For weight-based products: total recipe cost is the batch cost
+          costMap.set(productId, totalRecipeCost);
+        }
+      });
       setProductCosts(costMap);
 
       // Fetch weekly menus with their products
@@ -118,7 +163,7 @@ const FinancialOverview = () => {
         .from("weekly_menu_products")
         .select("weekly_menu_id, product_id, quantity");
 
-      // Calculate cost per weekly menu
+      // Calculate cost per weekly menu (sum of product costs × quantities)
       const menuCostMap = new Map<string, number>();
       if (menuProductsData) {
         menuProductsData.forEach(mp => {
