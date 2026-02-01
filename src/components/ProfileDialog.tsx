@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { User } from "lucide-react";
+import { User, Lock, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ interface ProfileDialogProps {
 
 const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("profile");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [profile, setProfile] = useState<ProfileData>({
@@ -42,6 +44,15 @@ const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
     city: "",
     country: "Nederland",
   });
+  
+  // Password change state
+  const [passwordData, setPasswordData] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -77,13 +88,14 @@ const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
   useEffect(() => {
     if (open) {
       fetchProfile();
+      setActiveTab("profile");
+      setPasswordData({ newPassword: "", confirmPassword: "" });
     }
   }, [open, user]);
 
-  const handleSave = async () => {
+  const handleSaveProfile = async () => {
     if (!user) return;
 
-    // Basic validation
     const trimmedData = {
       full_name: profile.full_name.trim(),
       phone: profile.phone.trim(),
@@ -125,7 +137,6 @@ const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
         description: "Je profiel is bijgewerkt",
       });
       
-      // Notify parent of name change
       if (onProfileUpdate) {
         onProfileUpdate(trimmedData.full_name);
       }
@@ -143,6 +154,52 @@ const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword.length < 6) {
+      toast({
+        title: "Fout",
+        description: "Wachtwoord moet minimaal 6 tekens zijn",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast({
+        title: "Fout",
+        description: "Wachtwoorden komen niet overeen",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Succes",
+        description: "Je wachtwoord is gewijzigd",
+      });
+      
+      setPasswordData({ newPassword: "", confirmPassword: "" });
+      setActiveTab("profile");
+    } catch (error: any) {
+      console.error("Error changing password:", error);
+      toast({
+        title: "Fout",
+        description: error.message || "Kon wachtwoord niet wijzigen",
+        variant: "destructive",
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -155,9 +212,9 @@ const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-serif">Mijn Profiel</DialogTitle>
+          <DialogTitle className="font-serif">Mijn Account</DialogTitle>
           <DialogDescription>
-            Bewerk hier je persoonlijke gegevens
+            Beheer je profiel en wachtwoord
           </DialogDescription>
         </DialogHeader>
 
@@ -167,121 +224,183 @@ const ProfileDialog = ({ onProfileUpdate }: ProfileDialogProps) => {
             <p className="text-sm text-muted-foreground">Laden...</p>
           </div>
         ) : (
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mailadres</Label>
-              <Input
-                id="email"
-                value={user?.email || ""}
-                disabled
-                className="bg-muted"
-              />
-              <p className="text-xs text-muted-foreground">
-                E-mailadres kan niet worden gewijzigd
-              </p>
-            </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="profile" className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Profiel
+              </TabsTrigger>
+              <TabsTrigger value="password" className="flex items-center gap-2">
+                <Lock className="w-4 h-4" />
+                Wachtwoord
+              </TabsTrigger>
+            </TabsList>
 
-            <div className="space-y-2">
-              <Label htmlFor="full_name">Volledige naam</Label>
-              <Input
-                id="full_name"
-                value={profile.full_name}
-                onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
-                placeholder="Jan Jansen"
-                maxLength={100}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefoonnummer</Label>
-              <Input
-                id="phone"
-                type="tel"
-                value={profile.phone}
-                onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                placeholder="+31 6 12345678"
-                maxLength={20}
-              />
-            </div>
-
-            {/* Address fields */}
-            <div className="pt-2 border-t border-border">
-              <p className="text-sm font-medium text-foreground mb-3">Adresgegevens</p>
-              
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="street">Straat</Label>
-                  <Input
-                    id="street"
-                    value={profile.street}
-                    onChange={(e) => setProfile({ ...profile, street: e.target.value })}
-                    placeholder="Bakkerstraat"
-                    maxLength={100}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="house_number">Huisnr.</Label>
-                  <Input
-                    id="house_number"
-                    value={profile.house_number}
-                    onChange={(e) => setProfile({ ...profile, house_number: e.target.value })}
-                    placeholder="12a"
-                    maxLength={10}
-                  />
-                </div>
+            <TabsContent value="profile" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mailadres</Label>
+                <Input
+                  id="email"
+                  value={user?.email || ""}
+                  disabled
+                  className="bg-muted"
+                />
+                <p className="text-xs text-muted-foreground">
+                  E-mailadres kan niet worden gewijzigd
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <div className="space-y-2">
-                  <Label htmlFor="postal_code">Postcode</Label>
-                  <Input
-                    id="postal_code"
-                    value={profile.postal_code}
-                    onChange={(e) => setProfile({ ...profile, postal_code: e.target.value })}
-                    placeholder="1234 AB"
-                    maxLength={10}
-                  />
+              <div className="space-y-2">
+                <Label htmlFor="full_name">Volledige naam</Label>
+                <Input
+                  id="full_name"
+                  value={profile.full_name}
+                  onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
+                  placeholder="Jan Jansen"
+                  maxLength={100}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">Telefoonnummer</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={profile.phone}
+                  onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                  placeholder="+31 6 12345678"
+                  maxLength={20}
+                />
+              </div>
+
+              <div className="pt-2 border-t border-border">
+                <p className="text-sm font-medium text-foreground mb-3">Adresgegevens</p>
+                
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="street">Straat</Label>
+                    <Input
+                      id="street"
+                      value={profile.street}
+                      onChange={(e) => setProfile({ ...profile, street: e.target.value })}
+                      placeholder="Bakkerstraat"
+                      maxLength={100}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="house_number">Huisnr.</Label>
+                    <Input
+                      id="house_number"
+                      value={profile.house_number}
+                      onChange={(e) => setProfile({ ...profile, house_number: e.target.value })}
+                      placeholder="12a"
+                      maxLength={10}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="city">Stad</Label>
+
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="postal_code">Postcode</Label>
+                    <Input
+                      id="postal_code"
+                      value={profile.postal_code}
+                      onChange={(e) => setProfile({ ...profile, postal_code: e.target.value })}
+                      placeholder="1234 AB"
+                      maxLength={10}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="city">Stad</Label>
+                    <Input
+                      id="city"
+                      value={profile.city}
+                      onChange={(e) => setProfile({ ...profile, city: e.target.value })}
+                      placeholder="Amsterdam"
+                      maxLength={50}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  <Label htmlFor="country">Land</Label>
                   <Input
-                    id="city"
-                    value={profile.city}
-                    onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-                    placeholder="Amsterdam"
+                    id="country"
+                    value={profile.country}
+                    onChange={(e) => setProfile({ ...profile, country: e.target.value })}
+                    placeholder="Nederland"
                     maxLength={50}
                   />
                 </div>
               </div>
 
-              <div className="mt-3 space-y-2">
-                <Label htmlFor="country">Land</Label>
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                  disabled={isSaving}
+                >
+                  Annuleren
+                </Button>
+                <Button
+                  onClick={handleSaveProfile}
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Opslaan..." : "Opslaan"}
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="password" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">Nieuw wachtwoord</Label>
+                <div className="relative">
+                  <Input
+                    id="newPassword"
+                    type={showPassword ? "text" : "password"}
+                    value={passwordData.newPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                    placeholder="Minimaal 6 tekens"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Bevestig wachtwoord</Label>
                 <Input
-                  id="country"
-                  value={profile.country}
-                  onChange={(e) => setProfile({ ...profile, country: e.target.value })}
-                  placeholder="Nederland"
-                  maxLength={50}
+                  id="confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  placeholder="Herhaal je wachtwoord"
                 />
               </div>
-            </div>
 
-            <div className="flex justify-end gap-3 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setOpen(false)}
-                disabled={isSaving}
-              >
-                Annuleren
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={isSaving}
-              >
-                {isSaving ? "Opslaan..." : "Opslaan"}
-              </Button>
-            </div>
-          </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                  disabled={isChangingPassword}
+                >
+                  Annuleren
+                </Button>
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={isChangingPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+                >
+                  {isChangingPassword ? "Wijzigen..." : "Wachtwoord wijzigen"}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
         )}
       </DialogContent>
     </Dialog>

@@ -1,12 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
-import { Plus, Pencil, Trash2, Search, Calendar, Check } from "lucide-react";
-import { format, isWithinInterval, parseISO, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { Plus, Pencil, Trash2, Search, Calendar } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -21,11 +28,18 @@ import type { Database } from "@/integrations/supabase/types";
 
 type WeeklyMenu = Database["public"]["Tables"]["weekly_menus"]["Row"];
 
+type MenuStatus = "upcoming" | "active" | "expired";
+
+const STATUS_OPTIONS: { value: MenuStatus; label: string; color: string }[] = [
+  { value: "upcoming", label: "Toekomstig", color: "bg-blue-500" },
+  { value: "active", label: "Actief", color: "bg-green-500" },
+  { value: "expired", label: "Verlopen", color: "bg-muted text-muted-foreground" },
+];
+
 interface WeeklyMenuWithDetails extends WeeklyMenu {
   productCount?: number;
   totalCost?: number;
   margin?: number;
-  isActive?: boolean;
 }
 
 const WeeklyMenusTab = () => {
@@ -49,8 +63,6 @@ const WeeklyMenusTab = () => {
       setLoading(false);
       return;
     }
-
-    const today = new Date();
 
     // Fetch product counts and calculate costs
     const menusWithDetails = await Promise.all(
@@ -105,17 +117,11 @@ const WeeklyMenusTab = () => {
           totalCost += costPerUnit * mp.quantity;
         }
 
-        const isActive = isWithinInterval(today, {
-          start: parseISO(menu.week_start_date),
-          end: parseISO(menu.week_end_date),
-        });
-
         return {
           ...menu,
           productCount,
           totalCost,
           margin: Number(menu.price) - totalCost,
-          isActive,
         };
       })
     );
@@ -161,6 +167,25 @@ const WeeklyMenusTab = () => {
     fetchMenus();
   };
 
+  const handleStatusChange = async (menuId: string, newStatus: MenuStatus) => {
+    const { error } = await supabase
+      .from("weekly_menus")
+      .update({ status: newStatus })
+      .eq("id", menuId);
+
+    if (error) {
+      toast({ title: "Fout", description: "Kon status niet bijwerken", variant: "destructive" });
+      return;
+    }
+    
+    // Update local state immediately
+    setMenus(prev => prev.map(m => 
+      m.id === menuId ? { ...m, status: newStatus } : m
+    ));
+    
+    toast({ title: "Opgeslagen", description: "Status bijgewerkt" });
+  };
+
   const formatCurrency = (value: number) => {
     return `€${value.toFixed(2)}`;
   };
@@ -176,10 +201,27 @@ const WeeklyMenusTab = () => {
     return format(parseISO(date), "EEEE d MMM", { locale: nl });
   };
 
-  const getMarginColor = (margin: number) => {
-    if (margin < 0) return "text-destructive";
-    if (margin < 5) return "text-yellow-600";
+  const getMarginColor = (costPrice: number, sellingPrice: number) => {
+    if (sellingPrice <= 0) return "text-muted-foreground";
+    const marginPercent = ((sellingPrice - costPrice) / sellingPrice) * 100;
+    if (marginPercent < 30) return "text-destructive";
+    if (marginPercent < 60) return "text-yellow-600";
     return "text-green-600";
+  };
+
+  const formatMarginPercent = (costPrice: number, sellingPrice: number) => {
+    if (sellingPrice <= 0) return "0%";
+    const marginPercent = ((sellingPrice - costPrice) / sellingPrice) * 100;
+    return `${marginPercent.toFixed(0)}%`;
+  };
+
+  const getStatusBadge = (status: string) => {
+    const option = STATUS_OPTIONS.find(o => o.value === status) || STATUS_OPTIONS[0];
+    return (
+      <Badge className={`${option.color} hover:${option.color}`}>
+        {option.label}
+      </Badge>
+    );
   };
 
   return (
@@ -211,7 +253,7 @@ const WeeklyMenusTab = () => {
               <TableHead className="text-right">Kostprijs</TableHead>
               <TableHead className="text-right">Verkoopprijs</TableHead>
               <TableHead className="text-right">Marge</TableHead>
-              <TableHead className="text-center">Status</TableHead>
+              <TableHead className="text-center w-[150px]">Status</TableHead>
               <TableHead className="w-[100px]">Acties</TableHead>
             </TableRow>
           </TableHeader>
@@ -248,18 +290,29 @@ const WeeklyMenusTab = () => {
                   <TableCell className="text-right font-medium">
                     {formatCurrency(Number(menu.price))}
                   </TableCell>
-                  <TableCell className={`text-right font-semibold ${getMarginColor(menu.margin || 0)}`}>
-                    {formatCurrency(menu.margin || 0)}
+                  <TableCell className={`text-right font-semibold ${getMarginColor(menu.totalCost || 0, Number(menu.price))}`}>
+                    {formatCurrency(menu.margin || 0)} ({formatMarginPercent(menu.totalCost || 0, Number(menu.price))})
                   </TableCell>
                   <TableCell className="text-center">
-                    {menu.isActive ? (
-                      <Badge className="bg-green-500 hover:bg-green-600">
-                        <Check className="w-3 h-3 mr-1" />
-                        Actief
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Inactief</Badge>
-                    )}
+                    <Select
+                      value={(menu as any).status || "upcoming"}
+                      onValueChange={(value) => handleStatusChange(menu.id, value as MenuStatus)}
+                    >
+                      <SelectTrigger className="w-[130px] h-8">
+                        <SelectValue>
+                          {getStatusBadge((menu as any).status || "upcoming")}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUS_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <Badge className={`${option.color} hover:${option.color}`}>
+                              {option.label}
+                            </Badge>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
