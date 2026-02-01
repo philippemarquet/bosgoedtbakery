@@ -42,10 +42,10 @@ const ProductAnalysis = () => {
           product:products(name, category:categories(name))
         `);
 
-      // Fetch all orders to get weekly menu info
+      // Fetch all orders to get weekly menu info with price
       const { data: ordersData } = await supabase
         .from("orders")
-        .select("id, total, weekly_menu_id");
+        .select("id, total, weekly_menu_id, weekly_menu:weekly_menus(price)");
 
       const statsMap = new Map<string, ProductStats>();
       const orderProductMap = new Map<string, Set<string>>();
@@ -89,11 +89,11 @@ const ProductAnalysis = () => {
       if (ordersData) {
         const weeklyMenuOrders = ordersData.filter(o => o.weekly_menu_id);
         if (weeklyMenuOrders.length > 0) {
-          let weeklyMenuRevenue = 0;
-          weeklyMenuOrders.forEach(order => {
-            const itemsTotal = orderItemTotals.get(order.id) || 0;
-            weeklyMenuRevenue += Math.max(0, order.total - itemsTotal);
-          });
+          const weeklyMenuRevenue = weeklyMenuOrders.reduce((sum, order) => {
+            // Use the weekly menu price from the joined data
+            const menuPrice = (order.weekly_menu as { price: number } | null)?.price || 0;
+            return sum + menuPrice;
+          }, 0);
 
           statsMap.set("weekmenu", {
             product_id: "weekmenu",
