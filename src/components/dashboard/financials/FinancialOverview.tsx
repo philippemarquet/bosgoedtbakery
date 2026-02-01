@@ -25,6 +25,13 @@ interface Order {
   weekly_menu_id: string | null;
 }
 
+interface OrderItem {
+  order_id: string;
+  product_id: string;
+  quantity: number;
+  total: number;
+}
+
 interface WeeklyMenuStats {
   id: string;
   name: string;
@@ -33,19 +40,32 @@ interface WeeklyMenuStats {
   total_orders: number;
   total_revenue: number;
   total_discounts: number;
+  total_cost: number;
+  margin: number;
+  margin_percentage: number;
 }
 
 interface MonthlyStats {
   month: string;
   monthLabel: string;
   revenue: number;
+  cost: number;
+  margin: number;
   orders: number;
   avgOrderValue: number;
 }
 
+interface ProductCost {
+  product_id: string;
+  cost_per_unit: number;
+}
+
 const FinancialOverview = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [weeklyMenuStats, setWeeklyMenuStats] = useState<WeeklyMenuStats[]>([]);
+  const [productCosts, setProductCosts] = useState<Map<string, number>>(new Map());
+  const [weeklyMenuCosts, setWeeklyMenuCosts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,23 +80,76 @@ const FinancialOverview = () => {
 
       setOrders(ordersData || []);
 
-      // Fetch weekly menus
+      // Fetch order items
+      const { data: itemsData } = await supabase
+        .from("order_items")
+        .select("order_id, product_id, quantity, total");
+
+      setOrderItems(itemsData || []);
+
+      // Fetch recipe ingredients with costs to calculate product costs
+      const { data: recipeData } = await supabase
+        .from("recipe_ingredients")
+        .select(`
+          product_id,
+          quantity,
+          ingredient:ingredients(price_per_unit)
+        `);
+
+      // Calculate cost per product
+      const costMap = new Map<string, number>();
+      if (recipeData) {
+        recipeData.forEach(ri => {
+          const ingredientCost = (ri.ingredient as { price_per_unit: number } | null)?.price_per_unit || 0;
+          const lineCost = ri.quantity * ingredientCost;
+          costMap.set(ri.product_id, (costMap.get(ri.product_id) || 0) + lineCost);
+        });
+      }
+      setProductCosts(costMap);
+
+      // Fetch weekly menus with their products
       const { data: menus } = await supabase
         .from("weekly_menus")
         .select("id, name, delivery_date, price")
         .order("delivery_date", { ascending: false });
 
+      // Fetch weekly menu products to calculate menu cost
+      const { data: menuProductsData } = await supabase
+        .from("weekly_menu_products")
+        .select("weekly_menu_id, product_id, quantity");
+
+      // Calculate cost per weekly menu
+      const menuCostMap = new Map<string, number>();
+      if (menuProductsData) {
+        menuProductsData.forEach(mp => {
+          const productCost = costMap.get(mp.product_id) || 0;
+          const lineCost = productCost * mp.quantity;
+          menuCostMap.set(mp.weekly_menu_id, (menuCostMap.get(mp.weekly_menu_id) || 0) + lineCost);
+        });
+      }
+      setWeeklyMenuCosts(menuCostMap);
+
       if (menus && ordersData) {
         const menuStats = menus.map(menu => {
           const menuOrders = ordersData.filter(o => o.weekly_menu_id === menu.id);
+          const totalRevenue = menuOrders.reduce((sum, o) => sum + o.total, 0);
+          const totalDiscounts = menuOrders.reduce((sum, o) => sum + o.discount_amount, 0);
+          const menuCost = menuCostMap.get(menu.id) || 0;
+          const totalCost = menuCost * menuOrders.length;
+          const margin = totalRevenue - totalCost;
+          const marginPercentage = totalRevenue > 0 ? (margin / totalRevenue) * 100 : 0;
+          
           return {
             id: menu.id,
             name: menu.name,
             delivery_date: menu.delivery_date,
             menu_price: menu.price,
             total_orders: menuOrders.length,
-            total_revenue: menuOrders.reduce((sum, o) => sum + o.total, 0),
-            total_discounts: menuOrders.reduce((sum, o) => sum + o.discount_amount, 0),
+            total_revenue: totalRevenue,
+            total_discounts: totalDiscounts,
+            total_cost: totalCost,
+            margin,
+            margin_percentage: marginPercentage,
           };
         });
         setWeeklyMenuStats(menuStats);
@@ -87,21 +160,48 @@ const FinancialOverview = () => {
     fetchData();
   }, []);
 
+  // Calculate total costs for all orders
+  const calculateOrderCost = (orderId: string, weeklyMenuId: string | null): number => {
+    let cost = 0;
+    
+    // Add cost for individual order items
+    const items = orderItems.filter(item => item.order_id === orderId);
+    items.forEach(item => {
+      const productCost = productCosts.get(item.product_id) || 0;
+      cost += productCost * item.quantity;
+    });
+    
+    // Add cost for weekly menu products
+    if (weeklyMenuId) {
+      cost += weeklyMenuCosts.get(weeklyMenuId) || 0;
+    }
+    
+    return cost;
+  };
+
   const overallStats = useMemo(() => {
     const paidOrders = orders.filter(o => o.status === "paid");
     const openOrders = orders.filter(o => o.status !== "paid");
     
+    const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
+    const totalCost = orders.reduce((sum, o) => sum + calculateOrderCost(o.id, o.weekly_menu_id), 0);
+    const totalMargin = totalRevenue - totalCost;
+    const marginPercentage = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
+    
     return {
-      totalRevenue: orders.reduce((sum, o) => sum + o.total, 0),
+      totalRevenue,
+      totalCost,
+      totalMargin,
+      marginPercentage,
       totalSubtotal: orders.reduce((sum, o) => sum + o.subtotal, 0),
       totalDiscounts: orders.reduce((sum, o) => sum + o.discount_amount, 0),
       paidRevenue: paidOrders.reduce((sum, o) => sum + o.total, 0),
       openRevenue: openOrders.reduce((sum, o) => sum + o.total, 0),
       totalOrders: orders.length,
       paidOrders: paidOrders.length,
-      avgOrderValue: orders.length > 0 ? orders.reduce((sum, o) => sum + o.total, 0) / orders.length : 0,
+      avgOrderValue: orders.length > 0 ? totalRevenue / orders.length : 0,
     };
-  }, [orders]);
+  }, [orders, orderItems, productCosts, weeklyMenuCosts]);
 
   const monthlyData = useMemo(() => {
     const now = new Date();
@@ -114,16 +214,20 @@ const FinancialOverview = () => {
         format(parseISO(o.created_at), "yyyy-MM") === monthStr
       );
       const revenue = monthOrders.reduce((sum, o) => sum + o.total, 0);
+      const cost = monthOrders.reduce((sum, o) => sum + calculateOrderCost(o.id, o.weekly_menu_id), 0);
+      const margin = revenue - cost;
       
       return {
         month: monthStr,
         monthLabel: format(month, "MMM yyyy", { locale: nl }),
         revenue,
+        cost,
+        margin,
         orders: monthOrders.length,
         avgOrderValue: monthOrders.length > 0 ? revenue / monthOrders.length : 0,
       };
     });
-  }, [orders]);
+  }, [orders, orderItems, productCosts, weeklyMenuCosts]);
 
   const formatCurrency = (value: number) => `€${value.toFixed(2)}`;
 
@@ -138,7 +242,7 @@ const FinancialOverview = () => {
   return (
     <div className="space-y-6">
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader className="pb-2">
             <CardDescription>Totale omzet</CardDescription>
@@ -150,6 +254,37 @@ const FinancialOverview = () => {
             </div>
             <p className="text-sm text-muted-foreground mt-1">
               {overallStats.totalOrders} bestellingen
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className={
+          overallStats.marginPercentage >= 60 
+            ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+            : overallStats.marginPercentage >= 30
+            ? "border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20"
+            : "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20"
+        }>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-1">
+              <TrendingUp className={`w-4 h-4 ${
+                overallStats.marginPercentage >= 60 ? "text-emerald-600" 
+                : overallStats.marginPercentage >= 30 ? "text-orange-600" 
+                : "text-red-600"
+              }`} />
+              Marge
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <span className={`text-2xl font-bold ${
+              overallStats.marginPercentage >= 60 ? "text-emerald-700 dark:text-emerald-400" 
+              : overallStats.marginPercentage >= 30 ? "text-orange-700 dark:text-orange-400" 
+              : "text-red-700 dark:text-red-400"
+            }`}>
+              {formatCurrency(overallStats.totalMargin)}
+            </span>
+            <p className="text-sm text-muted-foreground mt-1">
+              {overallStats.marginPercentage.toFixed(1)}% · kosten {formatCurrency(overallStats.totalCost)}
             </p>
           </CardContent>
         </Card>
@@ -359,8 +494,9 @@ const FinancialOverview = () => {
                 <TableHead>Leverdag</TableHead>
                 <TableHead className="text-right">Menu prijs</TableHead>
                 <TableHead className="text-right">Bestellingen</TableHead>
-                <TableHead className="text-right">Korting</TableHead>
                 <TableHead className="text-right">Omzet</TableHead>
+                <TableHead className="text-right">Kosten</TableHead>
+                <TableHead className="text-right">Marge</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -380,11 +516,29 @@ const FinancialOverview = () => {
                   <TableCell className="text-right">
                     <Badge variant="secondary">{menu.total_orders}</Badge>
                   </TableCell>
-                  <TableCell className="text-right text-green-600">
-                    {menu.total_discounts > 0 ? `-${formatCurrency(menu.total_discounts)}` : "-"}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">
+                  <TableCell className="text-right font-medium">
                     {formatCurrency(menu.total_revenue)}
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {formatCurrency(menu.total_cost)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <span className={`font-semibold ${
+                        menu.margin_percentage >= 60 ? "text-emerald-600" 
+                        : menu.margin_percentage >= 30 ? "text-orange-600" 
+                        : "text-red-600"
+                      }`}>
+                        {formatCurrency(menu.margin)}
+                      </span>
+                      <Badge variant="outline" className={
+                        menu.margin_percentage >= 60 ? "border-emerald-300 text-emerald-700" 
+                        : menu.margin_percentage >= 30 ? "border-orange-300 text-orange-700" 
+                        : "border-red-300 text-red-700"
+                      }>
+                        {menu.margin_percentage.toFixed(0)}%
+                      </Badge>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
