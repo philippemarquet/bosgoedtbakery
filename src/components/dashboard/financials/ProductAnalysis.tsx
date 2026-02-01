@@ -32,6 +32,7 @@ const ProductAnalysis = () => {
       setLoading(true);
 
       // Fetch all order items with product info
+      // Only include items that are NOT part of a weekly menu to avoid double counting
       const { data: items } = await supabase
         .from("order_items")
         .select(`
@@ -39,8 +40,10 @@ const ProductAnalysis = () => {
           quantity,
           total,
           order_id,
+          is_weekly_menu_item,
           product:products(name, category:categories(name))
-        `);
+        `)
+        .eq("is_weekly_menu_item", false);
 
       // Fetch all orders to get weekly menu info with price
       const { data: ordersData } = await supabase
