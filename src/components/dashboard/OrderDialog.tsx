@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Trash2, Calendar, User, Package, MapPin, Image as ImageIcon, AlertTriangle, FileText } from "lucide-react";
+import { Plus, Trash2, Calendar, User, Package, MapPin, Image as ImageIcon, AlertTriangle, FileText, Lock, RotateCcw, Hash } from "lucide-react";
 import { format, parseISO, startOfDay } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 
 interface Order {
   id: string;
+  order_number?: number;
   status: string;
   notes: string | null;
   subtotal: number;
@@ -153,19 +154,27 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
     fetchCustomers();
   }, []);
 
-  // Fetch active weekly menus (delivery_date >= today)
+  // Fetch weekly menus - all for editing, only active for new orders
   useEffect(() => {
     const fetchMenus = async () => {
       const today = format(startOfDay(new Date()), "yyyy-MM-dd");
-      const { data } = await supabase
+      
+      // If editing an order, fetch all menus to show historical data
+      // If creating new order, only show menus with future delivery date
+      let query = supabase
         .from("weekly_menus")
         .select("id, name, delivery_date, price")
-        .gte("delivery_date", today)
-        .order("delivery_date");
+        .order("delivery_date", { ascending: false });
+      
+      if (!editingOrder) {
+        query = query.gte("delivery_date", today);
+      }
+      
+      const { data } = await query;
       if (data) setWeeklyMenus(data);
     };
     fetchMenus();
-  }, []);
+  }, [editingOrder]);
 
   // Fetch orderable products with images
   useEffect(() => {
@@ -357,18 +366,42 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
     };
   }, [selectedMenu, extraItems, products, discountGroups, customerDiscountPercentage]);
 
+  // Check if order is read-only (status is ready or paid)
+  const isReadOnly = editingOrder && (editingOrder.status === "ready" || editingOrder.status === "paid");
+
   const addExtraItem = () => {
+    if (isReadOnly) return;
     setExtraItems([...extraItems, { product_id: "", quantity: 1 }]);
   };
 
   const removeExtraItem = (index: number) => {
+    if (isReadOnly) return;
     setExtraItems(extraItems.filter((_, i) => i !== index));
   };
 
   const updateExtraItem = (index: number, field: "product_id" | "quantity", value: string | number) => {
+    if (isReadOnly) return;
     const updated = [...extraItems];
     updated[index] = { ...updated[index], [field]: value };
     setExtraItems(updated);
+  };
+
+  const handleResetToConfirmed = async () => {
+    if (!editingOrder) return;
+    
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "confirmed", updated_at: new Date().toISOString() })
+      .eq("id", editingOrder.id);
+    
+    if (error) {
+      toast({ title: "Fout", description: "Kon status niet wijzigen", variant: "destructive" });
+      return;
+    }
+    
+    toast({ title: "Status gewijzigd", description: "Bestelling is teruggezet naar 'Bevestigd'" });
+    onOpenChange(false);
+    onSave();
   };
 
   const handleSave = async () => {
@@ -492,10 +525,39 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {editingOrder ? "Bestelling bewerken" : "Nieuwe bestelling"}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>
+              {editingOrder ? "Bestelling bewerken" : "Nieuwe bestelling"}
+            </DialogTitle>
+            {editingOrder?.order_number && (
+              <span className="flex items-center gap-1.5 text-sm text-muted-foreground font-normal">
+                <Hash className="w-3.5 h-3.5" />
+                {editingOrder.order_number}
+              </span>
+            )}
+          </div>
         </DialogHeader>
+
+        {/* Read-only notice for ready/paid orders */}
+        {isReadOnly && (
+          <div className="flex items-center justify-between gap-4 p-3 bg-muted/50 border rounded-lg">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Lock className="w-4 h-4" />
+              <span>
+                Deze bestelling is <strong>{editingOrder?.status === "ready" ? "Gereed" : "Betaald"}</strong> en kan alleen bekeken worden.
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetToConfirmed}
+              className="shrink-0"
+            >
+              <RotateCcw className="w-4 h-4 mr-1.5" />
+              Terugzetten naar Bevestigd
+            </Button>
+          </div>
+        )}
 
         <div className="space-y-6 py-4">
           {/* Customer Selection */}
@@ -504,8 +566,8 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
               <User className="w-4 h-4" />
               Klant *
             </Label>
-            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-              <SelectTrigger>
+            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId} disabled={isReadOnly}>
+              <SelectTrigger className={isReadOnly ? "opacity-60" : ""}>
                 <SelectValue placeholder="Selecteer klant" />
               </SelectTrigger>
               <SelectContent>
@@ -530,8 +592,10 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                   variant="outline"
                   className={cn(
                     "w-full justify-start text-left font-normal",
-                    !invoiceDate && "text-muted-foreground"
+                    !invoiceDate && "text-muted-foreground",
+                    isReadOnly && "opacity-60 pointer-events-none"
                   )}
+                  disabled={isReadOnly}
                 >
                   <Calendar className="mr-2 h-4 w-4" />
                   {invoiceDate ? format(invoiceDate, "EEEE d MMMM yyyy", { locale: nl }) : "Selecteer datum"}
@@ -555,8 +619,12 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
               <Calendar className="w-4 h-4" />
               Weekmenu (optioneel)
             </Label>
-            <Select value={selectedMenuId || "none"} onValueChange={(val) => setSelectedMenuId(val === "none" ? "" : val)}>
-              <SelectTrigger>
+            <Select 
+              value={selectedMenuId || "none"} 
+              onValueChange={(val) => setSelectedMenuId(val === "none" ? "" : val)}
+              disabled={isReadOnly}
+            >
+              <SelectTrigger className={isReadOnly ? "opacity-60" : ""}>
                 <SelectValue placeholder="Selecteer weekmenu" />
               </SelectTrigger>
               <SelectContent>
@@ -576,7 +644,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                 ))}
               </SelectContent>
             </Select>
-            {weeklyMenus.length === 0 && (
+            {weeklyMenus.length === 0 && !editingOrder && (
               <p className="text-sm text-muted-foreground">
                 Geen weekmenu's beschikbaar. Maak er eerst een aan met een toekomstige leverdag.
               </p>
@@ -589,8 +657,8 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
               <MapPin className="w-4 h-4" />
               Afhaallocatie
             </Label>
-            <Select value={selectedPickupLocationId} onValueChange={setSelectedPickupLocationId}>
-              <SelectTrigger>
+            <Select value={selectedPickupLocationId} onValueChange={setSelectedPickupLocationId} disabled={isReadOnly}>
+              <SelectTrigger className={isReadOnly ? "opacity-60" : ""}>
                 <SelectValue placeholder="Selecteer afhaallocatie" />
               </SelectTrigger>
               <SelectContent>
@@ -622,10 +690,12 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                 <Package className="w-4 h-4" />
                 Extra producten
               </Label>
-              <Button type="button" variant="outline" size="sm" onClick={addExtraItem}>
-                <Plus className="w-4 h-4 mr-1" />
-                Product toevoegen
-              </Button>
+              {!isReadOnly && (
+                <Button type="button" variant="outline" size="sm" onClick={addExtraItem}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Product toevoegen
+                </Button>
+              )}
             </div>
 
             {extraItems.length === 0 ? (
@@ -637,7 +707,10 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                 {extraItems.map((item, index) => {
                   const product = products.find(p => p.id === item.product_id);
                   return (
-                    <div key={index} className="flex gap-3 items-center p-2 border rounded-lg bg-muted/30">
+                    <div key={index} className={cn(
+                      "flex gap-3 items-center p-2 border rounded-lg bg-muted/30",
+                      isReadOnly && "opacity-60"
+                    )}>
                       {/* Product image */}
                       <div className="w-12 h-12 rounded-md overflow-hidden bg-muted flex-shrink-0">
                         {product?.image_url ? (
@@ -653,46 +726,56 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                         )}
                       </div>
                       
-                      <Select
-                        value={item.product_id}
-                        onValueChange={(value) => updateExtraItem(index, "product_id", value)}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Selecteer product" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {groupedProducts.map(([categoryName, categoryProducts]) => (
-                            <div key={categoryName}>
-                              <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-                                {categoryName}
+                      {isReadOnly ? (
+                        <span className="flex-1 text-sm">{product?.name || "Onbekend product"}</span>
+                      ) : (
+                        <Select
+                          value={item.product_id}
+                          onValueChange={(value) => updateExtraItem(index, "product_id", value)}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Selecteer product" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {groupedProducts.map(([categoryName, categoryProducts]) => (
+                              <div key={categoryName}>
+                                <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                                  {categoryName}
+                                </div>
+                                {categoryProducts.map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.name}
+                                  </SelectItem>
+                                ))}
                               </div>
-                              {categoryProducts.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.name}
-                                </SelectItem>
-                              ))}
-                            </div>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateExtraItem(index, "quantity", parseInt(e.target.value) || 1)}
-                        className="w-20"
-                      />
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {isReadOnly ? (
+                        <span className="w-20 text-sm text-center">{item.quantity}x</span>
+                      ) : (
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateExtraItem(index, "quantity", parseInt(e.target.value) || 1)}
+                          className="w-20"
+                        />
+                      )}
                       <span className="text-sm font-medium w-20 text-right">
                         {product ? formatCurrency(product.selling_price * item.quantity) : "-"}
                       </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeExtraItem(index)}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      {!isReadOnly && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeExtraItem(index)}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   );
                 })}
@@ -709,6 +792,8 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Optionele opmerkingen..."
               rows={2}
+              disabled={isReadOnly}
+              className={isReadOnly ? "opacity-60" : ""}
             />
           </div>
 
@@ -741,11 +826,13 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annuleren
+            {isReadOnly ? "Sluiten" : "Annuleren"}
           </Button>
-          <Button onClick={handleSave} disabled={loading}>
-            {loading ? "Opslaan..." : editingOrder ? "Opslaan" : "Bestelling aanmaken"}
-          </Button>
+          {!isReadOnly && (
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? "Opslaan..." : editingOrder ? "Opslaan" : "Bestelling aanmaken"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
 
