@@ -549,6 +549,81 @@ export type Database = {
           },
         ]
       }
+      stock_check_items: {
+        Row: {
+          created_at: string
+          id: string
+          ingredient_id: string
+          is_ordered: boolean
+          required_quantity: number
+          status: string
+          stock_check_id: string
+          unit: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ingredient_id: string
+          is_ordered?: boolean
+          required_quantity?: number
+          status?: string
+          stock_check_id: string
+          unit: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ingredient_id?: string
+          is_ordered?: boolean
+          required_quantity?: number
+          status?: string
+          stock_check_id?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_check_items_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "ingredients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_check_items_stock_check_id_fkey"
+            columns: ["stock_check_id"]
+            isOneToOne: false
+            referencedRelation: "stock_checks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_checks: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string | null
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
