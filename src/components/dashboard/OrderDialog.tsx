@@ -42,7 +42,7 @@ interface Order {
 interface Profile {
   id: string;
   full_name: string | null;
-  user_id: string;
+  user_id: string | null;
 }
 
 interface WeeklyMenu {
@@ -100,29 +100,37 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
 
   const { toast } = useToast();
 
-  // Fetch customers (profiles with customer role only)
+  // Fetch all active customers (both with and without login)
   useEffect(() => {
     const fetchCustomers = async () => {
-      // Get user_ids with 'customer' role
-      const { data: customerRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "customer");
-      
-      if (!customerRoles || customerRoles.length === 0) {
+      // Get all non-archived profiles
+      const { data: allProfiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, user_id")
+        .eq("is_archived", false)
+        .order("full_name");
+
+      if (!allProfiles || allProfiles.length === 0) {
         setCustomers([]);
         return;
       }
 
-      const customerUserIds = customerRoles.map(r => r.user_id);
+      // Get user_ids with 'baker' role to exclude them
+      const { data: bakerRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "baker");
       
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, full_name, user_id")
-        .in("user_id", customerUserIds)
-        .order("full_name");
+      const bakerUserIds = new Set(bakerRoles?.map(r => r.user_id) || []);
+
+      // Filter out bakers - customers are:
+      // 1. Profiles without user_id (no login customers)
+      // 2. Profiles with user_id that's NOT a baker
+      const customers = allProfiles.filter(profile => 
+        !profile.user_id || !bakerUserIds.has(profile.user_id)
+      );
       
-      if (data) setCustomers(data);
+      setCustomers(customers);
     };
     fetchCustomers();
   }, []);
