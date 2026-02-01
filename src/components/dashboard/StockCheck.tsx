@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ClipboardCheck, Play, Check, AlertCircle, Clock, ChevronRight, ArrowLeft, Loader2, Package } from "lucide-react";
+import { ClipboardCheck, Play, Check, AlertCircle, Clock, ChevronRight, ArrowLeft, Loader2, Package, X } from "lucide-react";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -279,6 +279,24 @@ const StockCheck = () => {
     await fetchStockChecks();
   };
 
+  const cancelCheck = async () => {
+    if (!activeCheck) return;
+
+    // Delete items first, then the check
+    await supabase
+      .from("stock_check_items")
+      .delete()
+      .eq("stock_check_id", activeCheck.id);
+
+    await supabase
+      .from("stock_checks")
+      .delete()
+      .eq("id", activeCheck.id);
+
+    toast({ title: "Geannuleerd", description: "Voorraadcheck geannuleerd" });
+    await fetchStockChecks();
+  };
+
   const updateItemOrdered = async (itemId: string, isOrdered: boolean) => {
     await supabase
       .from("stock_check_items")
@@ -415,14 +433,24 @@ const StockCheck = () => {
               Gestart op {format(new Date(activeCheck.createdAt), "d MMMM yyyy 'om' HH:mm", { locale: nl })}
             </p>
           </div>
-          <Button 
-            onClick={completeCheck} 
-            disabled={!allItemsChecked}
-            size="sm"
-          >
-            <Check className="w-4 h-4 mr-2" />
-            Afronden
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline"
+              onClick={cancelCheck} 
+              size="sm"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Annuleren
+            </Button>
+            <Button 
+              onClick={completeCheck} 
+              disabled={!allItemsChecked}
+              size="sm"
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Afronden
+            </Button>
+          </div>
         </div>
 
         <div className="text-sm text-muted-foreground">
