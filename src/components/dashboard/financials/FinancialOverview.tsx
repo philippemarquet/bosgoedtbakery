@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { Euro, TrendingUp, TrendingDown, Calendar, PiggyBank, Receipt, Percent } from "lucide-react";
-import { format, parseISO, startOfMonth, subMonths, eachMonthOfInterval } from "date-fns";
+import { Euro, TrendingUp, Calendar, PiggyBank, Receipt, Percent } from "lucide-react";
+import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, eachWeekOfInterval, eachMonthOfInterval, isWithinInterval } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -13,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ComposedChart, Bar } from "recharts";
 
 interface Order {
   id: string;
@@ -22,6 +23,7 @@ interface Order {
   discount_amount: number;
   status: string;
   created_at: string;
+  invoice_date: string;
   weekly_menu_id: string | null;
 }
 
@@ -32,51 +34,43 @@ interface OrderItem {
   total: number;
 }
 
-interface WeeklyMenuStats {
-  id: string;
-  name: string;
-  delivery_date: string | null;
-  menu_price: number;
-  total_orders: number;
-  total_revenue: number;
-  total_discounts: number;
-  total_cost: number;
-  margin: number;
-  margin_percentage: number;
+interface WeeklyMenuProduct {
+  weekly_menu_id: string;
+  product_id: string;
+  quantity: number;
 }
 
-interface MonthlyStats {
-  month: string;
-  monthLabel: string;
+interface PeriodStats {
+  period: string;
+  periodLabel: string;
+  startDate: Date;
+  endDate: Date;
   revenue: number;
   cost: number;
   margin: number;
+  marginPercentage: number;
   orders: number;
   avgOrderValue: number;
-}
-
-interface ProductCost {
-  product_id: string;
-  cost_per_unit: number;
 }
 
 const FinancialOverview = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [weeklyMenuStats, setWeeklyMenuStats] = useState<WeeklyMenuStats[]>([]);
+  const [weeklyMenuProducts, setWeeklyMenuProducts] = useState<WeeklyMenuProduct[]>([]);
   const [productCosts, setProductCosts] = useState<Map<string, number>>(new Map());
-  const [weeklyMenuCosts, setWeeklyMenuCosts] = useState<Map<string, number>>(new Map());
+  const [weeklyMenuPrices, setWeeklyMenuPrices] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [periodView, setPeriodView] = useState<"week" | "month">("week");
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
 
-      // Fetch all orders
+      // Fetch all orders with invoice_date
       const { data: ordersData } = await supabase
         .from("orders")
-        .select("id, total, subtotal, discount_amount, status, created_at, weekly_menu_id")
-        .order("created_at", { ascending: false });
+        .select("id, total, subtotal, discount_amount, status, created_at, invoice_date, weekly_menu_id")
+        .order("invoice_date", { ascending: false });
 
       setOrders(ordersData || []);
 
@@ -86,6 +80,24 @@ const FinancialOverview = () => {
         .select("order_id, product_id, quantity, total");
 
       setOrderItems(itemsData || []);
+
+      // Fetch weekly menu products
+      const { data: menuProductsData } = await supabase
+        .from("weekly_menu_products")
+        .select("weekly_menu_id, product_id, quantity");
+
+      setWeeklyMenuProducts(menuProductsData || []);
+
+      // Fetch weekly menu prices
+      const { data: menusData } = await supabase
+        .from("weekly_menus")
+        .select("id, price");
+
+      const menuPriceMap = new Map<string, number>();
+      if (menusData) {
+        menusData.forEach(m => menuPriceMap.set(m.id, m.price));
+      }
+      setWeeklyMenuPrices(menuPriceMap);
 
       // Fetch products to get yield info
       const { data: productsData } = await supabase
@@ -99,7 +111,7 @@ const FinancialOverview = () => {
         });
       }
 
-      // Fetch recipe ingredients with costs to calculate product costs
+      // Fetch recipe ingredients with costs
       const { data: recipeData } = await supabase
         .from("recipe_ingredients")
         .select(`
@@ -120,7 +132,6 @@ const FinancialOverview = () => {
       // Calculate total recipe cost per product (ingredients + fixed costs)
       const recipeTotalCostMap = new Map<string, number>();
       
-      // Add ingredient costs
       if (recipeData) {
         recipeData.forEach(ri => {
           const ingredientCost = (ri.ingredient as { price_per_unit: number } | null)?.price_per_unit || 0;
@@ -129,7 +140,6 @@ const FinancialOverview = () => {
         });
       }
       
-      // Add fixed costs
       if (fixedCostsData) {
         fixedCostsData.forEach(fc => {
           const fixedCostPrice = (fc.fixed_cost as { price_per_unit: number } | null)?.price_per_unit || 0;
@@ -143,82 +153,36 @@ const FinancialOverview = () => {
       recipeTotalCostMap.forEach((totalRecipeCost, productId) => {
         const yieldInfo = productYieldMap.get(productId);
         if (yieldInfo && yieldInfo.yield_unit === 'stuks' && yieldInfo.yield_quantity > 0) {
-          // For "stuks" products: divide total recipe cost by yield quantity
           costMap.set(productId, totalRecipeCost / yieldInfo.yield_quantity);
         } else {
-          // For weight-based products: total recipe cost is the batch cost
           costMap.set(productId, totalRecipeCost);
         }
       });
       setProductCosts(costMap);
-
-      // Fetch weekly menus with their products
-      const { data: menus } = await supabase
-        .from("weekly_menus")
-        .select("id, name, delivery_date, price")
-        .order("delivery_date", { ascending: false });
-
-      // Fetch weekly menu products to calculate menu cost
-      const { data: menuProductsData } = await supabase
-        .from("weekly_menu_products")
-        .select("weekly_menu_id, product_id, quantity");
-
-      // Calculate cost per weekly menu (sum of product costs × quantities)
-      const menuCostMap = new Map<string, number>();
-      if (menuProductsData) {
-        menuProductsData.forEach(mp => {
-          const productCost = costMap.get(mp.product_id) || 0;
-          const lineCost = productCost * mp.quantity;
-          menuCostMap.set(mp.weekly_menu_id, (menuCostMap.get(mp.weekly_menu_id) || 0) + lineCost);
-        });
-      }
-      setWeeklyMenuCosts(menuCostMap);
-
-      if (menus && ordersData) {
-        const menuStats = menus.map(menu => {
-          const menuOrders = ordersData.filter(o => o.weekly_menu_id === menu.id);
-          const totalRevenue = menuOrders.reduce((sum, o) => sum + o.total, 0);
-          const totalDiscounts = menuOrders.reduce((sum, o) => sum + o.discount_amount, 0);
-          const menuCost = menuCostMap.get(menu.id) || 0;
-          const totalCost = menuCost * menuOrders.length;
-          const margin = totalRevenue - totalCost;
-          const marginPercentage = totalRevenue > 0 ? (margin / totalRevenue) * 100 : 0;
-          
-          return {
-            id: menu.id,
-            name: menu.name,
-            delivery_date: menu.delivery_date,
-            menu_price: menu.price,
-            total_orders: menuOrders.length,
-            total_revenue: totalRevenue,
-            total_discounts: totalDiscounts,
-            total_cost: totalCost,
-            margin,
-            margin_percentage: marginPercentage,
-          };
-        });
-        setWeeklyMenuStats(menuStats);
-      }
 
       setLoading(false);
     };
     fetchData();
   }, []);
 
-  // Calculate total costs for all orders
+  // Calculate cost for a single order (including weekly menu products and extra items)
   const calculateOrderCost = (orderId: string, weeklyMenuId: string | null): number => {
     let cost = 0;
     
-    // Add cost for individual order items
+    // Cost from order items (extra products)
     const items = orderItems.filter(item => item.order_id === orderId);
     items.forEach(item => {
       const productCost = productCosts.get(item.product_id) || 0;
       cost += productCost * item.quantity;
     });
     
-    // Add cost for weekly menu products
+    // Cost from weekly menu products
     if (weeklyMenuId) {
-      cost += weeklyMenuCosts.get(weeklyMenuId) || 0;
+      const menuProducts = weeklyMenuProducts.filter(mp => mp.weekly_menu_id === weeklyMenuId);
+      menuProducts.forEach(mp => {
+        const productCost = productCosts.get(mp.product_id) || 0;
+        cost += productCost * mp.quantity;
+      });
     }
     
     return cost;
@@ -246,33 +210,86 @@ const FinancialOverview = () => {
       paidOrders: paidOrders.length,
       avgOrderValue: orders.length > 0 ? totalRevenue / orders.length : 0,
     };
-  }, [orders, orderItems, productCosts, weeklyMenuCosts]);
+  }, [orders, orderItems, productCosts, weeklyMenuProducts]);
 
-  const monthlyData = useMemo(() => {
+  // Generate period stats based on invoice_date
+  const periodStats = useMemo(() => {
+    if (orders.length === 0) return [];
+
     const now = new Date();
     const sixMonthsAgo = subMonths(startOfMonth(now), 5);
-    const months = eachMonthOfInterval({ start: sixMonthsAgo, end: now });
 
-    return months.map(month => {
-      const monthStr = format(month, "yyyy-MM");
-      const monthOrders = orders.filter(o => 
-        format(parseISO(o.created_at), "yyyy-MM") === monthStr
-      );
-      const revenue = monthOrders.reduce((sum, o) => sum + o.total, 0);
-      const cost = monthOrders.reduce((sum, o) => sum + calculateOrderCost(o.id, o.weekly_menu_id), 0);
-      const margin = revenue - cost;
+    if (periodView === "month") {
+      const months = eachMonthOfInterval({ start: sixMonthsAgo, end: now });
       
-      return {
-        month: monthStr,
-        monthLabel: format(month, "MMM yyyy", { locale: nl }),
-        revenue,
-        cost,
-        margin,
-        orders: monthOrders.length,
-        avgOrderValue: monthOrders.length > 0 ? revenue / monthOrders.length : 0,
-      };
-    });
-  }, [orders, orderItems, productCosts, weeklyMenuCosts]);
+      return months.map(month => {
+        const start = startOfMonth(month);
+        const end = endOfMonth(month);
+        
+        const periodOrders = orders.filter(o => {
+          const invoiceDate = parseISO(o.invoice_date);
+          return isWithinInterval(invoiceDate, { start, end });
+        });
+
+        const revenue = periodOrders.reduce((sum, o) => sum + o.total, 0);
+        const cost = periodOrders.reduce((sum, o) => sum + calculateOrderCost(o.id, o.weekly_menu_id), 0);
+        const margin = revenue - cost;
+        
+        return {
+          period: format(month, "yyyy-MM"),
+          periodLabel: format(month, "MMM yyyy", { locale: nl }),
+          startDate: start,
+          endDate: end,
+          revenue,
+          cost,
+          margin,
+          marginPercentage: revenue > 0 ? (margin / revenue) * 100 : 0,
+          orders: periodOrders.length,
+          avgOrderValue: periodOrders.length > 0 ? revenue / periodOrders.length : 0,
+        };
+      });
+    } else {
+      // Weekly view - last 12 weeks
+      const twelveWeeksAgo = subMonths(now, 3);
+      const weeks = eachWeekOfInterval({ start: twelveWeeksAgo, end: now }, { weekStartsOn: 1 });
+      
+      return weeks.slice(-12).map(week => {
+        const start = startOfWeek(week, { weekStartsOn: 1 });
+        const end = endOfWeek(week, { weekStartsOn: 1 });
+        
+        const periodOrders = orders.filter(o => {
+          const invoiceDate = parseISO(o.invoice_date);
+          return isWithinInterval(invoiceDate, { start, end });
+        });
+
+        const revenue = periodOrders.reduce((sum, o) => sum + o.total, 0);
+        const cost = periodOrders.reduce((sum, o) => sum + calculateOrderCost(o.id, o.weekly_menu_id), 0);
+        const margin = revenue - cost;
+        
+        return {
+          period: format(start, "yyyy-'W'ww"),
+          periodLabel: `Week ${format(start, "w")} (${format(start, "d MMM", { locale: nl })})`,
+          startDate: start,
+          endDate: end,
+          revenue,
+          cost,
+          margin,
+          marginPercentage: revenue > 0 ? (margin / revenue) * 100 : 0,
+          orders: periodOrders.length,
+          avgOrderValue: periodOrders.length > 0 ? revenue / periodOrders.length : 0,
+        };
+      });
+    }
+  }, [orders, orderItems, productCosts, weeklyMenuProducts, periodView]);
+
+  const chartData = useMemo(() => {
+    return periodStats.map(p => ({
+      ...p,
+      Omzet: p.revenue,
+      Kosten: p.cost,
+      Marge: p.margin,
+    }));
+  }, [periodStats]);
 
   const formatCurrency = (value: number) => `€${value.toFixed(2)}`;
 
@@ -386,53 +403,45 @@ const FinancialOverview = () => {
         </Card>
       </div>
 
-      {/* Revenue Chart */}
+      {/* Revenue & Margin Chart */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5" />
-            Omzet per maand
+            Omzet & Marge
           </CardTitle>
           <CardDescription>
-            Laatste 6 maanden
+            Omzet, kosten en marge per periode
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {monthlyData.some(m => m.revenue > 0) ? (
+          {chartData.some(m => m.revenue > 0) ? (
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={monthlyData}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
+              <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
+                <XAxis dataKey="periodLabel" tick={{ fontSize: 11 }} angle={-20} textAnchor="end" height={60} />
                 <YAxis 
                   tickFormatter={(value) => `€${value}`}
                   tick={{ fontSize: 12 }}
                 />
                 <Tooltip 
-                  formatter={(value: number, name: string) => {
-                    if (name === "revenue") return [formatCurrency(value), "Omzet"];
-                    if (name === "orders") return [value, "Bestellingen"];
-                    return [value, name];
-                  }}
+                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--popover))', 
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px'
                   }}
                 />
-                <Area 
+                <Bar dataKey="Omzet" fill="hsl(var(--primary))" opacity={0.8} />
+                <Bar dataKey="Kosten" fill="hsl(var(--muted-foreground))" opacity={0.5} />
+                <Line 
                   type="monotone" 
-                  dataKey="revenue" 
-                  stroke="hsl(var(--primary))" 
+                  dataKey="Marge" 
+                  stroke="hsl(142, 76%, 36%)" 
                   strokeWidth={2}
-                  fill="url(#colorRevenue)" 
+                  dot={{ fill: 'hsl(142, 76%, 36%)' }}
                 />
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
           ) : (
             <p className="text-center py-12 text-muted-foreground">
@@ -442,156 +451,80 @@ const FinancialOverview = () => {
         </CardContent>
       </Card>
 
-      {/* Orders per Month */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              Bestellingen per maand
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {monthlyData.some(m => m.orders > 0) ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--popover))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="orders" 
-                    stroke="hsl(var(--chart-2))" 
-                    strokeWidth={2}
-                    dot={{ fill: 'hsl(var(--chart-2))' }}
-                    name="Bestellingen"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-center py-8 text-muted-foreground">Nog geen data</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Gem. bestelwaarde per maand
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {monthlyData.some(m => m.avgOrderValue > 0) ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(v) => `€${v}`} tick={{ fontSize: 12 }} />
-                  <Tooltip 
-                    formatter={(value: number) => [formatCurrency(value), "Gemiddeld"]}
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--popover))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="avgOrderValue" 
-                    stroke="hsl(var(--chart-3))" 
-                    strokeWidth={2}
-                    dot={{ fill: 'hsl(var(--chart-3))' }}
-                    name="Gem. waarde"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-center py-8 text-muted-foreground">Nog geen data</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Per Weekly Menu */}
+      {/* Period-based Results */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            Resultaten per weekmenu
-          </CardTitle>
-          <CardDescription>
-            Overzicht van omzet per weekmenu
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Resultaten per periode
+              </CardTitle>
+              <CardDescription>
+                Overzicht van omzet, kosten en marge per {periodView === "week" ? "week" : "maand"}
+              </CardDescription>
+            </div>
+            <Tabs value={periodView} onValueChange={(v) => setPeriodView(v as "week" | "month")}>
+              <TabsList>
+                <TabsTrigger value="week">Per week</TabsTrigger>
+                <TabsTrigger value="month">Per maand</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Weekmenu</TableHead>
-                <TableHead>Leverdag</TableHead>
-                <TableHead className="text-right">Menu prijs</TableHead>
+                <TableHead>Periode</TableHead>
                 <TableHead className="text-right">Bestellingen</TableHead>
                 <TableHead className="text-right">Omzet</TableHead>
                 <TableHead className="text-right">Kosten</TableHead>
                 <TableHead className="text-right">Marge</TableHead>
+                <TableHead className="text-right">Gem. bestelling</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {weeklyMenuStats.map((menu) => (
-                <TableRow key={menu.id}>
-                  <TableCell className="font-medium">{menu.name}</TableCell>
-                  <TableCell>
-                    {menu.delivery_date ? (
-                      format(parseISO(menu.delivery_date), "EEEE d MMM yyyy", { locale: nl })
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatCurrency(menu.menu_price)}
-                  </TableCell>
+              {periodStats.slice().reverse().map((period) => (
+                <TableRow key={period.period}>
+                  <TableCell className="font-medium">{period.periodLabel}</TableCell>
                   <TableCell className="text-right">
-                    <Badge variant="secondary">{menu.total_orders}</Badge>
+                    <Badge variant="secondary">{period.orders}</Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(menu.total_revenue)}
+                    {formatCurrency(period.revenue)}
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">
-                    {formatCurrency(menu.total_cost)}
+                    {formatCurrency(period.cost)}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <span className={`font-semibold ${
-                        menu.margin_percentage >= 60 ? "text-emerald-600" 
-                        : menu.margin_percentage >= 30 ? "text-orange-600" 
+                        period.marginPercentage >= 60 ? "text-emerald-600" 
+                        : period.marginPercentage >= 30 ? "text-orange-600" 
                         : "text-red-600"
                       }`}>
-                        {formatCurrency(menu.margin)}
+                        {formatCurrency(period.margin)}
                       </span>
                       <Badge variant="outline" className={
-                        menu.margin_percentage >= 60 ? "border-emerald-300 text-emerald-700" 
-                        : menu.margin_percentage >= 30 ? "border-orange-300 text-orange-700" 
+                        period.marginPercentage >= 60 ? "border-emerald-300 text-emerald-700" 
+                        : period.marginPercentage >= 30 ? "border-orange-300 text-orange-700" 
                         : "border-red-300 text-red-700"
                       }>
-                        {menu.margin_percentage.toFixed(0)}%
+                        {period.marginPercentage.toFixed(0)}%
                       </Badge>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {formatCurrency(period.avgOrderValue)}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          {weeklyMenuStats.length === 0 && (
+          {periodStats.length === 0 && (
             <p className="text-center py-8 text-muted-foreground">
-              Nog geen weekmenu's
+              Nog geen bestellingen
             </p>
           )}
         </CardContent>

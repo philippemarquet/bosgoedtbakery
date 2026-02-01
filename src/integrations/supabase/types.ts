@@ -203,6 +203,7 @@ export type Database = {
           customer_id: string
           discount_amount: number
           id: string
+          invoice_date: string
           notes: string | null
           pickup_location_id: string | null
           status: string
@@ -217,6 +218,7 @@ export type Database = {
           customer_id: string
           discount_amount?: number
           id?: string
+          invoice_date?: string
           notes?: string | null
           pickup_location_id?: string | null
           status?: string
@@ -231,6 +233,7 @@ export type Database = {
           customer_id?: string
           discount_amount?: number
           id?: string
+          invoice_date?: string
           notes?: string | null
           pickup_location_id?: string | null
           status?: string

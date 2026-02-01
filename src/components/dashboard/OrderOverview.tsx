@@ -37,6 +37,7 @@ interface Order {
   created_at: string;
   updated_at: string;
   pickup_location_id: string | null;
+  invoice_date: string;
   customer: {
     id: string;
     full_name: string | null;
@@ -223,12 +224,12 @@ const OrderOverview = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Klant</TableHead>
-                  <TableHead>Weekmenu / Leverdag</TableHead>
+                  <TableHead>Factuurdatum</TableHead>
+                  <TableHead>Weekmenu</TableHead>
                   <TableHead className="text-right">Subtotaal</TableHead>
                   <TableHead className="text-right">Korting</TableHead>
                   <TableHead className="text-right">Totaal</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Datum</TableHead>
                   <TableHead className="w-[100px]">Acties</TableHead>
                 </TableRow>
               </TableHeader>
@@ -258,20 +259,16 @@ const OrderOverview = () => {
                         </div>
                       </TableCell>
                       <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-muted-foreground" />
+                          {format(parseISO(order.invoice_date), "d MMM yyyy", { locale: nl })}
+                        </div>
+                      </TableCell>
+                      <TableCell>
                         {order.weekly_menu ? (
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-muted-foreground" />
-                            <div>
-                              <span className="font-medium">{order.weekly_menu.name}</span>
-                              {order.weekly_menu.delivery_date && (
-                                <p className="text-xs text-muted-foreground">
-                                  {format(parseISO(order.weekly_menu.delivery_date), "EEEE d MMM", { locale: nl })}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                          <span className="font-medium">{order.weekly_menu.name}</span>
                         ) : (
-                          <span className="text-muted-foreground">Geen weekmenu</span>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">{formatCurrency(order.subtotal)}</TableCell>
@@ -297,9 +294,6 @@ const OrderOverview = () => {
                             ))}
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {format(parseISO(order.created_at), "d MMM yyyy", { locale: nl })}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">

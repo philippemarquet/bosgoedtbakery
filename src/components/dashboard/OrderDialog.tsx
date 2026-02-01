@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Trash2, Calendar, User, Package, MapPin, Image as ImageIcon } from "lucide-react";
+import { Plus, Trash2, Calendar, User, Package, MapPin, Image as ImageIcon, AlertTriangle, FileText } from "lucide-react";
 import { format, parseISO, startOfDay } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,16 +15,29 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 interface Order {
   id: string;
@@ -34,6 +47,7 @@ interface Order {
   discount_amount: number;
   total: number;
   created_at: string;
+  invoice_date?: string;
   customer: { id: string; full_name: string | null } | null;
   weekly_menu: { id: string; name: string; delivery_date: string | null } | null;
   pickup_location_id?: string | null;
@@ -98,6 +112,9 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
   const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [extraItems, setExtraItems] = useState<{ product_id: string; quantity: number }[]>([]);
+  const [invoiceDate, setInvoiceDate] = useState<Date | undefined>(new Date());
+  const [showEditWarning, setShowEditWarning] = useState(false);
+  const [pendingSave, setPendingSave] = useState(false);
 
   const { toast } = useToast();
 
@@ -228,6 +245,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
         setSelectedPickupLocationId("");
         setNotes("");
         setExtraItems([]);
+        setInvoiceDate(new Date());
         return;
       }
 
@@ -235,6 +253,13 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
       setSelectedMenuId(editingOrder.weekly_menu?.id || "");
       setSelectedPickupLocationId(editingOrder.pickup_location_id || "");
       setNotes(editingOrder.notes || "");
+      
+      // Load invoice date from order
+      if (editingOrder.invoice_date) {
+        setInvoiceDate(parseISO(editingOrder.invoice_date));
+      } else {
+        setInvoiceDate(new Date());
+      }
 
       // Load order items
       const { data: items } = await supabase
@@ -357,6 +382,22 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
       return;
     }
 
+    if (!invoiceDate) {
+      toast({ title: "Fout", description: "Selecteer een factuurdatum", variant: "destructive" });
+      return;
+    }
+
+    // Show warning when editing ready or paid orders
+    if (editingOrder && (editingOrder.status === "ready" || editingOrder.status === "paid") && !pendingSave) {
+      setShowEditWarning(true);
+      return;
+    }
+
+    await performSave();
+  };
+
+  const performSave = async () => {
+    setPendingSave(false);
     setLoading(true);
 
     const orderPayload = {
@@ -368,6 +409,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
       discount_amount: discountAmount,
       total,
       created_by: user!.id,
+      invoice_date: format(invoiceDate!, "yyyy-MM-dd"),
     };
 
     let orderId: string;
@@ -474,6 +516,37 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Invoice Date */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Factuurdatum *
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !invoiceDate && "text-muted-foreground"
+                  )}
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {invoiceDate ? format(invoiceDate, "EEEE d MMMM yyyy", { locale: nl }) : "Selecteer datum"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={invoiceDate}
+                  onSelect={setInvoiceDate}
+                  initialFocus
+                  locale={nl}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Weekly Menu Selection */}
@@ -675,6 +748,32 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Warning Dialog for editing ready/paid orders */}
+      <AlertDialog open={showEditWarning} onOpenChange={setShowEditWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              Bestelling bewerken
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Deze bestelling heeft de status "{editingOrder?.status === "ready" ? "Gereed" : "Betaald"}". 
+              Weet je zeker dat je deze bestelling wilt wijzigen?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setShowEditWarning(false);
+              setPendingSave(true);
+              setTimeout(() => handleSave(), 0);
+            }}>
+              Ja, wijzigen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };
