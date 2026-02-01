@@ -425,6 +425,7 @@ export type Database = {
           full_name: string | null
           house_number: string | null
           id: string
+          is_archived: boolean
           phone: string | null
           postal_code: string | null
           street: string | null
@@ -438,6 +439,7 @@ export type Database = {
           full_name?: string | null
           house_number?: string | null
           id?: string
+          is_archived?: boolean
           phone?: string | null
           postal_code?: string | null
           street?: string | null
@@ -451,6 +453,7 @@ export type Database = {
           full_name?: string | null
           house_number?: string | null
           id?: string
+          is_archived?: boolean
           phone?: string | null
           postal_code?: string | null
           street?: string | null
@@ -608,6 +611,7 @@ export type Database = {
           id: string
           name: string
           price: number
+          status: string
           updated_at: string
           week_end_date: string
           week_start_date: string
@@ -619,6 +623,7 @@ export type Database = {
           id?: string
           name: string
           price?: number
+          status?: string
           updated_at?: string
           week_end_date: string
           week_start_date: string
@@ -630,6 +635,7 @@ export type Database = {
           id?: string
           name?: string
           price?: number
+          status?: string
           updated_at?: string
           week_end_date?: string
           week_start_date?: string

@@ -174,10 +174,18 @@ const ProductsTab = () => {
     return `€${value.toFixed(2)}`;
   };
 
-  const getMarginColor = (margin: number) => {
-    if (margin < 0) return "text-destructive";
-    if (margin < 1) return "text-yellow-600";
+  const getMarginColor = (costPrice: number, sellingPrice: number) => {
+    if (sellingPrice <= 0) return "text-muted-foreground";
+    const marginPercent = ((sellingPrice - costPrice) / sellingPrice) * 100;
+    if (marginPercent < 30) return "text-destructive";
+    if (marginPercent < 60) return "text-yellow-600";
     return "text-green-600";
+  };
+
+  const formatMarginPercent = (costPrice: number, sellingPrice: number) => {
+    if (sellingPrice <= 0) return "0%";
+    const marginPercent = ((sellingPrice - costPrice) / sellingPrice) * 100;
+    return `${marginPercent.toFixed(0)}%`;
   };
 
   return (
@@ -252,8 +260,8 @@ const ProductsTab = () => {
                       <TableCell className="text-right font-medium">
                         {formatCurrency(Number(product.selling_price))}
                       </TableCell>
-                      <TableCell className={`text-right font-semibold ${getMarginColor(product.margin || 0)}`}>
-                        {formatCurrency(product.margin || 0)}
+                      <TableCell className={`text-right font-semibold ${getMarginColor(product.totalCost || 0, Number(product.selling_price))}`}>
+                        {formatCurrency(product.margin || 0)} ({formatMarginPercent(product.totalCost || 0, Number(product.selling_price))})
                       </TableCell>
                       <TableCell className="text-center">
                         <Checkbox checked={product.is_orderable} disabled />

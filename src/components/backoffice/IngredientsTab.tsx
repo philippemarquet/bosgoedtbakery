@@ -46,6 +46,7 @@ const IngredientsTab = () => {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showOnlyWithoutPrice, setShowOnlyWithoutPrice] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [formData, setFormData] = useState({
@@ -80,9 +81,13 @@ const IngredientsTab = () => {
 
   useVisibilityRefresh(refreshIngredients);
 
-  const filteredIngredients = ingredients.filter((i) =>
-    i.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredIngredients = ingredients.filter((i) => {
+    const matchesSearch = i.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesPriceFilter = showOnlyWithoutPrice ? Number(i.price_per_unit) === 0 : true;
+    return matchesSearch && matchesPriceFilter;
+  });
+
+  const ingredientsWithoutPrice = ingredients.filter(i => Number(i.price_per_unit) === 0).length;
 
   const openCreateDialog = () => {
     setEditingIngredient(null);
@@ -157,14 +162,28 @@ const IngredientsTab = () => {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Zoek ingrediënt..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex flex-1 gap-3 items-center">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Zoek ingrediënt..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          {ingredientsWithoutPrice > 0 && (
+            <button
+              onClick={() => setShowOnlyWithoutPrice(!showOnlyWithoutPrice)}
+              className={`px-3 py-2 text-sm rounded-md border transition-colors ${
+                showOnlyWithoutPrice 
+                  ? "bg-destructive/10 border-destructive text-destructive" 
+                  : "bg-muted border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Zonder prijs ({ingredientsWithoutPrice})
+            </button>
+          )}
         </div>
         <Button onClick={openCreateDialog}>
           <Plus className="w-4 h-4 mr-2" />
