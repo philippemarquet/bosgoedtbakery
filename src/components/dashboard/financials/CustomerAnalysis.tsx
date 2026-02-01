@@ -103,14 +103,17 @@ const CustomerAnalysis = () => {
         const orderIds = ordersData.map(o => o.id);
         const { data: items } = await supabase
           .from("order_items")
-          .select("product_id, quantity, total, product:products(name)")
+          .select("product_id, quantity, total, is_weekly_menu_item, product:products(name)")
           .in("order_id", orderIds);
 
         const statsMap = new Map<string, ProductStats>();
 
-        // Add individual product items
+        // Add individual product items (exclude weekly menu items - those are part of the menu, not chosen separately)
         if (items) {
           items.forEach(item => {
+            // Skip items that are part of a weekly menu
+            if (item.is_weekly_menu_item) return;
+            
             const existing = statsMap.get(item.product_id);
             if (existing) {
               existing.total_quantity += item.quantity;
