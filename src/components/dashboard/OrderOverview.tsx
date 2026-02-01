@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Search, ShoppingCart, MapPin, MessageCircle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ShoppingCart, MapPin, MessageCircle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { format, parseISO } from "date-fns";
@@ -434,52 +434,39 @@ const OrderOverview = () => {
                 </TabsList>
               </Tabs>
 
-              {/* Sort & Group Options */}
-              <div className="flex flex-wrap gap-2">
-                <Select value={sortOption} onValueChange={(val) => setSortOption(val as SortOption)}>
-                  <SelectTrigger className="w-[160px] h-9">
-                    <ArrowUpDown className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-                    <SelectValue placeholder="Sorteren" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date-desc">
-                      <span className="flex items-center gap-2">
-                        <ArrowDown className="w-3 h-3" />
-                        Datum (nieuwste)
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="date-asc">
-                      <span className="flex items-center gap-2">
-                        <ArrowUp className="w-3 h-3" />
-                        Datum (oudste)
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="customer-asc">
-                      <span className="flex items-center gap-2">
-                        <ArrowUp className="w-3 h-3" />
-                        Klant (A-Z)
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="customer-desc">
-                      <span className="flex items-center gap-2">
-                        <ArrowDown className="w-3 h-3" />
-                        Klant (Z-A)
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Sort & Group Options - only for paid orders */}
+              {statusFilter === "paid" && !isMobile && (
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs uppercase tracking-wide">Sorteer</span>
+                    <Select value={sortOption} onValueChange={(val) => setSortOption(val as SortOption)}>
+                      <SelectTrigger className="h-8 w-auto min-w-[120px] border-0 bg-transparent px-2 text-sm font-light hover:bg-muted/50 focus:ring-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        <SelectItem value="date-desc">Datum ↓</SelectItem>
+                        <SelectItem value="date-asc">Datum ↑</SelectItem>
+                        <SelectItem value="customer-asc">Klant A-Z</SelectItem>
+                        <SelectItem value="customer-desc">Klant Z-A</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <Select value={groupOption} onValueChange={(val) => setGroupOption(val as GroupOption)}>
-                  <SelectTrigger className="w-[150px] h-9">
-                    <SelectValue placeholder="Groeperen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Geen groepering</SelectItem>
-                    <SelectItem value="date">Groepeer op datum</SelectItem>
-                    <SelectItem value="customer">Groepeer op klant</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs uppercase tracking-wide">Groepeer</span>
+                    <Select value={groupOption} onValueChange={(val) => setGroupOption(val as GroupOption)}>
+                      <SelectTrigger className="h-8 w-auto min-w-[100px] border-0 bg-transparent px-2 text-sm font-light hover:bg-muted/50 focus:ring-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        <SelectItem value="none">Geen</SelectItem>
+                        <SelectItem value="date">Op datum</SelectItem>
+                        <SelectItem value="customer">Op klant</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="overflow-x-auto">
