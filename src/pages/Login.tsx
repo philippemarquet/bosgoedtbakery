@@ -16,6 +16,7 @@ const Login = () => {
   const [step, setStep] = useState<LoginStep>("email");
   const [isLoading, setIsLoading] = useState(false);
   const [needsPasswordSetup, setNeedsPasswordSetup] = useState(false);
+
   const navigate = useNavigate();
   const { signIn, user, isLoading: authLoading, isBaker, isCustomer, role } = useAuth();
   const { toast } = useToast();
@@ -30,24 +31,6 @@ const Login = () => {
       }
     }
   }, [user, authLoading, role, isBaker, isCustomer, navigate]);
-
-  const checkIfNeedsPasswordSetup = async (emailToCheck: string) => {
-    // Check if there's a profile with this email that has password_set = false
-    // We need to find the user by email first, then check their profile
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("user_id, password_set")
-      .not("user_id", "is", null);
-
-    if (error) {
-      console.error("Error checking profiles:", error);
-      return false;
-    }
-
-    // We can't directly query by email since profiles don't have email
-    // Instead, we'll check on the password step if login fails with "Invalid login credentials"
-    return false;
-  };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +111,45 @@ const Login = () => {
     toast({
       title: "Welkom terug!",
       description: "Je bent succesvol ingelogd.",
+    });
+  };
+
+  const handleForgotPassword = async () => {
+    const trimmed = email.trim();
+
+    if (!trimmed) {
+      toast({
+        title: "E-mailadres ontbreekt",
+        description: "Vul eerst je e-mailadres in.",
+        variant: "destructive",
+      });
+      setStep("email");
+      return;
+    }
+
+    setIsLoading(true);
+
+    // Let op: dit pad moet bestaan in je router
+    const redirectTo = `${window.location.origin}/reset-password`;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      redirectTo,
+    });
+
+    setIsLoading(false);
+
+    if (error) {
+      toast({
+        title: "Reset aanvragen mislukt",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Check je mailbox",
+      description: "We hebben een link gestuurd om je wachtwoord te resetten.",
     });
   };
 
@@ -242,12 +264,8 @@ const Login = () => {
         <div className="max-w-md w-full mx-auto">
           {/* Logo / Brand */}
           <div className="mb-12 animate-fade-in">
-            <h1 className="bakery-title text-foreground mb-3">
-              Bosgoedt
-            </h1>
-            <p className="bakery-subtitle text-muted-foreground">
-              Bakery
-            </p>
+            <h1 className="bakery-title text-foreground mb-3">Bosgoedt</h1>
+            <p className="bakery-subtitle text-muted-foreground">Bakery</p>
           </div>
 
           {/* Mobile hero image */}
@@ -303,7 +321,7 @@ const Login = () => {
                   <ArrowLeft className="w-4 h-4" />
                   Terug
                 </button>
-                
+
                 <div className="p-3 bg-muted/50 rounded-lg border mb-6">
                   <p className="text-sm text-muted-foreground">Inloggen als</p>
                   <p className="font-medium text-foreground">{email}</p>
@@ -345,6 +363,16 @@ const Login = () => {
                 {isLoading ? "Bezig met inloggen..." : "Inloggen"}
               </button>
 
+              {/* Nieuw: wachtwoord vergeten */}
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={isLoading}
+                className="w-full text-sm text-primary hover:underline disabled:opacity-50"
+              >
+                Wachtwoord vergeten?
+              </button>
+
               <p className="text-center text-sm text-muted-foreground animate-fade-in" style={{ animationDelay: "0.3s" }}>
                 Eerste keer inloggen? Voer je wachtwoord in om je account te activeren.
               </p>
@@ -363,7 +391,7 @@ const Login = () => {
                   <ArrowLeft className="w-4 h-4" />
                   Terug
                 </button>
-                
+
                 <div className="p-3 bg-muted/50 rounded-lg border mb-6">
                   <p className="text-sm text-muted-foreground">Account activeren voor</p>
                   <p className="font-medium text-foreground">{email}</p>
