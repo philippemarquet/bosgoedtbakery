@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Search, ExternalLink, Eye } from "lucide-react";
+import { Search, ExternalLink, Eye, Plus } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { nl } from "date-fns/locale";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
@@ -62,7 +62,11 @@ const ORDER_STATUSES = [
   { value: "paid", label: "Betaald", color: "emerald" },
 ] as const;
 
-const CustomerOrdersTab = () => {
+type Props = {
+  onPlaceExtrasOrder?: () => void;
+};
+
+const CustomerOrdersTab = ({ onPlaceExtrasOrder }: Props) => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +92,7 @@ const CustomerOrdersTab = () => {
       return;
     }
 
-    // 1) Orders (incl weekly_menu_id), geen nested weekly_menus join meer
+    // Orders: sorteer op invoice_date (nieuwste bovenaan)
     const { data: ordersData, error: ordersErr } = await supabase
       .from("orders")
       .select(`
@@ -139,7 +143,7 @@ const CustomerOrdersTab = () => {
 
     const orderIds = baseOrders.map((o) => o.id);
 
-    // 2) Items + products
+    // Items + products
     const { data: itemsData, error: itemsErr } = await supabase
       .from("order_items")
       .select(`
@@ -168,17 +172,15 @@ const CustomerOrdersTab = () => {
       });
     }
 
-    const items = (itemsData || []) as OrderItem[];
+    const items = (itemsData || []) as any as OrderItem[];
     const itemsByOrderId: Record<string, OrderItem[]> = {};
     for (const it of items) {
       if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id] = [];
       itemsByOrderId[it.order_id].push(it);
     }
 
-    // 3) Weekly menus apart ophalen
-    const menuIds = Array.from(
-      new Set(baseOrders.map((o) => o.weekly_menu_id).filter(Boolean))
-    ) as string[];
+    // Weekly menus apart ophalen
+    const menuIds = Array.from(new Set(baseOrders.map((o) => o.weekly_menu_id).filter(Boolean))) as string[];
 
     let menusById: Record<string, WeeklyMenu> = {};
     if (menuIds.length > 0) {
@@ -189,13 +191,8 @@ const CustomerOrdersTab = () => {
 
       if (menusErr) {
         console.error("Weekly menus fetch error:", menusErr);
-        toast({
-          title: "Let op",
-          description: "Weekmenu informatie kon niet worden geladen (rechten?).",
-          variant: "destructive",
-        });
       } else {
-        for (const m of menusData || []) {
+        for (const m of (menusData || []) as any[]) {
           menusById[m.id] = m as WeeklyMenu;
         }
       }
@@ -239,13 +236,13 @@ const CustomerOrdersTab = () => {
   };
 
   const generatePaymentLink = (order: Order) => {
-    const amount = order.total.toFixed(2);
+    const amount = Number(order.total || 0).toFixed(2);
     return `https://bunq.me/BosgoedtBakery/${amount}/${order.order_number}`;
   };
 
   const openPaymentLink = (order: Order) => window.open(generatePaymentLink(order), "_blank");
 
-  const formatCurrency = (value: number) => `€${value.toFixed(2)}`;
+  const formatCurrency = (value: number) => `€${Number(value || 0).toFixed(2)}`;
 
   const getStatusBadge = (status: string) => {
     const statusConfig = ORDER_STATUSES.find((s) => s.value === status);
@@ -270,15 +267,29 @@ const CustomerOrdersTab = () => {
 
   return (
     <div className="space-y-6">
+      {/* Minimal header row */}
       <div className="flex flex-col gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Zoek op ordernummer of weekmenu..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Zoek op ordernummer of weekmenu..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          <div className="sm:ml-auto">
+            <Button
+              variant="outline"
+              onClick={onPlaceExtrasOrder}
+              className="w-full sm:w-auto"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Losse bestelling plaatsen
+            </Button>
+          </div>
         </div>
 
         <Tabs value={statusFilter} onValueChange={setStatusFilter}>
@@ -296,21 +307,11 @@ const CustomerOrdersTab = () => {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Order
-              </th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Datum
-              </th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">
-                Weekmenu
-              </th>
-              <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Totaal
-              </th>
-              <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">
-                Status
-              </th>
+              <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Order</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Datum</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Weekmenu</th>
+              <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal</th>
+              <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Status</th>
               <th className="w-32"></th>
             </tr>
           </thead>
@@ -318,15 +319,11 @@ const CustomerOrdersTab = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="text-center py-12 text-muted-foreground">
-                  Laden...
-                </td>
+                <td colSpan={6} className="text-center py-12 text-muted-foreground">Laden...</td>
               </tr>
             ) : filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-12 text-muted-foreground">
-                  Geen bestellingen gevonden
-                </td>
+                <td colSpan={6} className="text-center py-12 text-muted-foreground">Geen bestellingen gevonden</td>
               </tr>
             ) : (
               filteredOrders.map((order) => (
@@ -335,28 +332,27 @@ const CustomerOrdersTab = () => {
                   className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors"
                 >
                   <td className="py-4 px-0">
-                    <span className="text-foreground text-sm font-medium tabular-nums">
-                      #{order.order_number}
-                    </span>
+                    <span className="text-foreground text-sm font-medium tabular-nums">#{order.order_number}</span>
                   </td>
+
                   <td className="py-4 px-4 text-muted-foreground tabular-nums text-sm font-light">
                     {format(parseISO(order.invoice_date), "d MMM yyyy", { locale: nl })}
                   </td>
+
                   <td className="py-4 px-4 hidden md:table-cell">
                     {order.weekly_menu ? (
                       <span className="text-foreground text-sm font-light">{order.weekly_menu.name}</span>
                     ) : order.weekly_menu_id ? (
-                      <span className="text-muted-foreground text-sm font-light">Weekmenu (details niet geladen)</span>
+                      <span className="text-muted-foreground text-sm font-light">Weekmenu</span>
                     ) : (
                       <span className="text-muted-foreground text-sm font-light">Losse producten</span>
                     )}
                   </td>
-                  <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">
-                    {formatCurrency(order.total)}
-                  </td>
-                  <td className="py-4 px-4 text-center hidden sm:table-cell">
-                    {getStatusBadge(order.status)}
-                  </td>
+
+                  <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">{formatCurrency(order.total)}</td>
+
+                  <td className="py-4 px-4 text-center hidden sm:table-cell">{getStatusBadge(order.status)}</td>
+
                   <td className="py-4 px-0">
                     <div className="flex justify-end gap-1">
                       <Button
