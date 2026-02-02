@@ -504,6 +504,7 @@ export type Database = {
           house_number: string | null
           id: string
           is_archived: boolean
+          password_set: boolean
           phone: string | null
           postal_code: string | null
           street: string | null
@@ -519,6 +520,7 @@ export type Database = {
           house_number?: string | null
           id?: string
           is_archived?: boolean
+          password_set?: boolean
           phone?: string | null
           postal_code?: string | null
           street?: string | null
@@ -534,6 +536,7 @@ export type Database = {
           house_number?: string | null
           id?: string
           is_archived?: boolean
+          password_set?: boolean
           phone?: string | null
           postal_code?: string | null
           street?: string | null
