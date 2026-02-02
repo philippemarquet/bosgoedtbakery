@@ -88,15 +88,28 @@ Deno.serve(async (req) => {
 
     const newUserId = authData.user.id;
 
-    // If profile_id is provided, update the existing profile with the new user_id
+    // If profile_id is provided, we need to:
+    // 1. Delete the auto-created profile (from the handle_new_user trigger)
+    // 2. Update the existing profile with the new user_id
     if (profile_id) {
+      // First, delete the auto-created profile
+      const { error: deleteError } = await adminClient
+        .from("profiles")
+        .delete()
+        .eq("user_id", newUserId);
+
+      if (deleteError) {
+        console.error("Error deleting auto-created profile:", deleteError);
+      }
+
+      // Then update the existing profile with the new user_id
       const { error: updateError } = await adminClient
         .from("profiles")
         .update({ user_id: newUserId })
         .eq("id", profile_id);
 
       if (updateError) {
-        console.error("Error updating profile:", updateError);
+        console.error("Error updating existing profile:", updateError);
       }
     }
 
