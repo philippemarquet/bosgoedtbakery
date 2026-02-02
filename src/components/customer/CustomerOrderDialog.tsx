@@ -541,12 +541,15 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
                 <span className="tabular-nums">{formatCurrency(order.total)}</span>
               </div>
 
-              {order.status !== "paid" && (
-                <Button className="w-full mt-3" onClick={() => window.open(generatePaymentLink(), "_blank")}>
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Nu betalen
-                </Button>
-              )}
+{order.status === "ready" && (
+  <Button
+    className="w-full mt-3"
+    onClick={() => window.open(generatePaymentLink(), "_blank")}
+  >
+    <ExternalLink className="w-4 h-4 mr-2" />
+    Nu betalen
+  </Button>
+)}
             </div>
           </div>
         )}
