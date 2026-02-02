@@ -20,21 +20,21 @@ export default function ResetPassword() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // 1) Luister naar auth events (Supabase kan PASSWORD_RECOVERY emitten)
+    // 1) luister naar Supabase auth event
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
         setReady(true);
       }
     });
 
-    // 2) Fallback: tokens uit URL-hash zetten als session
+    // 2) fallback: tokens uit hash zelf zetten
     (async () => {
       const p = getHashParams();
       const type = p.get("type");
       const access_token = p.get("access_token");
       const refresh_token = p.get("refresh_token");
 
-      // Alleen bij recovery links
+      // Supabase recovery link bevat type=recovery in de hash
       if (type !== "recovery" || !access_token) return;
 
       const { error } = await supabase.auth.setSession({
@@ -79,9 +79,7 @@ export default function ResetPassword() {
     }
 
     setIsLoading(true);
-
     const { error } = await supabase.auth.updateUser({ password });
-
     setIsLoading(false);
 
     if (error) {
@@ -93,7 +91,6 @@ export default function ResetPassword() {
       return;
     }
 
-    // Optioneel (maar fijn): user uitloggen en laten inloggen met nieuw wachtwoord
     await supabase.auth.signOut();
 
     toast({
