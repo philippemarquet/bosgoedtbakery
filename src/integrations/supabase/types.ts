@@ -299,6 +299,7 @@ export type Database = {
           counterparty_name: string | null
           created_at: string
           description: string | null
+          fingerprint: string | null
           id: string
           order_id: string | null
           raw_payload: Json | null
@@ -310,6 +311,7 @@ export type Database = {
           counterparty_name?: string | null
           created_at?: string
           description?: string | null
+          fingerprint?: string | null
           id?: string
           order_id?: string | null
           raw_payload?: Json | null
@@ -321,6 +323,7 @@ export type Database = {
           counterparty_name?: string | null
           created_at?: string
           description?: string | null
+          fingerprint?: string | null
           id?: string
           order_id?: string | null
           raw_payload?: Json | null

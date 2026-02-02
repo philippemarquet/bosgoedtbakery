@@ -14,15 +14,19 @@ const Login = () => {
   const [step, setStep] = useState<LoginStep>("email");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { signIn, user, isLoading: authLoading } = useAuth();
+  const { signIn, user, isLoading: authLoading, isBaker, isCustomer, role } = useAuth();
   const { toast } = useToast();
 
-  // Redirect if already logged in
+  // Redirect if already logged in based on role
   useEffect(() => {
-    if (!authLoading && user) {
-      navigate("/dashboard");
+    if (!authLoading && user && role) {
+      if (isBaker) {
+        navigate("/dashboard");
+      } else if (isCustomer) {
+        navigate("/klant");
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, role, isBaker, isCustomer, navigate]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +64,7 @@ const Login = () => {
       description: "Je bent succesvol ingelogd.",
     });
 
-    navigate("/dashboard");
+    // Navigation will happen via useEffect when role is loaded
   };
 
   const handleForgotPassword = async () => {

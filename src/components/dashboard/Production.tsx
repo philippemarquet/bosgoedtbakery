@@ -4,6 +4,13 @@ import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import StockCheck from "./StockCheck";
 
 interface ProductionItem {
@@ -46,11 +53,14 @@ const formatQuantity = (value: number, unit: string): string => {
   return `${rounded} ${converted.unit}`;
 };
 
+type StatusFilter = "confirmed" | "in_production" | "all_production";
+
 const Production = () => {
   const [loading, setLoading] = useState(true);
   const [productionItems, setProductionItems] = useState<ProductionItem[]>([]);
   const [allIngredientNeeds, setAllIngredientNeeds] = useState<IngredientNeed[]>([]);
   const [activeTab, setActiveTab] = useState<"products" | "ingredients" | "stockcheck">("products");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("confirmed");
   
   // For product detail view
   const [selectedProduct, setSelectedProduct] = useState<ProductionItem | null>(null);
@@ -59,11 +69,11 @@ const Production = () => {
 
   const refreshData = useCallback(() => {
     fetchProductionData();
-  }, []);
+  }, [statusFilter]);
 
   useEffect(() => {
     fetchProductionData();
-  }, []);
+  }, [statusFilter]);
 
   // Refresh data when tab becomes visible again
   useVisibilityRefresh(refreshData);
@@ -73,16 +83,26 @@ const Production = () => {
     setLoading(true);
     setSelectedProduct(null);
 
-    // Fetch orders with status "confirmed" only
-    const { data: orders } = await supabase
+    // Determine which statuses to fetch based on filter
+    let query = supabase
       .from("orders")
       .select(`
         id,
         status,
         weekly_menu_id,
         customer:profiles!orders_customer_id_fkey(full_name)
-      `)
-      .eq("status", "confirmed");
+      `);
+    
+    if (statusFilter === "confirmed") {
+      query = query.eq("status", "confirmed");
+    } else if (statusFilter === "in_production") {
+      query = query.eq("status", "in_production");
+    } else {
+      // all_production: both confirmed and in_production
+      query = query.in("status", ["confirmed", "in_production"]);
+    }
+    
+    const { data: orders } = await query;
 
     if (!orders || orders.length === 0) {
       setProductionItems([]);
@@ -250,13 +270,34 @@ const Production = () => {
     setProductIngredients([]);
   };
 
+  const getStatusFilterLabel = () => {
+    switch (statusFilter) {
+      case "confirmed": return "Bevestigd";
+      case "in_production": return "In productie";
+      case "all_production": return "Bevestigd + In productie";
+      default: return "Status";
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-serif font-medium">Productie</h2>
-        <p className="text-sm text-muted-foreground">
-          Bestellingen met status "Bevestigd"
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-serif font-medium">Productie</h2>
+          <p className="text-sm text-muted-foreground">
+            {getStatusFilterLabel()}
+          </p>
+        </div>
+        <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as StatusFilter)}>
+          <SelectTrigger className="w-[180px] h-9 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="confirmed">Bevestigd</SelectItem>
+            <SelectItem value="in_production">In productie</SelectItem>
+            <SelectItem value="all_production">Bevestigd + In productie</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {loading ? (

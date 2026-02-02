@@ -366,8 +366,8 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
     };
   }, [selectedMenu, extraItems, products, discountGroups, customerDiscountPercentage]);
 
-  // Check if order is read-only (status is ready or paid)
-  const isReadOnly = editingOrder && (editingOrder.status === "ready" || editingOrder.status === "paid");
+  // Check if order is read-only (status is in_production, ready or paid)
+  const isReadOnly = editingOrder && (editingOrder.status === "in_production" || editingOrder.status === "ready" || editingOrder.status === "paid");
 
   const addExtraItem = () => {
     if (isReadOnly) return;
@@ -420,8 +420,8 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
       return;
     }
 
-    // Show warning when editing ready or paid orders
-    if (editingOrder && (editingOrder.status === "ready" || editingOrder.status === "paid") && !pendingSave) {
+    // Show warning when editing in_production, ready or paid orders
+    if (editingOrder && (editingOrder.status === "in_production" || editingOrder.status === "ready" || editingOrder.status === "paid") && !pendingSave) {
       setShowEditWarning(true);
       return;
     }
@@ -436,7 +436,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
     const orderPayload = {
       customer_id: selectedCustomerId,
       weekly_menu_id: selectedMenuId || null,
-      pickup_location_id: selectedPickupLocationId || null,
+      pickup_location_id: selectedPickupLocationId === "anders" || selectedPickupLocationId === "none" ? null : selectedPickupLocationId || null,
       notes: notes.trim() || null,
       subtotal,
       discount_amount: discountAmount,
@@ -544,7 +544,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Lock className="w-4 h-4" />
               <span>
-                Deze bestelling is <strong>{editingOrder?.status === "ready" ? "Gereed" : "Betaald"}</strong> en kan alleen bekeken worden.
+                Deze bestelling is <strong>{editingOrder?.status === "in_production" ? "In productie" : editingOrder?.status === "ready" ? "Gereed" : "Betaald"}</strong> en kan alleen bekeken worden.
               </span>
             </div>
             <Button
@@ -657,11 +657,12 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
               <MapPin className="w-4 h-4" />
               Afhaallocatie
             </Label>
-            <Select value={selectedPickupLocationId} onValueChange={setSelectedPickupLocationId} disabled={isReadOnly}>
+            <Select value={selectedPickupLocationId || "none"} onValueChange={(val) => setSelectedPickupLocationId(val === "none" ? "" : val)} disabled={isReadOnly}>
               <SelectTrigger className={isReadOnly ? "opacity-60" : ""}>
                 <SelectValue placeholder="Selecteer afhaallocatie" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">Geen afhaallocatie</SelectItem>
                 {pickupLocations.map((location) => (
                   <SelectItem key={location.id} value={location.id}>
                     <div className="flex flex-col">
@@ -672,6 +673,9 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                     </div>
                   </SelectItem>
                 ))}
+                <SelectItem value="anders">
+                  <span className="italic">Anders (zelf invullen in opmerkingen)</span>
+                </SelectItem>
               </SelectContent>
             </Select>
             {pickupLocations.length === 0 && (
@@ -845,7 +849,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
               Bestelling bewerken
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Deze bestelling heeft de status "{editingOrder?.status === "ready" ? "Gereed" : "Betaald"}". 
+              Deze bestelling heeft de status "{editingOrder?.status === "in_production" ? "In productie" : editingOrder?.status === "ready" ? "Gereed" : "Betaald"}". 
               Weet je zeker dat je deze bestelling wilt wijzigen?
             </AlertDialogDescription>
           </AlertDialogHeader>

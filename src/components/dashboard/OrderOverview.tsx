@@ -55,6 +55,7 @@ interface Order {
 
 const ORDER_STATUSES = [
   { value: "confirmed", label: "Bevestigd", color: "blue" },
+  { value: "in_production", label: "In productie", color: "orange" },
   { value: "ready", label: "Gereed", color: "purple" },
   { value: "paid", label: "Betaald", color: "emerald" },
 ] as const;
@@ -134,7 +135,7 @@ const OrderRow = ({
     )}
     <td className="py-4 px-0">
       <div className="flex justify-end gap-1">
-        {order.status === "ready" && (
+        {(order.status === "ready" || order.status === "in_production") && (
           <button
             onClick={() => onWhatsApp(order)}
             className="p-2 text-green-500 hover:text-green-700 transition-colors"
@@ -370,6 +371,7 @@ const OrderOverview = () => {
 
     const colorClasses: Record<string, string> = {
       blue: "bg-blue-500 hover:bg-blue-600 text-white",
+      orange: "bg-orange-500 hover:bg-orange-600 text-white",
       purple: "bg-purple-500 hover:bg-purple-600 text-white",
       emerald: "bg-emerald-600 hover:bg-emerald-700 text-white",
     };
