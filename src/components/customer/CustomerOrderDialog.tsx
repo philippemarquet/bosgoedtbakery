@@ -1,15 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import {
-  Plus,
-  Trash2,
-  Calendar,
-  Package,
-  MapPin,
-  Image as ImageIcon,
-  Lock,
-  Hash,
-  ExternalLink,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Calendar, ExternalLink, Hash, Lock, MapPin, Package, Plus, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,12 +10,12 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
 interface OrderItem {
   id: string;
+  order_id?: string;
   product_id: string;
   quantity: number;
   unit_price: number;
@@ -33,6 +23,16 @@ interface OrderItem {
   total: number;
   is_weekly_menu_item: boolean;
   product: { id: string; name: string; image_url?: string | null } | null;
+}
+
+interface WeeklyMenu {
+  id: string;
+  name: string;
+  delivery_date: string | null;
+  week_start_date?: string;
+  week_end_date?: string;
+  price?: number;
+  description?: string | null;
 }
 
 interface Order {
@@ -43,19 +43,12 @@ interface Order {
   subtotal: number;
   discount_amount: number;
   total: number;
-  created_at: string;
+  created_at?: string;
   invoice_date: string;
   pickup_location_id: string | null;
 
-  weekly_menu: {
-    id: string;
-    name: string;
-    delivery_date: string | null;
-    week_start_date?: string;
-    week_end_date?: string;
-    price?: number;
-    description?: string | null;
-  } | null;
+  weekly_menu_id?: string | null;
+  weekly_menu: WeeklyMenu | null;
 
   pickup_location?: { id: string; title: string } | null;
 
@@ -66,8 +59,6 @@ interface Product {
   id: string;
   name: string;
   selling_price: number;
-  category_name?: string;
-  image_url?: string | null;
 }
 
 interface PickupLocation {
@@ -77,6 +68,7 @@ interface PickupLocation {
   house_number: string | null;
   postal_code: string;
   city: string;
+  is_active: boolean;
 }
 
 interface CustomerOrderDialogProps {
@@ -94,60 +86,96 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 };
 
 const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrderDialogProps) => {
-  const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
-
-  const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
-  const [customPickupLocation, setCustomPickupLocation] = useState("");
-  const [notes, setNotes] = useState("");
-  const [extraItems, setExtraItems] = useState<{ product_id: string; quantity: number }[]>([]);
-
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
 
   const canEdit = order?.status === "confirmed";
   const isReadOnly = !canEdit;
 
-  // Fetch products (only needed for editable mode)
+  const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
+  const [customPickupLocation, setCustomPickupLocation] = useState("");
+  const [notes, setNotes] = useState("");
+  const [extraItemsDraft, setExtraItemsDraft] = useState<{ product_id: string; quantity: number }[]>([]);
+
+  // --- Helpers ---
+  const formatCurrency = (value: number) => `€${Number(value || 0).toFixed(2)}`;
+
+  const generatePaymentLink = () => {
+    if (!order) return "";
+    const amount = Number(order.total || 0).toFixed(2);
+    return `https://bunq.me/BosgoedtBakery/${amount}/${order.order_number}`;
+  };
+
+  const weeklyItems = useMemo(() => (order?.items || []).filter((i) => i.is_weekly_menu_item), [order]);
+  const extraOrderItems = useMemo(() => (order?.items || []).filter((i) => !i.is_weekly_menu_item), [order]);
+
+  const menuPrice = useMemo(() => {
+    const p = order?.weekly_menu?.price;
+    return typeof p === "number" ? p : p ? Number(p) : 0;
+  }, [order]);
+
+  const extrasTotalFromItems = useMemo(() => {
+    // Som van extra items; als totals niet gevuld zijn, val terug op unit_price * qty
+    const sum = extraOrderItems.reduce((acc, it) => {
+      const line = Number(it.total ?? 0);
+      if (line > 0) return acc + line;
+      return acc + Number(it.unit_price ?? 0) * Number(it.quantity ?? 0);
+    }, 0);
+    return sum;
+  }, [extraOrderItems]);
+
+  const extrasTotalFallback = useMemo(() => {
+    // Als item totals 0 zijn, probeer uit subtotal een redelijke schatting te halen
+    const subtotal = Number(order?.subtotal ?? 0);
+    const estimate = Math.max(0, subtotal - (menuPrice || 0));
+    return estimate;
+  }, [order, menuPrice]);
+
+  const extrasTotal = useMemo(() => {
+    return extrasTotalFromItems > 0 ? extrasTotalFromItems : extrasTotalFallback;
+  }, [extrasTotalFromItems, extrasTotalFallback]);
+
+  // --- Fetch pickup locations (altijd) ---
   useEffect(() => {
-    const fetchProducts = async () => {
-      const { data } = await supabase
-        .from("products")
-        .select("id, name, selling_price, image_url, category:categories(name)")
-        .eq("is_orderable", true)
-        .order("name");
-
-      if (data) {
-        setProducts(
-          data.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            selling_price: Number(p.selling_price),
-            category_name: p.category?.name || "Zonder categorie",
-            image_url: p.image_url,
-          }))
-        );
-      }
-    };
-
-    if (open && !isReadOnly) fetchProducts();
-  }, [open, isReadOnly]);
-
-  // Fetch pickup locations
-  useEffect(() => {
+    if (!open) return;
     const fetchPickupLocations = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("pickup_locations")
         .select("*")
         .eq("is_active", true)
         .order("title");
-      if (data) setPickupLocations(data as any);
-    };
 
-    if (open) fetchPickupLocations();
+      if (!error && data) setPickupLocations(data as any);
+    };
+    fetchPickupLocations();
   }, [open]);
 
-  // Initialize form state from order
+  // --- Fetch products (alleen nodig als editable extra items) ---
+  useEffect(() => {
+    if (!open || isReadOnly) return;
+    const fetchProducts = async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, selling_price")
+        .eq("is_orderable", true)
+        .order("name");
+      if (!error && data) {
+        setProducts(
+          (data as any[]).map((p) => ({
+            id: p.id,
+            name: p.name,
+            selling_price: Number(p.selling_price),
+          }))
+        );
+      }
+    };
+    fetchProducts();
+  }, [open, isReadOnly]);
+
+  // --- Init form state from order ---
   useEffect(() => {
     if (!open) return;
 
@@ -155,52 +183,37 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
       setSelectedPickupLocationId("");
       setCustomPickupLocation("");
       setNotes("");
-      setExtraItems([]);
+      setExtraItemsDraft([]);
       return;
     }
 
     setSelectedPickupLocationId(order.pickup_location_id || "anders");
     setNotes(order.notes || "");
 
-    // init editable extra items from the order items
-    const extras = (order.items || [])
-      .filter((i) => !i.is_weekly_menu_item)
-      .map((i) => ({ product_id: i.product_id, quantity: i.quantity }));
+    // init editable extras from existing extra order items
+    const draft = extraOrderItems.map((i) => ({ product_id: i.product_id, quantity: i.quantity }));
+    setExtraItemsDraft(draft);
+  }, [open, order, extraOrderItems]);
 
-    setExtraItems(extras.length ? extras : []);
-  }, [order, open]);
-
-  const weeklyItems = useMemo(() => {
-    return (order?.items || []).filter((i) => i.is_weekly_menu_item);
-  }, [order]);
-
-  const extraOrderItems = useMemo(() => {
-    return (order?.items || []).filter((i) => !i.is_weekly_menu_item);
-  }, [order]);
-
+  // --- Editable extras actions ---
   const addExtraItem = () => {
     if (isReadOnly) return;
-    setExtraItems([...extraItems, { product_id: "", quantity: 1 }]);
+    setExtraItemsDraft([...extraItemsDraft, { product_id: "", quantity: 1 }]);
   };
 
   const removeExtraItem = (index: number) => {
     if (isReadOnly) return;
-    setExtraItems(extraItems.filter((_, i) => i !== index));
+    setExtraItemsDraft(extraItemsDraft.filter((_, i) => i !== index));
   };
 
   const updateExtraItem = (index: number, field: "product_id" | "quantity", value: string | number) => {
     if (isReadOnly) return;
-    const updated = [...extraItems];
+    const updated = [...extraItemsDraft];
     updated[index] = { ...updated[index], [field]: value };
-    setExtraItems(updated);
+    setExtraItemsDraft(updated);
   };
 
-  const generatePaymentLink = () => {
-    if (!order) return "";
-    const amount = order.total.toFixed(2);
-    return `https://bunq.me/BosgoedtBakery/${amount}/${order.order_number}`;
-  };
-
+  // --- Save ---
   const handleSave = async () => {
     if (!order || isReadOnly) return;
 
@@ -217,9 +230,6 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
         selectedPickupLocationId === "anders"
           ? `Afhaallocatie: ${customPickupLocation.trim()}${notes ? `\n${notes}` : ""}`
           : notes.trim() || null,
-      subtotal: order.subtotal,
-      discount_amount: order.discount_amount,
-      total: order.total,
       updated_at: new Date().toISOString(),
     };
 
@@ -234,7 +244,7 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
     // Replace only extra items (non-weekly)
     await supabase.from("order_items").delete().eq("order_id", order.id).eq("is_weekly_menu_item", false);
 
-    const newItems = extraItems
+    const newItems = extraItemsDraft
       .filter((item) => item.product_id && item.quantity > 0)
       .map((item) => {
         const product = products.find((p) => p.id === item.product_id);
@@ -260,35 +270,32 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
     onSave();
   };
 
-  const formatCurrency = (value: number) => `€${value.toFixed(2)}`;
-
-  const renderItemRow = (item: OrderItem) => {
+  // --- UI: rows ---
+  const WeeklyRow = ({ item }: { item: OrderItem }) => {
     const name = item.product?.name || "Onbekend product";
-    const img = item.product?.image_url || null;
+    return (
+      <div className="flex items-start justify-between py-2">
+        <div className="min-w-0">
+          <div className="text-sm text-foreground truncate">{name}</div>
+          <div className="text-xs text-muted-foreground">{item.quantity}× • Inbegrepen</div>
+        </div>
+        <div className="text-xs text-muted-foreground whitespace-nowrap">Inbegrepen</div>
+      </div>
+    );
+  };
+
+  const ExtraRow = ({ item }: { item: OrderItem }) => {
+    const name = item.product?.name || "Onbekend product";
+    const lineTotal =
+      Number(item.total ?? 0) > 0 ? Number(item.total) : Number(item.unit_price ?? 0) * Number(item.quantity ?? 0);
 
     return (
-      <div key={item.id} className="flex gap-3 items-center p-2 border rounded-lg bg-muted/30">
-        <div className="w-10 h-10 rounded-md overflow-hidden bg-muted flex-shrink-0">
-          {img ? (
-            <img src={img} alt={name} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <ImageIcon className="w-4 h-4 text-muted-foreground" />
-            </div>
-          )}
+      <div className="flex items-start justify-between py-2">
+        <div className="min-w-0">
+          <div className="text-sm text-foreground truncate">{name}</div>
+          <div className="text-xs text-muted-foreground">{item.quantity}×</div>
         </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="text-sm truncate">{name}</div>
-          {!item.product && (
-            <div className="text-xs text-muted-foreground">
-              (product-id: {item.product_id.slice(0, 8)}…)
-            </div>
-          )}
-        </div>
-
-        <span className="text-sm text-muted-foreground">{item.quantity}x</span>
-        <span className="text-sm font-medium w-16 text-right">{formatCurrency(item.total)}</span>
+        <div className="text-sm text-foreground whitespace-nowrap tabular-nums">{formatCurrency(lineTotal)}</div>
       </div>
     );
   };
@@ -297,266 +304,250 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle>Bestelling details</DialogTitle>
+          <div className="flex items-baseline justify-between gap-4">
+            <DialogTitle className="font-serif text-2xl">Bestelling</DialogTitle>
             {order?.order_number && (
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground font-normal">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Hash className="w-3.5 h-3.5" />
-                {order.order_number}
-              </span>
+                <span className="tabular-nums">{order.order_number}</span>
+              </div>
             )}
           </div>
         </DialogHeader>
 
-        {isReadOnly && order && (
-          <div className="flex items-center gap-2 p-3 bg-muted/50 border rounded-lg">
-            <Lock className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
-              Deze bestelling heeft de status <strong>{ORDER_STATUS_LABELS[order.status]}</strong> en kan niet meer worden
-              aangepast.
-            </span>
-          </div>
-        )}
-
         {order && (
-          <div className="space-y-6 py-4">
-            {/* Status / dates */}
-            <div className="flex flex-wrap gap-4">
-              <div>
-                <Label className="text-xs text-muted-foreground uppercase">Status</Label>
-                <div className="mt-1">
-                  <Badge variant="secondary" className="text-sm">
-                    {ORDER_STATUS_LABELS[order.status]}
-                  </Badge>
-                </div>
-              </div>
+          <div className="py-2 space-y-6">
+            {/* Slimme, rustige header info */}
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant="secondary" className="rounded-md">
+                {ORDER_STATUS_LABELS[order.status] || order.status}
+              </Badge>
 
-              <div>
-                <Label className="text-xs text-muted-foreground uppercase">Factuurdatum</Label>
-                <p className="mt-1 text-sm">{format(parseISO(order.invoice_date), "EEEE d MMMM yyyy", { locale: nl })}</p>
+              <div className="text-xs text-muted-foreground">
+                Factuurdatum{" "}
+                <span className="text-foreground">
+                  {format(parseISO(order.invoice_date), "d MMM yyyy", { locale: nl })}
+                </span>
               </div>
 
               {order.weekly_menu?.delivery_date && (
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase">Leverdatum</Label>
-                  <p className="mt-1 text-sm">
-                    {format(parseISO(order.weekly_menu.delivery_date), "EEEE d MMMM yyyy", { locale: nl })}
-                  </p>
+                <div className="text-xs text-muted-foreground">
+                  Leverdatum{" "}
+                  <span className="text-foreground">
+                    {format(parseISO(order.weekly_menu.delivery_date), "d MMM yyyy", { locale: nl })}
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* Weekly Menu */}
-            {order.weekly_menu && (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Weekmenu
-                </Label>
-                <div className="p-3 bg-muted/30 rounded-lg">
-                  <div className="font-medium">{order.weekly_menu.name}</div>
-                  {(order.weekly_menu.week_start_date || order.weekly_menu.week_end_date) && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Week: {order.weekly_menu.week_start_date || "?"} – {order.weekly_menu.week_end_date || "?"}
-                    </div>
-                  )}
-                </div>
+            {/* Read-only notice */}
+            {isReadOnly && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Lock className="w-4 h-4" />
+                Deze bestelling kan niet meer worden aangepast.
               </div>
             )}
 
-            {/* Pickup location */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                Afhaallocatie
-              </Label>
-
-              {isReadOnly ? (
-                <div className="p-3 bg-muted/30 rounded-lg">
-                  {pickupLocations.find((l) => l.id === order.pickup_location_id)?.title ||
-                    order.pickup_location?.title ||
-                    (order.notes?.includes("Afhaallocatie:") ? order.notes.split("\n")[0] : "Niet opgegeven")}
+            {/* Weekmenu block (minimal, no card) */}
+            {(order.weekly_menu || order.weekly_menu_id) && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Calendar className="w-4 h-4" />
+                    Weekmenu
+                  </div>
+                  {/* menuprijs 1x tonen */}
+                  <div className="text-sm text-foreground tabular-nums">
+                    {menuPrice > 0 ? formatCurrency(menuPrice) : ""}
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <Select value={selectedPickupLocationId} onValueChange={setSelectedPickupLocationId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecteer afhaallocatie" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pickupLocations.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{location.title}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {location.street} {location.house_number}, {location.city}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="anders">
-                        <span className="italic">Anders (zelf invullen)</span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
 
-                  {selectedPickupLocationId === "anders" && (
-                    <Input
-                      placeholder="Vul je gewenste afhaallocatie in..."
-                      value={customPickupLocation}
-                      onChange={(e) => setCustomPickupLocation(e.target.value)}
-                      className="mt-2"
-                    />
-                  )}
-                </>
+                <div className="text-sm text-foreground">
+                  {order.weekly_menu?.name || "Weekmenu"}
+                </div>
+
+                {weeklyItems.length > 0 && (
+                  <div className="mt-2 divide-y divide-border/40">
+                    {weeklyItems.map((it) => (
+                      <WeeklyRow key={it.id} item={it} />
+                    ))}
+                  </div>
+                )}
+
+                {weeklyItems.length === 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    Geen inbegrepen producten gevonden voor deze bestelling.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Extra producten */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Package className="w-4 h-4" />
+                  Extra producten
+                </div>
+                {/* geen harde waarheid, maar netjes: extra’s totaal */}
+                <div className="text-sm text-foreground tabular-nums">
+                  {extraOrderItems.length > 0 ? formatCurrency(extrasTotal) : ""}
+                </div>
+              </div>
+
+              {extraOrderItems.length === 0 ? (
+                <div className="text-xs text-muted-foreground">Geen extra producten.</div>
+              ) : (
+                <div className="divide-y divide-border/40">
+                  {extraOrderItems.map((it) => (
+                    <ExtraRow key={it.id} item={it} />
+                  ))}
+                </div>
+              )}
+
+              {/* Editable extra items (confirmed only) */}
+              {!isReadOnly && (
+                <div className="pt-3 space-y-3">
+                  {extraItemsDraft.map((item, idx) => (
+                    <div key={`${item.product_id}-${idx}`} className="flex gap-2 items-center">
+                      <Select value={item.product_id} onValueChange={(v) => updateExtraItem(idx, "product_id", v)}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Kies product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name} ({formatCurrency(p.selling_price)})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(e) => updateExtraItem(idx, "quantity", Number(e.target.value))}
+                        className="w-20"
+                      />
+
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeExtraItem(idx)} title="Verwijderen">
+                        <Trash2 className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  <Button type="button" variant="outline" size="sm" onClick={addExtraItem}>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Product toevoegen
+                  </Button>
+                </div>
               )}
             </div>
 
             <Separator />
 
-            {/* Items */}
+            {/* Afhaallocatie + notes (clean) */}
             <div className="space-y-4">
-              <Label className="flex items-center gap-2">
-                <Package className="w-4 h-4" />
-                Producten
-              </Label>
-
-              {/* Weekmenu producten */}
-              {order.weekly_menu && (
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Inbegrepen in weekmenu</div>
-                  {weeklyItems.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Geen weekmenu-producten gevonden voor deze bestelling.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">{weeklyItems.map(renderItemRow)}</div>
-                  )}
-                </div>
-              )}
-
-              {/* Extra producten */}
               <div className="space-y-2">
-                <div className="text-sm font-medium">Extra producten</div>
+                <Label className="flex items-center gap-2 text-sm font-medium">
+                  <MapPin className="w-4 h-4" />
+                  Afhaallocatie
+                </Label>
 
-                {extraOrderItems.length === 0 && extraItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Geen extra producten.</p>
+                {isReadOnly ? (
+                  <div className="text-sm text-foreground">
+                    {pickupLocations.find((l) => l.id === order.pickup_location_id)?.title ||
+                      order.pickup_location?.title ||
+                      (order.notes?.includes("Afhaallocatie:") ? order.notes.split("\n")[0] : "Niet opgegeven")}
+                  </div>
                 ) : (
                   <>
-                    {/* Read-only list (altijd tonen) */}
-                    <div className="space-y-2">
-                      {extraOrderItems.map(renderItemRow)}
-                    </div>
-
-                    {/* Editable controls */}
-                    {!isReadOnly && (
-                      <div className="space-y-3 pt-2">
-                        {extraItems.map((item, idx) => (
-                          <div key={`${item.product_id}-${idx}`} className="flex gap-2 items-center">
-                            <Select
-                              value={item.product_id}
-                              onValueChange={(v) => updateExtraItem(idx, "product_id", v)}
-                            >
-                              <SelectTrigger className="flex-1">
-                                <SelectValue placeholder="Kies product" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {products.map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>
-                                    {p.name} ({formatCurrency(p.selling_price)})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-
-                            <Input
-                              type="number"
-                              min={1}
-                              value={item.quantity}
-                              onChange={(e) => updateExtraItem(idx, "quantity", Number(e.target.value))}
-                              className="w-20"
-                            />
-
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeExtraItem(idx)}
-                              title="Verwijderen"
-                            >
-                              <Trash2 className="w-4 h-4 text-muted-foreground" />
-                            </Button>
-                          </div>
+                    <Select value={selectedPickupLocationId} onValueChange={setSelectedPickupLocationId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecteer afhaallocatie" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pickupLocations.map((location) => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.title}
+                          </SelectItem>
                         ))}
+                        <SelectItem value="anders">
+                          <span className="italic">Anders (zelf invullen)</span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
 
-                        <Button type="button" variant="outline" size="sm" onClick={addExtraItem}>
-                          <Plus className="w-4 h-4 mr-1" />
-                          Product toevoegen
-                        </Button>
-                      </div>
+                    {selectedPickupLocationId === "anders" && (
+                      <Input
+                        placeholder="Vul je gewenste afhaallocatie in..."
+                        value={customPickupLocation}
+                        onChange={(e) => setCustomPickupLocation(e.target.value)}
+                        className="mt-2"
+                      />
                     )}
                   </>
                 )}
               </div>
 
-              {/* Hint wanneer product null is (typisch RLS) */}
-              {(order.items || []).some((i) => !i.product) && (
-                <div className="text-xs text-muted-foreground">
-                  Sommige productdetails konden niet worden geladen. Dit wijst meestal op rechten (RLS) op de products-tabel.
-                </div>
-              )}
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Opmerkingen</Label>
-              {isReadOnly ? (
-                <div className="p-3 bg-muted/30 rounded-lg text-sm min-h-[60px]">
-                  {order.notes || <span className="text-muted-foreground">Geen opmerkingen</span>}
-                </div>
-              ) : (
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Optionele opmerkingen..."
-                  rows={2}
-                />
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="notes" className="text-sm font-medium">
+                  Opmerkingen
+                </Label>
+                {isReadOnly ? (
+                  <div className="text-sm text-muted-foreground">
+                    {order.notes || "Geen opmerkingen"}
+                  </div>
+                ) : (
+                  <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Optionele opmerkingen..."
+                    rows={2}
+                  />
+                )}
+              </div>
             </div>
 
             <Separator />
 
-            {/* Totals */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Overzicht</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Subtotaal</span>
-                  <span>{formatCurrency(order.subtotal)}</span>
-                </div>
-                {order.discount_amount > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
-                    <span>Korting</span>
-                    <span>-{formatCurrency(order.discount_amount)}</span>
-                  </div>
-                )}
-                <Separator />
-                <div className="flex justify-between font-semibold text-lg">
-                  <span>Totaal</span>
-                  <span>{formatCurrency(order.total)}</span>
-                </div>
+            {/* Overzicht (menuprijs 1x, geen productprijzen in menu) */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Overzicht</div>
 
-                {order.status !== "paid" && (
-                  <Button className="w-full mt-4" onClick={() => window.open(generatePaymentLink(), "_blank")}>
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Nu betalen
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+              {order.weekly_menu_id && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Weekmenu</span>
+                  <span className="tabular-nums">{formatCurrency(menuPrice)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Extra producten</span>
+                <span className="tabular-nums">{formatCurrency(extrasTotal)}</span>
+              </div>
+
+              {Number(order.discount_amount || 0) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Korting</span>
+                  <span className="tabular-nums">-{formatCurrency(order.discount_amount)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between text-base font-semibold pt-2">
+                <span>Totaal</span>
+                <span className="tabular-nums">{formatCurrency(order.total)}</span>
+              </div>
+
+              {order.status !== "paid" && (
+                <Button className="w-full mt-3" onClick={() => window.open(generatePaymentLink(), "_blank")}>
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Nu betalen
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
