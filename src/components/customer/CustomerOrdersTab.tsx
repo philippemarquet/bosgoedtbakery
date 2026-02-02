@@ -24,6 +24,16 @@ interface OrderItem {
   product: { id: string; name: string; image_url?: string | null } | null;
 }
 
+interface WeeklyMenu {
+  id: string;
+  name: string;
+  delivery_date: string | null;
+  week_start_date: string;
+  week_end_date: string;
+  price: number;
+  description: string | null;
+}
+
 interface Order {
   id: string;
   order_number: number;
@@ -37,20 +47,10 @@ interface Order {
   pickup_location_id: string | null;
   invoice_date: string;
 
-  weekly_menu: {
-    id: string;
-    name: string;
-    delivery_date: string | null;
-    week_start_date: string;
-    week_end_date: string;
-    price: number;
-    description: string | null;
-  } | null;
+  weekly_menu_id: string | null;
+  weekly_menu: WeeklyMenu | null;
 
-  pickup_location: {
-    id: string;
-    title: string;
-  } | null;
+  pickup_location: { id: string; title: string } | null;
 
   items: OrderItem[];
 }
@@ -76,7 +76,6 @@ const CustomerOrdersTab = () => {
     if (!user) return;
     setLoading(true);
 
-    // 1) profile id ophalen
     const { data: profile, error: profileErr } = await supabase
       .from("profiles")
       .select("id")
@@ -89,7 +88,7 @@ const CustomerOrdersTab = () => {
       return;
     }
 
-    // 2) orders ophalen (zonder riskante items-join)
+    // 1) Orders (incl weekly_menu_id), geen nested weekly_menus join meer
     const { data: ordersData, error: ordersErr } = await supabase
       .from("orders")
       .select(`
@@ -104,15 +103,7 @@ const CustomerOrdersTab = () => {
         updated_at,
         pickup_location_id,
         invoice_date,
-        weekly_menu:weekly_menus (
-          id,
-          name,
-          delivery_date,
-          week_start_date,
-          week_end_date,
-          price,
-          description
-        ),
+        weekly_menu_id,
         pickup_location:pickup_locations (
           id,
           title
@@ -133,18 +124,21 @@ const CustomerOrdersTab = () => {
       return;
     }
 
-    const baseOrders = (ordersData || []).map((o: any) => ({ ...o, items: [] })) as Order[];
+    const baseOrders: Order[] = (ordersData || []).map((o: any) => ({
+      ...o,
+      weekly_menu: null,
+      items: [],
+    }));
 
-    // Geen orders? Klaar.
     if (baseOrders.length === 0) {
       setOrders([]);
       setLoading(false);
       return;
     }
 
-    // 3) order_items ophalen in één keer (met productdetails)
     const orderIds = baseOrders.map((o) => o.id);
 
+    // 2) Items + products
     const { data: itemsData, error: itemsErr } = await supabase
       .from("order_items")
       .select(`
@@ -165,16 +159,12 @@ const CustomerOrdersTab = () => {
       .in("order_id", orderIds);
 
     if (itemsErr) {
-      // Belangrijk: orders blijven zichtbaar, items zijn dan leeg.
       console.error("Order items fetch error:", itemsErr);
       toast({
         title: "Let op",
         description: "Bestellingen geladen, maar productdetails konden niet worden opgehaald.",
         variant: "destructive",
       });
-      setOrders(baseOrders);
-      setLoading(false);
-      return;
     }
 
     const items = (itemsData || []) as OrderItem[];
@@ -184,9 +174,36 @@ const CustomerOrdersTab = () => {
       itemsByOrderId[it.order_id].push(it);
     }
 
+    // 3) Weekly menus apart ophalen
+    const menuIds = Array.from(
+      new Set(baseOrders.map((o) => o.weekly_menu_id).filter(Boolean))
+    ) as string[];
+
+    let menusById: Record<string, WeeklyMenu> = {};
+    if (menuIds.length > 0) {
+      const { data: menusData, error: menusErr } = await supabase
+        .from("weekly_menus")
+        .select("id, name, delivery_date, week_start_date, week_end_date, price, description")
+        .in("id", menuIds);
+
+      if (menusErr) {
+        console.error("Weekly menus fetch error:", menusErr);
+        toast({
+          title: "Let op",
+          description: "Weekmenu informatie kon niet worden geladen (rechten?).",
+          variant: "destructive",
+        });
+      } else {
+        for (const m of menusData || []) {
+          menusById[m.id] = m as WeeklyMenu;
+        }
+      }
+    }
+
     const merged = baseOrders.map((o) => ({
       ...o,
       items: itemsByOrderId[o.id] || [],
+      weekly_menu: o.weekly_menu_id ? menusById[o.weekly_menu_id] || null : null,
     }));
 
     setOrders(merged);
@@ -317,7 +334,9 @@ const CustomerOrdersTab = () => {
                   className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors"
                 >
                   <td className="py-4 px-0">
-                    <span className="text-foreground text-sm font-medium tabular-nums">#{order.order_number}</span>
+                    <span className="text-foreground text-sm font-medium tabular-nums">
+                      #{order.order_number}
+                    </span>
                   </td>
                   <td className="py-4 px-4 text-muted-foreground tabular-nums text-sm font-light">
                     {format(parseISO(order.invoice_date), "d MMM yyyy", { locale: nl })}
@@ -325,12 +344,18 @@ const CustomerOrdersTab = () => {
                   <td className="py-4 px-4 hidden md:table-cell">
                     {order.weekly_menu ? (
                       <span className="text-foreground text-sm font-light">{order.weekly_menu.name}</span>
+                    ) : order.weekly_menu_id ? (
+                      <span className="text-muted-foreground text-sm font-light">Weekmenu (details niet geladen)</span>
                     ) : (
                       <span className="text-muted-foreground text-sm font-light">Losse producten</span>
                     )}
                   </td>
-                  <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">{formatCurrency(order.total)}</td>
-                  <td className="py-4 px-4 text-center hidden sm:table-cell">{getStatusBadge(order.status)}</td>
+                  <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">
+                    {formatCurrency(order.total)}
+                  </td>
+                  <td className="py-4 px-4 text-center hidden sm:table-cell">
+                    {getStatusBadge(order.status)}
+                  </td>
                   <td className="py-4 px-0">
                     <div className="flex justify-end gap-1">
                       <Button
@@ -363,7 +388,12 @@ const CustomerOrdersTab = () => {
         </table>
       </div>
 
-      <CustomerOrderDialog open={dialogOpen} onOpenChange={setDialogOpen} order={selectedOrder} onSave={fetchOrders} />
+      <CustomerOrderDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        order={selectedOrder}
+        onSave={fetchOrders}
+      />
     </div>
   );
 };
