@@ -13,19 +13,22 @@ const navigationItems = [
   { name: "Bestelling plaatsen", icon: ShoppingBag, href: "/customer/place-order" },
 ];
 
+type PlaceOrderSubTab = "weekmenu" | "extras";
+
 const CustomerDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Mijn bestellingen");
+  const [placeOrderSubTab, setPlaceOrderSubTab] = useState<PlaceOrderSubTab>("weekmenu");
   const [userName, setUserName] = useState<string | null>(null);
+
   const navigate = useNavigate();
   const { user, signOut, role } = useAuth();
   const isMobile = useIsMobile();
 
-  // Fetch user's name from profile
   useEffect(() => {
     const fetchUserName = async () => {
       if (!user) return;
-      
+
       try {
         const { data, error } = await supabase
           .from("profiles")
@@ -33,9 +36,7 @@ const CustomerDashboard = () => {
           .eq("user_id", user.id)
           .single();
 
-        if (!error && data) {
-          setUserName(data.full_name);
-        }
+        if (!error && data) setUserName(data.full_name);
       } catch (err) {
         console.error("Error fetching user name:", err);
       }
@@ -49,49 +50,58 @@ const CustomerDashboard = () => {
     navigate("/");
   };
 
-  const handleProfileUpdate = (newName: string) => {
-    setUserName(newName);
+  const handleProfileUpdate = (newName: string) => setUserName(newName);
+
+  // NEW: from Orders -> go to Place Order (extras-only)
+  const goToExtrasOrder = () => {
+    setPlaceOrderSubTab("extras");
+    setActiveTab("Bestelling plaatsen");
+    setSidebarOpen(false);
   };
 
   const renderContent = () => {
     switch (activeTab) {
       case "Mijn bestellingen":
-        return <CustomerOrdersTab />;
+        return <CustomerOrdersTab onPlaceExtrasOrder={goToExtrasOrder} />;
       case "Bestelling plaatsen":
-        return <CustomerPlaceOrderTab />;
+        return (
+          <CustomerPlaceOrderTab
+            activeSubTab={placeOrderSubTab}
+            onSubTabChange={setPlaceOrderSubTab}
+            onOrderCreated={() => setActiveTab("Mijn bestellingen")}
+          />
+        );
       default:
-        return <CustomerOrdersTab />;
+        return <CustomerOrdersTab onPlaceExtrasOrder={goToExtrasOrder} />;
     }
   };
 
-  // Display name: prefer full_name, fallback to email
   const displayName = userName || user?.email || "Klant";
   const firstName = displayName.split(" ")[0];
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-foreground/20 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
-      <aside className={`
+      <aside
+        className={`
         fixed top-0 left-0 z-50 h-full w-64 bg-sidebar border-r border-sidebar-border
         transform transition-transform duration-200 ease-in-out
         lg:translate-x-0
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-      `}>
-        {/* Logo */}
+      `}
+      >
         <div className="h-20 flex items-center justify-between px-6 border-b border-sidebar-border">
           <div>
             <h1 className="font-serif text-2xl font-semibold text-sidebar-foreground">Bosgoedt</h1>
             <p className="text-xs tracking-[0.15em] uppercase text-muted-foreground">Bakery</p>
           </div>
-          <button 
+          <button
             className="lg:hidden p-2 text-sidebar-foreground hover:bg-sidebar-accent rounded-md"
             onClick={() => setSidebarOpen(false)}
           >
@@ -99,20 +109,23 @@ const CustomerDashboard = () => {
           </button>
         </div>
 
-        {/* Navigation */}
         <nav className="p-4 space-y-1">
           {navigationItems.map((item) => (
             <button
               key={item.name}
               onClick={() => {
                 setActiveTab(item.name);
+                // default: if customer clicks Place Order in sidebar, show weekmenu (unless already set)
+                if (item.name === "Bestelling plaatsen" && !placeOrderSubTab) {
+                  setPlaceOrderSubTab("weekmenu");
+                }
                 setSidebarOpen(false);
               }}
               className={`
                 w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium
                 transition-colors duration-150
-                ${activeTab === item.name 
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground" 
+                ${activeTab === item.name
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 }
               `}
@@ -123,7 +136,6 @@ const CustomerDashboard = () => {
           ))}
         </nav>
 
-        {/* User section */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-sidebar-border">
           <div className="flex items-center gap-3 px-4 py-3 rounded-md bg-sidebar-accent">
             <div className="w-10 h-10 rounded-full bg-sidebar-primary flex items-center justify-center">
@@ -132,9 +144,7 @@ const CustomerDashboard = () => {
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {displayName}
-              </p>
+              <p className="text-sm font-medium text-sidebar-foreground truncate">{displayName}</p>
               <p className="text-xs text-muted-foreground capitalize">
                 {role === "customer" ? "Klant" : role || "Geen rol"}
               </p>
@@ -151,12 +161,10 @@ const CustomerDashboard = () => {
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="lg:pl-64">
-        {/* Top bar */}
         <header className="h-20 flex items-center justify-between px-6 border-b border-border bg-card">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               className="lg:hidden p-2 text-foreground hover:bg-muted rounded-md"
               onClick={() => setSidebarOpen(true)}
             >
@@ -167,19 +175,16 @@ const CustomerDashboard = () => {
             </h2>
           </div>
           <div className="text-sm text-muted-foreground hidden sm:block">
-            {new Date().toLocaleDateString("nl-NL", { 
-              weekday: "long", 
-              year: "numeric", 
-              month: "long", 
-              day: "numeric" 
+            {new Date().toLocaleDateString("nl-NL", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
             })}
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="p-6">
-          {renderContent()}
-        </main>
+        <main className="p-6">{renderContent()}</main>
       </div>
     </div>
   );
