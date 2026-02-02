@@ -263,7 +263,7 @@ const CustomerOrdersTab = ({ onPlaceExtrasOrder }: Props) => {
   };
 
   const canEditOrder = (order: Order) => order.status === "confirmed";
-  const needsPayment = (order: Order) => order.status !== "paid";
+  const needsPayment = (order: Order) => order.status === "ready";
 
   return (
     <div className="space-y-6">
