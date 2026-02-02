@@ -45,6 +45,45 @@ const Login = () => {
     setStep("password");
   };
 
+  const handleForgotPassword = async () => {
+    const trimmed = email.trim();
+
+    if (!trimmed) {
+      toast({
+        title: "E-mailadres ontbreekt",
+        description: "Vul eerst je e-mailadres in.",
+        variant: "destructive",
+      });
+      setStep("email");
+      return;
+    }
+
+    setIsLoading(true);
+
+    // Let op: deze route moet bestaan in je router + ook in Supabase "Additional Redirect URLs"
+    const redirectTo = `${window.location.origin}/reset-password`;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      redirectTo,
+    });
+
+    setIsLoading(false);
+
+    if (error) {
+      toast({
+        title: "Reset aanvragen mislukt",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Check je mailbox",
+      description: "We hebben een link gestuurd om je wachtwoord te resetten.",
+    });
+  };
+
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -111,45 +150,6 @@ const Login = () => {
     toast({
       title: "Welkom terug!",
       description: "Je bent succesvol ingelogd.",
-    });
-  };
-
-  const handleForgotPassword = async () => {
-    const trimmed = email.trim();
-
-    if (!trimmed) {
-      toast({
-        title: "E-mailadres ontbreekt",
-        description: "Vul eerst je e-mailadres in.",
-        variant: "destructive",
-      });
-      setStep("email");
-      return;
-    }
-
-    setIsLoading(true);
-
-    // Let op: dit pad moet bestaan in je router
-    const redirectTo = `${window.location.origin}/reset-password`;
-
-    const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
-      redirectTo,
-    });
-
-    setIsLoading(false);
-
-    if (error) {
-      toast({
-        title: "Reset aanvragen mislukt",
-        description: error.message,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "Check je mailbox",
-      description: "We hebben een link gestuurd om je wachtwoord te resetten.",
     });
   };
 
@@ -363,7 +363,7 @@ const Login = () => {
                 {isLoading ? "Bezig met inloggen..." : "Inloggen"}
               </button>
 
-              {/* Nieuw: wachtwoord vergeten */}
+              {/* Nieuw: Wachtwoord vergeten */}
               <button
                 type="button"
                 onClick={handleForgotPassword}
