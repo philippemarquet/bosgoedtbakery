@@ -110,6 +110,7 @@ const CustomerOrdersTab = () => {
         )
       `)
       .eq("customer_id", profile.id)
+      .order("invoice_date", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (ordersErr) {
