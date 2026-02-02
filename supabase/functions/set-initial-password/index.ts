@@ -5,6 +5,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -14,18 +21,10 @@ Deno.serve(async (req) => {
   try {
     const { email, password } = await req.json();
 
-    if (!email || !password) {
-      return new Response(JSON.stringify({ error: "Email en wachtwoord zijn verplicht" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!email || !password) return json({ error: "Email en wachtwoord zijn verplicht" });
 
     if (password.length < 6) {
-      return new Response(JSON.stringify({ error: "Wachtwoord moet minimaal 6 tekens zijn" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Wachtwoord moet minimaal 6 tekens zijn" });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -41,19 +40,14 @@ Deno.serve(async (req) => {
     
     if (listError) {
       console.error("Error listing users:", listError);
-      return new Response(JSON.stringify({ error: "Kon gebruikers niet ophalen" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Kon gebruikers niet ophalen" }, 500);
     }
 
     const user = usersData?.users?.find(u => u.email === email);
     
     if (!user) {
-      return new Response(JSON.stringify({ error: "Gebruiker niet gevonden" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // NB: altijd 200 teruggeven zodat supabase.functions.invoke() geen exception/blank screen veroorzaakt.
+      return json({ error: "Gebruiker niet gevonden" });
     }
 
     // Check if this user has password_set = false (meaning they haven't set their password yet)
@@ -64,17 +58,11 @@ Deno.serve(async (req) => {
       .single();
 
     if (profileError || !profile) {
-      return new Response(JSON.stringify({ error: "Profiel niet gevonden" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Profiel niet gevonden" });
     }
 
     if (profile.password_set) {
-      return new Response(JSON.stringify({ error: "Wachtwoord is al ingesteld. Gebruik 'Wachtwoord vergeten' om te resetten." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Wachtwoord is al ingesteld. Gebruik 'Wachtwoord vergeten' om te resetten." });
     }
 
     // Update the user's password
@@ -84,10 +72,7 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error("Error updating password:", updateError);
-      return new Response(JSON.stringify({ error: "Kon wachtwoord niet instellen" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Kon wachtwoord niet instellen" }, 500);
     }
 
     // Mark password as set
@@ -100,19 +85,10 @@ Deno.serve(async (req) => {
       console.error("Error updating profile:", profileUpdateError);
     }
 
-    return new Response(
-      JSON.stringify({ success: true, message: "Wachtwoord succesvol ingesteld" }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return json({ success: true, message: "Wachtwoord succesvol ingesteld" }, 200);
   } catch (error) {
     console.error("Error:", error);
     const message = error instanceof Error ? error.message : "Onbekende fout";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: message }, 500);
   }
 });

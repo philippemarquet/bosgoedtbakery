@@ -72,19 +72,33 @@ const Login = () => {
       // Check if this might be a first-time login
       if (error.message === "Invalid login credentials") {
         // Try to check if user exists and needs password setup
-        const response = await supabase.functions.invoke("set-initial-password", {
-          body: { email, password: "check-only" },
-        });
-
-        // If we get a specific error about password already set, show normal error
-        // If we get user not found or needs setup, show setup option
-        if (response.data?.error === "Wachtwoord is al ingesteld. Gebruik 'Wachtwoord vergeten' om te resetten.") {
+        // NB: supabase.functions.invoke kan throwen bij non-2xx; altijd afvangen om blank screen te voorkomen.
+        let checkData: any = null;
+        try {
+          const response = await supabase.functions.invoke("set-initial-password", {
+            body: { email, password: "check-only" },
+          });
+          checkData = response.data;
+        } catch (invokeErr) {
+          console.error("set-initial-password check failed:", invokeErr);
           toast({
             title: "Inloggen mislukt",
             description: "Ongeldige inloggegevens. Controleer je wachtwoord.",
             variant: "destructive",
           });
-        } else if (response.data?.error === "Gebruiker niet gevonden") {
+          setIsLoading(false);
+          return;
+        }
+
+        // If we get a specific error about password already set, show normal error
+        // If we get user not found or needs setup, show setup option
+        if (checkData?.error === "Wachtwoord is al ingesteld. Gebruik 'Wachtwoord vergeten' om te resetten.") {
+          toast({
+            title: "Inloggen mislukt",
+            description: "Ongeldige inloggegevens. Controleer je wachtwoord.",
+            variant: "destructive",
+          });
+        } else if (checkData?.error === "Gebruiker niet gevonden") {
           toast({
             title: "Inloggen mislukt",
             description: "Dit e-mailadres is niet bekend.",
@@ -141,14 +155,27 @@ const Login = () => {
     setIsLoading(true);
 
     // Call edge function to set password
-    const { data, error } = await supabase.functions.invoke("set-initial-password", {
-      body: { email, password },
-    });
-
-    if (error || data?.error) {
+    let setData: any = null;
+    try {
+      const { data } = await supabase.functions.invoke("set-initial-password", {
+        body: { email, password },
+      });
+      setData = data;
+    } catch (invokeErr) {
+      console.error("set-initial-password set failed:", invokeErr);
       toast({
         title: "Fout",
-        description: data?.error || error?.message || "Kon wachtwoord niet instellen",
+        description: "Kon wachtwoord niet instellen",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (setData?.error) {
+      toast({
+        title: "Fout",
+        description: setData?.error || "Kon wachtwoord niet instellen",
         variant: "destructive",
       });
       setIsLoading(false);
