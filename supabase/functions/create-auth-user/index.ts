@@ -129,14 +129,34 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Create customer role for the new user
-    const { error: roleError } = await adminClient.from("user_roles").insert({
-      user_id: newUserId,
-      role: "customer",
-    });
+    // If we linked to an existing profile, also set password_set to false
+    if (profile_id) {
+      const { error: pwSetError } = await adminClient
+        .from("profiles")
+        .update({ password_set: false })
+        .eq("id", profile_id);
 
-    if (roleError) {
-      console.error("Error creating role:", roleError);
+      if (pwSetError) {
+        console.error("Error setting password_set to false:", pwSetError);
+      }
+    }
+
+    // Create customer role for the new user (only if not already exists)
+    const { data: existingRole } = await adminClient
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", newUserId)
+      .single();
+
+    if (!existingRole) {
+      const { error: roleError } = await adminClient.from("user_roles").insert({
+        user_id: newUserId,
+        role: "customer",
+      });
+
+      if (roleError) {
+        console.error("Error creating role:", roleError);
+      }
     }
 
     return new Response(
