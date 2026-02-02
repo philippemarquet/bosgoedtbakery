@@ -68,25 +68,41 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Generate a secure random password (user will reset it on first login)
-    const tempPassword = crypto.randomUUID() + crypto.randomUUID();
-
-    // Create the user with email_confirm: true so they're pre-approved
-    const { data: authData, error: createError } = await adminClient.auth.admin.createUser({
-      email,
-      password: tempPassword,
-      email_confirm: true, // Auto-confirm the email
-      user_metadata: { full_name },
-    });
-
-    if (createError) {
-      return new Response(JSON.stringify({ error: createError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // First, check if a user with this email already exists
+    const { data: existingUsers, error: listError } = await adminClient.auth.admin.listUsers();
+    
+    let existingUser = null;
+    if (!listError && existingUsers?.users) {
+      existingUser = existingUsers.users.find(u => u.email === email);
     }
 
-    const newUserId = authData.user.id;
+    let newUserId: string;
+
+    if (existingUser) {
+      // User already exists, use their ID
+      newUserId = existingUser.id;
+      console.log("User already exists, linking to existing auth user:", newUserId);
+    } else {
+      // Generate a secure random password (user will reset it on first login)
+      const tempPassword = crypto.randomUUID() + crypto.randomUUID();
+
+      // Create the user with email_confirm: true so they're pre-approved
+      const { data: authData, error: createError } = await adminClient.auth.admin.createUser({
+        email,
+        password: tempPassword,
+        email_confirm: true, // Auto-confirm the email
+        user_metadata: { full_name },
+      });
+
+      if (createError) {
+        return new Response(JSON.stringify({ error: createError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      newUserId = authData.user.id;
+    }
 
     // If profile_id is provided, we need to:
     // 1. Delete the auto-created profile (from the handle_new_user trigger)
