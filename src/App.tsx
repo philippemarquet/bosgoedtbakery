@@ -8,7 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import CustomerDashboard from "./pages/CustomerDashboard";
-import ResetPassword from "./pages/reset-password"; // ✅ NIEUW
+import ResetPassword from "./pages/reset-password"; // ✅ nieuw
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,7 +23,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
 
-            {/* ✅ NIEUW: publiek, geen ProtectedRoute */}
+            {/* ✅ publiek, geen ProtectedRoute */}
             <Route path="/reset-password" element={<ResetPassword />} />
 
             <Route
@@ -34,7 +34,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-
             <Route
               path="/klant"
               element={
@@ -44,7 +43,6 @@ const App = () => (
               }
             />
 
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
