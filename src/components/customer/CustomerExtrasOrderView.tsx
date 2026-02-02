@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Minus, Plus, ShoppingBag } from "lucide-react";
+import { Minus, Plus, ShoppingBag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -45,12 +44,10 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
   const [pickupLocationId, setPickupLocationId] = useState<string>("");
   const [notes, setNotes] = useState("");
 
-  // quantities by product_id
   const [qty, setQty] = useState<Record<string, number>>({});
 
   const formatCurrency = (v: number) => `€${Number(v || 0).toFixed(2)}`;
 
-  // Fetch profile + products + pickup locations
   useEffect(() => {
     if (!user) return;
 
@@ -97,15 +94,16 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
         return;
       }
 
-      setProducts((prodData || []).map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        selling_price: Number(p.selling_price || 0),
-      })));
+      setProducts(
+        (prodData || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          selling_price: Number(p.selling_price || 0),
+        }))
+      );
 
       setPickupLocations((locData || []) as any);
 
-      // default pickup location
       if ((locData || []).length > 0) setPickupLocationId((locData as any)[0].id);
 
       setLoading(false);
@@ -125,6 +123,7 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
   }, [products, qty]);
 
   const subtotal = useMemo(() => selectedLines.reduce((a, l) => a + l.lineTotal, 0), [selectedLines]);
+
   const discountAmount = useMemo(() => {
     const perc = Math.max(0, Math.min(100, Number(discountPercentage || 0)));
     return (subtotal * perc) / 100;
@@ -151,7 +150,6 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
 
     setSubmitting(true);
 
-    // 1) order insert
     const { data: orderData, error: orderErr } = await supabase
       .from("orders")
       .insert({
@@ -165,7 +163,7 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
         created_by: user.id,
         pickup_location_id: pickupLocationId,
       })
-      .select("id, order_number, total")
+      .select("id, order_number")
       .single();
 
     if (orderErr || !orderData) {
@@ -175,7 +173,6 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
       return;
     }
 
-    // 2) items insert
     const itemsPayload = selectedLines.map((l) => ({
       order_id: orderData.id,
       product_id: l.product.id,
@@ -204,19 +201,15 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
       description: `Order #${orderData.order_number} is aangemaakt.`,
     });
 
-    // reset UI
+    // reset
     setQty({});
     setNotes("");
 
     setSubmitting(false);
+
+    // terug naar orders (zoals jij wil)
     onOrderCreated?.();
   };
-
-  const paymentLink = useMemo(() => {
-    // fallback link format consistent with your app
-    const amount = Number(total || 0).toFixed(2);
-    return `https://bunq.me/BosgoedtBakery/${amount}/`;
-  }, [total]);
 
   if (loading) {
     return <div className="text-sm text-muted-foreground">Laden...</div>;
@@ -224,14 +217,12 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-2">
         <ShoppingBag className="w-4 h-4 text-muted-foreground" />
         <div className="text-sm font-medium text-foreground">Losse producten</div>
         <div className="text-xs text-muted-foreground">— selecteer wat je wil meenemen</div>
       </div>
 
-      {/* Products list (minimal, airy) */}
       <div className="divide-y divide-border/40">
         {products.map((p) => {
           const value = Number(qty[p.id] || 0);
@@ -260,7 +251,6 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
 
       <Separator />
 
-      {/* Pickup + Notes */}
       <div className="space-y-4">
         <div className="space-y-2">
           <Label className="text-sm font-medium">Afhaallocatie</Label>
@@ -291,7 +281,6 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
 
       <Separator />
 
-      {/* Summary (clean) */}
       <div className="space-y-2">
         <div className="text-sm font-medium">Overzicht</div>
 
@@ -312,20 +301,9 @@ export default function CustomerExtrasOrderView({ onOrderCreated }: Props) {
           <span className="tabular-nums">{formatCurrency(total)}</span>
         </div>
 
-        <div className="pt-3 flex flex-col sm:flex-row gap-2">
-          <Button onClick={createOrder} disabled={submitting} className="sm:flex-1">
+        <div className="pt-3">
+          <Button onClick={createOrder} disabled={submitting} className="w-full">
             {submitting ? "Bezig..." : "Bestelling plaatsen"}
-          </Button>
-
-          {/* optioneel: payment link, je kunt dit ook later pas tonen */}
-          <Button
-            variant="outline"
-            onClick={() => window.open(paymentLink, "_blank")}
-            className="sm:w-auto"
-            disabled={total <= 0}
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Betalen
           </Button>
         </div>
       </div>
