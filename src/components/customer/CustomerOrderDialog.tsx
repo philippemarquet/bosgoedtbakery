@@ -88,9 +88,11 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrderDialogProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const canEdit = order?.status === "confirmed";
-  const isReadOnly = !canEdit;
+  // Only show edit UI when both canEdit is true AND user clicked "Wijzig"
+  const isReadOnly = !canEdit || !isEditing;
 
   const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -155,7 +157,7 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
 
   // --- Fetch products (alleen nodig als editable extra items) ---
   useEffect(() => {
-    if (!open || isReadOnly) return;
+    if (!open || !isEditing) return;
     const fetchProducts = async () => {
       const { data, error } = await supabase
         .from("products")
@@ -173,7 +175,14 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
       }
     };
     fetchProducts();
-  }, [open, isReadOnly]);
+  }, [open, isEditing]);
+
+  // --- Reset editing mode when dialog closes ---
+  useEffect(() => {
+    if (!open) {
+      setIsEditing(false);
+    }
+  }, [open]);
 
   // --- Init form state from order ---
   useEffect(() => {
@@ -340,11 +349,29 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
               )}
             </div>
 
-            {/* Read-only notice */}
-            {isReadOnly && (
+            {/* Read-only notice or Edit button */}
+            {!canEdit && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Lock className="w-4 h-4" />
                 Deze bestelling kan niet meer worden aangepast.
+              </div>
+            )}
+            {canEdit && !isEditing && (
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                Bestelling wijzigen
+              </Button>
+            )}
+            {canEdit && isEditing && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="text-primary font-medium">Bewerkingsmodus actief</span>
+                <span>—</span>
+                <button 
+                  type="button" 
+                  onClick={() => setIsEditing(false)} 
+                  className="underline hover:no-underline"
+                >
+                  Annuleren
+                </button>
               </div>
             )}
 
@@ -548,7 +575,7 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Sluiten
           </Button>
-          {!isReadOnly && (
+          {isEditing && (
             <Button onClick={handleSave} disabled={loading}>
               {loading ? "Opslaan..." : "Wijzigingen opslaan"}
             </Button>
