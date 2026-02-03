@@ -52,17 +52,10 @@ const CustomerDashboard = () => {
 
   const handleProfileUpdate = (newName: string) => setUserName(newName);
 
-  // NEW: from Orders -> go to Place Order (extras-only)
-  const goToExtrasOrder = () => {
-    setPlaceOrderSubTab("extras");
-    setActiveTab("Bestelling plaatsen");
-    setSidebarOpen(false);
-  };
-
   const renderContent = () => {
     switch (activeTab) {
       case "Mijn bestellingen":
-        return <CustomerOrdersTab onPlaceExtrasOrder={goToExtrasOrder} />;
+        return <CustomerOrdersTab />;
       case "Bestelling plaatsen":
         return (
           <CustomerPlaceOrderTab
@@ -72,7 +65,7 @@ const CustomerDashboard = () => {
           />
         );
       default:
-        return <CustomerOrdersTab onPlaceExtrasOrder={goToExtrasOrder} />;
+        return <CustomerOrdersTab />;
     }
   };
 
