@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Search, ExternalLink, Eye, Plus } from "lucide-react";
+import { Search, ExternalLink, Eye } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { nl } from "date-fns/locale";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
@@ -62,11 +62,7 @@ const ORDER_STATUSES = [
   { value: "paid", label: "Betaald", color: "emerald" },
 ] as const;
 
-type Props = {
-  onPlaceExtrasOrder?: () => void;
-};
-
-const CustomerOrdersTab = ({ onPlaceExtrasOrder }: Props) => {
+const CustomerOrdersTab = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -269,27 +265,14 @@ const CustomerOrdersTab = ({ onPlaceExtrasOrder }: Props) => {
     <div className="space-y-6">
       {/* Minimal header row */}
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Zoek op ordernummer of weekmenu..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-
-          <div className="sm:ml-auto">
-            <Button
-              variant="outline"
-              onClick={onPlaceExtrasOrder}
-              className="w-full sm:w-auto"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Losse bestelling plaatsen
-            </Button>
-          </div>
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Zoek op ordernummer of weekmenu..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
         </div>
 
         <Tabs value={statusFilter} onValueChange={setStatusFilter}>
