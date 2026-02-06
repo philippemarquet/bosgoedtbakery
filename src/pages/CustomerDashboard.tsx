@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ShoppingCart, ShoppingBag, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useIsMobile } from "@/hooks/use-mobile";
+
 import ProfileDialog from "@/components/ProfileDialog";
 import CustomerOrdersTab from "@/components/customer/CustomerOrdersTab";
 import CustomerPlaceOrderTab from "@/components/customer/CustomerPlaceOrderTab";
@@ -13,17 +13,17 @@ const navigationItems = [
   { name: "Bestelling plaatsen", icon: ShoppingBag, href: "/customer/place-order" },
 ];
 
-type PlaceOrderSubTab = "weekmenu" | "extras";
+
 
 const CustomerDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Mijn bestellingen");
-  const [placeOrderSubTab, setPlaceOrderSubTab] = useState<PlaceOrderSubTab>("weekmenu");
+  
   const [userName, setUserName] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const { user, signOut, role } = useAuth();
-  const isMobile = useIsMobile();
+  
 
   useEffect(() => {
     const fetchUserName = async () => {
@@ -59,8 +59,6 @@ const CustomerDashboard = () => {
       case "Bestelling plaatsen":
         return (
           <CustomerPlaceOrderTab
-            activeSubTab={placeOrderSubTab}
-            onSubTabChange={setPlaceOrderSubTab}
             onOrderCreated={() => setActiveTab("Mijn bestellingen")}
           />
         );
@@ -108,10 +106,6 @@ const CustomerDashboard = () => {
               key={item.name}
               onClick={() => {
                 setActiveTab(item.name);
-                // default: if customer clicks Place Order in sidebar, show weekmenu (unless already set)
-                if (item.name === "Bestelling plaatsen" && !placeOrderSubTab) {
-                  setPlaceOrderSubTab("weekmenu");
-                }
                 setSidebarOpen(false);
               }}
               className={`
@@ -155,19 +149,19 @@ const CustomerDashboard = () => {
       </aside>
 
       <div className="lg:pl-64">
-        <header className="h-20 flex items-center justify-between px-6 border-b border-border bg-card">
-          <div className="flex items-center gap-4">
+        <header className="h-auto min-h-[5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 sm:px-6 py-3 border-b border-border bg-card">
+          <div className="flex items-center gap-3">
             <button
-              className="lg:hidden p-2 text-foreground hover:bg-muted rounded-md"
+              className="lg:hidden p-2 text-foreground hover:bg-muted rounded-md shrink-0"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu className="w-6 h-6" />
             </button>
-            <h2 className="text-xl font-serif font-semibold text-foreground">
+            <h2 className="text-base sm:text-xl font-serif font-semibold text-foreground">
               Beste {firstName}, welkom bij Bosgoedt Bakery
             </h2>
           </div>
-          <div className="text-sm text-muted-foreground hidden sm:block">
+          <div className="text-xs sm:text-sm text-muted-foreground hidden sm:block shrink-0">
             {new Date().toLocaleDateString("nl-NL", {
               weekday: "long",
               year: "numeric",
@@ -177,7 +171,7 @@ const CustomerDashboard = () => {
           </div>
         </header>
 
-        <main className="p-6">{renderContent()}</main>
+        <main className="p-4 sm:p-6">{renderContent()}</main>
       </div>
     </div>
   );

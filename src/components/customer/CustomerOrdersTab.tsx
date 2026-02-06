@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import CustomerOrderDialog from "./CustomerOrderDialog";
 
 interface OrderItem {
@@ -46,12 +47,9 @@ interface Order {
   updated_at: string;
   pickup_location_id: string | null;
   invoice_date: string;
-
   weekly_menu_id: string | null;
   weekly_menu: WeeklyMenu | null;
-
   pickup_location: { id: string; title: string } | null;
-
   items: OrderItem[];
 }
 
@@ -64,6 +62,7 @@ const ORDER_STATUSES = [
 
 const CustomerOrdersTab = () => {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -88,85 +87,34 @@ const CustomerOrdersTab = () => {
       return;
     }
 
-    // Orders: sorteer op invoice_date (nieuwste bovenaan)
     const { data: ordersData, error: ordersErr } = await supabase
       .from("orders")
       .select(`
-        id,
-        order_number,
-        status,
-        notes,
-        subtotal,
-        discount_amount,
-        total,
-        created_at,
-        updated_at,
-        pickup_location_id,
-        invoice_date,
-        weekly_menu_id,
-        pickup_location:pickup_locations (
-          id,
-          title
-        )
+        id, order_number, status, notes, subtotal, discount_amount, total,
+        created_at, updated_at, pickup_location_id, invoice_date, weekly_menu_id,
+        pickup_location:pickup_locations ( id, title )
       `)
       .eq("customer_id", profile.id)
       .order("invoice_date", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (ordersErr) {
-      console.error("Orders fetch error:", ordersErr);
-      toast({
-        title: "Fout",
-        description: ordersErr.message || "Kon bestellingen niet laden",
-        variant: "destructive",
-      });
+      toast({ title: "Fout", description: ordersErr.message || "Kon bestellingen niet laden", variant: "destructive" });
       setOrders([]);
       setLoading(false);
       return;
     }
 
-    const baseOrders: Order[] = (ordersData || []).map((o: any) => ({
-      ...o,
-      weekly_menu: null,
-      items: [],
-    }));
+    const baseOrders: Order[] = (ordersData || []).map((o: any) => ({ ...o, weekly_menu: null, items: [] }));
 
-    if (baseOrders.length === 0) {
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
+    if (baseOrders.length === 0) { setOrders([]); setLoading(false); return; }
 
     const orderIds = baseOrders.map((o) => o.id);
 
-    // Items + products
-    const { data: itemsData, error: itemsErr } = await supabase
+    const { data: itemsData } = await supabase
       .from("order_items")
-      .select(`
-        id,
-        order_id,
-        product_id,
-        quantity,
-        unit_price,
-        discount_amount,
-        total,
-        is_weekly_menu_item,
-        product:products (
-          id,
-          name,
-          image_url
-        )
-      `)
+      .select(`id, order_id, product_id, quantity, unit_price, discount_amount, total, is_weekly_menu_item, product:products ( id, name, image_url )`)
       .in("order_id", orderIds);
-
-    if (itemsErr) {
-      console.error("Order items fetch error:", itemsErr);
-      toast({
-        title: "Let op",
-        description: "Bestellingen geladen, maar productdetails konden niet worden opgehaald.",
-        variant: "destructive",
-      });
-    }
 
     const items = (itemsData || []) as any as OrderItem[];
     const itemsByOrderId: Record<string, OrderItem[]> = {};
@@ -175,23 +123,14 @@ const CustomerOrdersTab = () => {
       itemsByOrderId[it.order_id].push(it);
     }
 
-    // Weekly menus apart ophalen
     const menuIds = Array.from(new Set(baseOrders.map((o) => o.weekly_menu_id).filter(Boolean))) as string[];
-
     let menusById: Record<string, WeeklyMenu> = {};
     if (menuIds.length > 0) {
-      const { data: menusData, error: menusErr } = await supabase
+      const { data: menusData } = await supabase
         .from("weekly_menus")
         .select("id, name, delivery_date, week_start_date, week_end_date, price, description")
         .in("id", menuIds);
-
-      if (menusErr) {
-        console.error("Weekly menus fetch error:", menusErr);
-      } else {
-        for (const m of (menusData || []) as any[]) {
-          menusById[m.id] = m as WeeklyMenu;
-        }
-      }
+      for (const m of (menusData || []) as any[]) { menusById[m.id] = m as WeeklyMenu; }
     }
 
     const merged = baseOrders.map((o) => ({
@@ -204,14 +143,8 @@ const CustomerOrdersTab = () => {
     setLoading(false);
   };
 
-  const refreshOrders = useCallback(() => {
-    fetchOrders();
-  }, [user]);
-
-  useEffect(() => {
-    fetchOrders();
-  }, [user]);
-
+  const refreshOrders = useCallback(() => { fetchOrders(); }, [user]);
+  useEffect(() => { fetchOrders(); }, [user]);
   useVisibilityRefresh(refreshOrders);
 
   const filteredOrders = useMemo(() => {
@@ -225,37 +158,20 @@ const CustomerOrdersTab = () => {
   }, [orders, searchQuery, statusFilter]);
 
   const getOrderCountByStatus = (status: string) => orders.filter((o) => o.status === status).length;
-
-  const openOrderDialog = (order: Order) => {
-    setSelectedOrder(order);
-    setDialogOpen(true);
-  };
-
-  const generatePaymentLink = (order: Order) => {
-    const amount = Number(order.total || 0).toFixed(2);
-    return `https://bunq.me/BosgoedtBakery/${amount}/${order.order_number}`;
-  };
-
-  const openPaymentLink = (order: Order) => window.open(generatePaymentLink(order), "_blank");
-
+  const openOrderDialog = (order: Order) => { setSelectedOrder(order); setDialogOpen(true); };
+  const generatePaymentLink = (order: Order) => `https://bunq.me/BosgoedtBakery/${Number(order.total || 0).toFixed(2)}/${order.order_number}`;
   const formatCurrency = (value: number) => `€${Number(value || 0).toFixed(2)}`;
 
   const getStatusBadge = (status: string) => {
     const statusConfig = ORDER_STATUSES.find((s) => s.value === status);
     if (!statusConfig) return <Badge variant="secondary">{status}</Badge>;
-
     const colorClasses: Record<string, string> = {
       blue: "bg-blue-500 hover:bg-blue-600 text-white",
       orange: "bg-orange-500 hover:bg-orange-600 text-white",
       purple: "bg-purple-500 hover:bg-purple-600 text-white",
       emerald: "bg-emerald-600 hover:bg-emerald-700 text-white",
     };
-
-    return (
-      <Badge variant="default" className={colorClasses[statusConfig.color] || ""}>
-        {statusConfig.label}
-      </Badge>
-    );
+    return <Badge variant="default" className={colorClasses[statusConfig.color] || ""}>{statusConfig.label}</Badge>;
   };
 
   const canEditOrder = (order: Order) => order.status === "confirmed";
@@ -263,7 +179,6 @@ const CustomerOrdersTab = () => {
 
   return (
     <div className="space-y-6">
-      {/* Minimal header row */}
       <div className="flex flex-col gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -276,97 +191,128 @@ const CustomerOrdersTab = () => {
         </div>
 
         <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-          <TabsList className="flex-wrap">
+          <TabsList className="flex-wrap h-auto">
             {ORDER_STATUSES.map((status) => (
               <TabsTrigger key={status.value} value={status.value} className="text-xs sm:text-sm">
-                {status.label} ({getOrderCountByStatus(status.value)})
+                {isMobile ? `${status.label.split(" ")[0]} (${getOrderCountByStatus(status.value)})` : `${status.label} (${getOrderCountByStatus(status.value)})`}
               </TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Order</th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Datum</th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Weekmenu</th>
-              <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal</th>
-              <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Status</th>
-              <th className="w-32"></th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="text-center py-12 text-muted-foreground">Laden...</td>
-              </tr>
-            ) : filteredOrders.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="text-center py-12 text-muted-foreground">Geen bestellingen gevonden</td>
-              </tr>
-            ) : (
-              filteredOrders.map((order) => (
-                <tr
-                  key={order.id}
-                  className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors"
-                >
-                  <td className="py-4 px-0">
-                    <span className="text-foreground text-sm font-medium tabular-nums">#{order.order_number}</span>
-                  </td>
-
-                  <td className="py-4 px-4 text-muted-foreground tabular-nums text-sm font-light">
+      {/* Mobile: card layout */}
+      {isMobile ? (
+        <div className="space-y-3">
+          {loading ? (
+            <div className="text-center py-12 text-muted-foreground">Laden...</div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">Geen bestellingen gevonden</div>
+          ) : (
+            filteredOrders.map((order) => (
+              <div
+                key={order.id}
+                className="border border-border/50 rounded-lg p-4 space-y-3 bg-card"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium tabular-nums">#{order.order_number}</span>
+                  {getStatusBadge(order.status)}
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
                     {format(parseISO(order.invoice_date), "d MMM yyyy", { locale: nl })}
-                  </td>
-
-                  <td className="py-4 px-4 hidden md:table-cell">
-                    {order.weekly_menu ? (
-                      <span className="text-foreground text-sm font-light">{order.weekly_menu.name}</span>
-                    ) : order.weekly_menu_id ? (
-                      <span className="text-muted-foreground text-sm font-light">Weekmenu</span>
-                    ) : (
-                      <span className="text-muted-foreground text-sm font-light">Losse producten</span>
-                    )}
-                  </td>
-
-                  <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">{formatCurrency(order.total)}</td>
-
-                  <td className="py-4 px-4 text-center hidden sm:table-cell">{getStatusBadge(order.status)}</td>
-
-                  <td className="py-4 px-0">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openOrderDialog(order)}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        {canEditOrder(order) ? "Bekijk" : "Details"}
-                      </Button>
-
-                      {needsPayment(order) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openPaymentLink(order)}
-                          className="text-primary hover:text-primary"
-                        >
-                          <ExternalLink className="w-4 h-4 mr-1" />
-                          Betalen
-                        </Button>
+                  </span>
+                  <span className="font-medium tabular-nums">{formatCurrency(order.total)}</span>
+                </div>
+                {order.weekly_menu && (
+                  <p className="text-sm text-muted-foreground truncate">{order.weekly_menu.name}</p>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openOrderDialog(order)}
+                    className="flex-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
+                    {canEditOrder(order) ? "Bekijk" : "Details"}
+                  </Button>
+                  {needsPayment(order) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(generatePaymentLink(order), "_blank")}
+                      className="flex-1 text-primary hover:text-primary"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Betalen
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        /* Desktop: table layout */
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Order</th>
+                <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Datum</th>
+                <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Weekmenu</th>
+                <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal</th>
+                <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="w-32"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">Laden...</td></tr>
+              ) : filteredOrders.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">Geen bestellingen gevonden</td></tr>
+              ) : (
+                filteredOrders.map((order) => (
+                  <tr key={order.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                    <td className="py-4 px-0">
+                      <span className="text-foreground text-sm font-medium tabular-nums">#{order.order_number}</span>
+                    </td>
+                    <td className="py-4 px-4 text-muted-foreground tabular-nums text-sm font-light">
+                      {format(parseISO(order.invoice_date), "d MMM yyyy", { locale: nl })}
+                    </td>
+                    <td className="py-4 px-4">
+                      {order.weekly_menu ? (
+                        <span className="text-foreground text-sm font-light">{order.weekly_menu.name}</span>
+                      ) : order.weekly_menu_id ? (
+                        <span className="text-muted-foreground text-sm font-light">Weekmenu</span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm font-light">Losse producten</span>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                    </td>
+                    <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">{formatCurrency(order.total)}</td>
+                    <td className="py-4 px-4 text-center">{getStatusBadge(order.status)}</td>
+                    <td className="py-4 px-0">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openOrderDialog(order)} className="text-muted-foreground hover:text-foreground">
+                          <Eye className="w-4 h-4 mr-1" />
+                          {canEditOrder(order) ? "Bekijk" : "Details"}
+                        </Button>
+                        {needsPayment(order) && (
+                          <Button variant="outline" size="sm" onClick={() => window.open(generatePaymentLink(order), "_blank")} className="text-primary hover:text-primary">
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                            Betalen
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <CustomerOrderDialog
         open={dialogOpen}

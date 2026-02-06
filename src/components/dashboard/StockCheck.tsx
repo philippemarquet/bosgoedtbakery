@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ClipboardCheck, Play, Check, AlertCircle, Clock, ChevronRight, ArrowLeft, Loader2, Package, X } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -55,6 +56,7 @@ const formatQuantity = (value: number, unit: string): string => {
 };
 
 const StockCheck = () => {
+  const isMobile = useIsMobile();
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -383,40 +385,33 @@ const StockCheck = () => {
             <p>Alle voorraad was voldoende</p>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingrediënt</th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Benodigd</th>
-                <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                <th className="text-center py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">Besteld</th>
-              </tr>
-            </thead>
-            <tbody>
-              {itemsToOrder.map((item) => (
-                <tr key={item.id} className="border-b border-border/50 last:border-0">
-                  <td className="py-3 px-0 text-foreground">{item.ingredientName}</td>
-                  <td className="py-3 px-4 text-right tabular-nums font-medium">
+          <div className="divide-y divide-border/50">
+            {itemsToOrder.map((item) => (
+              <div key={item.id} className="py-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                <div className="flex items-center justify-between sm:flex-1 gap-2">
+                  <span className="text-sm text-foreground min-w-0 truncate">{item.ingredientName}</span>
+                  <span className="text-sm tabular-nums font-medium shrink-0">
                     {formatQuantity(item.requiredQuantity, item.unit)}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <Badge 
-                      variant="outline" 
-                      className={item.status === "insufficient" ? "border-destructive text-destructive" : "border-yellow-600 text-yellow-600"}
-                    >
-                      {item.status === "insufficient" ? "Onvoldoende" : "Extra"}
-                    </Badge>
-                  </td>
-                  <td className="py-3 px-0 text-center">
-                    <Checkbox 
+                  </span>
+                </div>
+                <div className="flex items-center justify-between sm:justify-end gap-3">
+                  <Badge
+                    variant="outline"
+                    className={item.status === "insufficient" ? "border-destructive text-destructive" : "border-yellow-600 text-yellow-600"}
+                  >
+                    {item.status === "insufficient" ? "Onvoldoende" : "Extra"}
+                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
                       checked={item.isOrdered}
                       onCheckedChange={(checked) => updateItemOrdered(item.id, !!checked)}
                     />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <span className="text-xs text-muted-foreground">Besteld</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     );
@@ -426,7 +421,7 @@ const StockCheck = () => {
   if (activeCheck) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-serif font-medium">Voorraadcheck actief</h3>
             <p className="text-sm text-muted-foreground">
@@ -434,19 +429,11 @@ const StockCheck = () => {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="outline"
-              onClick={cancelCheck} 
-              size="sm"
-            >
+            <Button variant="outline" onClick={cancelCheck} size="sm">
               <X className="w-4 h-4 mr-2" />
               Annuleren
             </Button>
-            <Button 
-              onClick={completeCheck} 
-              disabled={!allItemsChecked}
-              size="sm"
-            >
+            <Button onClick={completeCheck} disabled={!allItemsChecked} size="sm">
               <Check className="w-4 h-4 mr-2" />
               Afronden
             </Button>
@@ -457,45 +444,36 @@ const StockCheck = () => {
           {activeCheck.items.filter(i => i.status !== "pending").length} van {activeCheck.items.length} gecontroleerd
         </div>
 
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingrediënt</th>
-              <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Benodigd</th>
-              <th className="py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {activeCheck.items.map((item) => (
-              <tr key={item.id} className="border-b border-border/50 last:border-0">
-                <td className="py-3 px-0 text-foreground">{item.ingredientName}</td>
-                <td className="py-3 px-4 text-right tabular-nums font-medium">
+        <div className="divide-y divide-border/50">
+          {activeCheck.items.map((item) => (
+            <div key={item.id} className="py-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-foreground min-w-0 truncate">{item.ingredientName}</span>
+                <span className="text-sm tabular-nums font-medium shrink-0">
                   {formatQuantity(item.requiredQuantity, item.unit)}
-                </td>
-                <td className="py-3 px-0">
-                  <RadioGroup 
-                    value={item.status} 
-                    onValueChange={(val) => updateItemStatus(item.id, val as StockCheckItem["status"])}
-                    className="flex gap-4"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <RadioGroupItem value="sufficient" id={`${item.id}-suf`} className="h-3.5 w-3.5" />
-                      <Label htmlFor={`${item.id}-suf`} className="text-xs cursor-pointer">Voldoende</Label>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <RadioGroupItem value="insufficient" id={`${item.id}-insuf`} className="h-3.5 w-3.5" />
-                      <Label htmlFor={`${item.id}-insuf`} className="text-xs cursor-pointer text-destructive">Onvoldoende</Label>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <RadioGroupItem value="order_extra" id={`${item.id}-extra`} className="h-3.5 w-3.5" />
-                      <Label htmlFor={`${item.id}-extra`} className="text-xs cursor-pointer text-yellow-600">Extra bestellen</Label>
-                    </div>
-                  </RadioGroup>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </span>
+              </div>
+              <RadioGroup
+                value={item.status}
+                onValueChange={(val) => updateItemStatus(item.id, val as StockCheckItem["status"])}
+                className="flex flex-wrap gap-3"
+              >
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="sufficient" id={`${item.id}-suf`} className="h-3.5 w-3.5" />
+                  <Label htmlFor={`${item.id}-suf`} className="text-xs cursor-pointer">Voldoende</Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="insufficient" id={`${item.id}-insuf`} className="h-3.5 w-3.5" />
+                  <Label htmlFor={`${item.id}-insuf`} className="text-xs cursor-pointer text-destructive">Onvoldoende</Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="order_extra" id={`${item.id}-extra`} className="h-3.5 w-3.5" />
+                  <Label htmlFor={`${item.id}-extra`} className="text-xs cursor-pointer text-yellow-600">Extra</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -529,45 +507,31 @@ const StockCheck = () => {
           <p>Nog geen voorraadchecks uitgevoerd</p>
         </div>
       ) : (
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Datum</th>
-              <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingrediënten</th>
-              <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Te bestellen</th>
-              <th className="text-center py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider w-20">Status</th>
-              <th className="w-8"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {stockChecks.filter(c => c.status === "completed").map((check) => {
-              const itemsToOrder = check.items.filter(i => i.status === "insufficient" || i.status === "order_extra");
-              return (
-                <tr 
-                  key={check.id} 
-                  className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-muted/30 transition-colors"
-                  onClick={() => setSelectedCheck(check)}
-                >
-                  <td className="py-3 px-0 text-foreground">
+        <div className="divide-y divide-border/50">
+          {stockChecks.filter(c => c.status === "completed").map((check) => {
+            const itemsToOrder = check.items.filter(i => i.status === "insufficient" || i.status === "order_extra");
+            return (
+              <div
+                key={check.id}
+                className="py-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => setSelectedCheck(check)}
+              >
+                <div className="min-w-0">
+                  <span className="text-sm text-foreground">
                     {format(new Date(check.createdAt), "d MMM yyyy", { locale: nl })}
-                  </td>
-                  <td className="py-3 px-4 text-center tabular-nums text-muted-foreground">
-                    {check.items.length}
-                  </td>
-                  <td className="py-3 px-4 text-center tabular-nums">
-                    {itemsToOrder.length}
-                  </td>
-                  <td className="py-3 px-0 text-center">
-                    {getCheckStatusIcon(check)}
-                  </td>
-                  <td className="py-3 px-0">
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </span>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {check.items.length} ingr. · {itemsToOrder.length} te bestellen
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {getCheckStatusIcon(check)}
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
