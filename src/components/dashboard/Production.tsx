@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Package, Wheat, ChevronRight, ArrowLeft, Loader2, Calendar, ClipboardCheck } from "lucide-react";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -56,6 +57,7 @@ const formatQuantity = (value: number, unit: string): string => {
 type StatusFilter = "confirmed" | "in_production" | "all_production";
 
 const Production = () => {
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [productionItems, setProductionItems] = useState<ProductionItem[]>([]);
   const [allIngredientNeeds, setAllIngredientNeeds] = useState<IngredientNeed[]>([]);
@@ -281,7 +283,7 @@ const Production = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-serif font-medium">Productie</h2>
           <p className="text-sm text-muted-foreground">
@@ -289,7 +291,7 @@ const Production = () => {
           </p>
         </div>
         <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as StatusFilter)}>
-          <SelectTrigger className="w-[180px] h-9 text-sm">
+          <SelectTrigger className="w-full sm:w-[180px] h-9 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -306,18 +308,18 @@ const Production = () => {
         </div>
       ) : (
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "ingredients" | "stockcheck")}>
-          <TabsList>
-            <TabsTrigger value="products" className="gap-2">
+          <TabsList className="flex-wrap h-auto">
+            <TabsTrigger value="products" className="gap-1.5 text-xs sm:text-sm">
               <Package className="w-4 h-4" />
-              Producten
+              {isMobile ? "Prod." : "Producten"}
             </TabsTrigger>
-            <TabsTrigger value="ingredients" className="gap-2">
+            <TabsTrigger value="ingredients" className="gap-1.5 text-xs sm:text-sm">
               <Wheat className="w-4 h-4" />
-              Ingrediënten
+              {isMobile ? "Ingr." : "Ingrediënten"}
             </TabsTrigger>
-            <TabsTrigger value="stockcheck" className="gap-2">
+            <TabsTrigger value="stockcheck" className="gap-1.5 text-xs sm:text-sm">
               <ClipboardCheck className="w-4 h-4" />
-              Voorraadcheck
+              {isMobile ? "Voorraad" : "Voorraadcheck"}
             </TabsTrigger>
           </TabsList>
 
@@ -347,28 +349,21 @@ const Production = () => {
                     <p>Geen ingrediënten gekoppeld</p>
                   </div>
                 ) : (
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingrediënt</th>
-                        <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Per stuk</th>
-                        <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {productIngredients.map((ing) => (
-                        <tr key={ing.ingredientId} className="border-b border-border/50 last:border-0">
-                          <td className="py-3 px-0 text-foreground">{ing.ingredientName}</td>
-                          <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">
-                            {formatQuantity(ing.quantityPerProduct, ing.unit)}
-                          </td>
-                          <td className="py-3 px-0 text-right tabular-nums font-medium">
+                  <div className="divide-y divide-border/50">
+                    {productIngredients.map((ing) => (
+                      <div key={ing.ingredientId} className="py-3 flex items-center justify-between gap-2">
+                        <span className="text-foreground text-sm min-w-0 truncate">{ing.ingredientName}</span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">
+                            {formatQuantity(ing.quantityPerProduct, ing.unit)}/st
+                          </span>
+                          <span className="text-sm tabular-nums font-medium">
                             {formatQuantity(ing.totalNeeded, ing.unit)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             ) : (
@@ -380,32 +375,22 @@ const Production = () => {
                     <p>Geen openstaande bestellingen</p>
                   </div>
                 ) : (
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Product</th>
-                        <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Aantal</th>
-                        <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Orders</th>
-                        <th className="w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {productionItems.map((item) => (
-                        <tr 
-                          key={item.productId} 
-                          className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-muted/30 transition-colors"
-                          onClick={() => fetchProductIngredients(item)}
-                        >
-                          <td className="py-3 px-0 text-foreground">{item.productName}</td>
-                          <td className="py-3 px-4 text-right tabular-nums font-medium">{item.totalQuantity}</td>
-                          <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">{item.orders.length}</td>
-                          <td className="py-3 px-0">
-                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="divide-y divide-border/50">
+                    {productionItems.map((item) => (
+                      <div
+                        key={item.productId}
+                        className="py-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-muted/30 transition-colors"
+                        onClick={() => fetchProductIngredients(item)}
+                      >
+                        <span className="text-foreground text-sm min-w-0 truncate">{item.productName}</span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-sm tabular-nums font-medium">{item.totalQuantity}×</span>
+                          <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">{item.orders.length} orders</span>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -418,24 +403,16 @@ const Production = () => {
                 <p>Geen ingrediënten</p>
               </div>
             ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingrediënt</th>
-                    <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal nodig</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allIngredientNeeds.map((item) => (
-                    <tr key={item.ingredientId} className="border-b border-border/50 last:border-0">
-                      <td className="py-3 px-0 text-foreground">{item.ingredientName}</td>
-                      <td className="py-3 px-0 text-right tabular-nums font-medium">
-                        {formatQuantity(item.totalNeeded, item.unit)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="divide-y divide-border/50">
+                {allIngredientNeeds.map((item) => (
+                  <div key={item.ingredientId} className="py-3 flex items-center justify-between gap-2">
+                    <span className="text-foreground text-sm min-w-0 truncate">{item.ingredientName}</span>
+                    <span className="text-sm tabular-nums font-medium shrink-0">
+                      {formatQuantity(item.totalNeeded, item.unit)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </TabsContent>
 

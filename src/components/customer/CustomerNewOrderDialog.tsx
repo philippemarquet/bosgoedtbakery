@@ -59,21 +59,32 @@ interface CustomerNewOrderDialogProps {
   onOpenChange: (open: boolean) => void;
   weeklyMenu: WeeklyMenu | null;
   onSuccess: () => void;
+  availableMenus?: WeeklyMenu[];
 }
 
-const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: CustomerNewOrderDialogProps) => {
+const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess, availableMenus = [] }: CustomerNewOrderDialogProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
   const [customerProfile, setCustomerProfile] = useState<{ id: string; discount_percentage: number } | null>(null);
 
+  const [selectedMenuId, setSelectedMenuId] = useState<string>("none");
   const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
   const [customPickupLocation, setCustomPickupLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [extraItems, setExtraItems] = useState<{ product_id: string; quantity: number }[]>([]);
 
   const { toast } = useToast();
+
+  // The active menu: either passed directly or selected from available
+  const activeMenu = useMemo(() => {
+    if (weeklyMenu) return weeklyMenu;
+    if (selectedMenuId && selectedMenuId !== "none") {
+      return availableMenus.find((m) => m.id === selectedMenuId) || null;
+    }
+    return null;
+  }, [weeklyMenu, selectedMenuId, availableMenus]);
 
   // Fetch customer profile
   useEffect(() => {
@@ -126,12 +137,13 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
+      setSelectedMenuId(weeklyMenu ? weeklyMenu.id : "none");
       setSelectedPickupLocationId("");
       setCustomPickupLocation("");
       setNotes("");
       setExtraItems([]);
     }
-  }, [open]);
+  }, [open, weeklyMenu]);
 
   // Group products by category
   const groupedProducts = useMemo(() => {
@@ -152,12 +164,10 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
   const { subtotal, discountAmount, total } = useMemo(() => {
     let subtotal = 0;
 
-    // Add weekly menu price
-    if (weeklyMenu) {
-      subtotal += weeklyMenu.price;
+    if (activeMenu) {
+      subtotal += activeMenu.price;
     }
 
-    // Add extra items
     extraItems.forEach(item => {
       const product = products.find(p => p.id === item.product_id);
       if (product) {
@@ -165,7 +175,6 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
       }
     });
 
-    // Apply customer discount
     const discountPercentage = customerProfile?.discount_percentage || 0;
     const discountAmount = subtotal * (discountPercentage / 100);
 
@@ -174,7 +183,7 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
       discountAmount,
       total: subtotal - discountAmount,
     };
-  }, [weeklyMenu, extraItems, products, customerProfile]);
+  }, [activeMenu, extraItems, products, customerProfile]);
 
   const addExtraItem = () => {
     setExtraItems([...extraItems, { product_id: "", quantity: 1 }]);
@@ -201,23 +210,22 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
       return;
     }
 
-    if (!weeklyMenu && extraItems.length === 0) {
-      toast({ title: "Fout", description: "Voeg minimaal één product toe", variant: "destructive" });
+    if (!activeMenu && extraItems.length === 0) {
+      toast({ title: "Fout", description: "Kies een weekmenu of voeg minimaal één product toe", variant: "destructive" });
       return;
     }
 
     setLoading(true);
 
-    // Use delivery date from weekly menu as invoice date, or today
-    const invoiceDate = weeklyMenu?.delivery_date || format(new Date(), "yyyy-MM-dd");
+    const invoiceDate = activeMenu?.delivery_date || format(new Date(), "yyyy-MM-dd");
 
-    const orderNotes = selectedPickupLocationId === "anders" 
+    const orderNotes = selectedPickupLocationId === "anders"
       ? `Afhaallocatie: ${customPickupLocation.trim()}${notes ? `\n${notes}` : ""}`
       : notes.trim() || null;
 
     const orderPayload = {
       customer_id: customerProfile.id,
-      weekly_menu_id: weeklyMenu?.id || null,
+      weekly_menu_id: activeMenu?.id || null,
       pickup_location_id: selectedPickupLocationId === "anders" ? null : selectedPickupLocationId,
       notes: orderNotes,
       subtotal,
@@ -240,7 +248,6 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
       return;
     }
 
-    // Insert order items for extra products
     const orderItems = extraItems
       .filter(item => item.product_id && item.quantity > 0)
       .map(item => {
@@ -261,9 +268,9 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
     }
 
     setLoading(false);
-    toast({ 
-      title: "Bestelling geplaatst!", 
-      description: "Je bestelling is succesvol geplaatst. Bekijk deze bij 'Mijn bestellingen'." 
+    toast({
+      title: "Bestelling geplaatst!",
+      description: "Je bestelling is succesvol geplaatst. Bekijk deze bij 'Mijn bestellingen'."
     });
     onSuccess();
   };
@@ -274,34 +281,59 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {weeklyMenu ? `Bestellen: ${weeklyMenu.name}` : "Nieuwe bestelling"}
-          </DialogTitle>
+          <DialogTitle>Nieuwe bestelling</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Weekly Menu Info */}
-          {weeklyMenu && (
+          {/* Weekly Menu Selector (only if menus available and not pre-selected) */}
+          {!weeklyMenu && availableMenus.length > 0 && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Weekmenu (optioneel)
+              </Label>
+              <Select value={selectedMenuId} onValueChange={setSelectedMenuId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Kies een weekmenu" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Geen weekmenu</SelectItem>
+                  {availableMenus.map((menu) => (
+                    <SelectItem key={menu.id} value={menu.id}>
+                      {menu.name} — {formatCurrency(menu.price)}
+                      {menu.delivery_date && ` (${format(parseISO(menu.delivery_date), "d MMM", { locale: nl })})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Selected Menu Info */}
+          {activeMenu && (
             <Card className="bg-primary/5 border-primary/20">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
-                  {weeklyMenu.name}
+                  {activeMenu.name}
+                  <span className="ml-auto text-sm font-normal text-muted-foreground">
+                    {formatCurrency(activeMenu.price)}
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {weeklyMenu.description && (
-                  <p className="text-sm text-muted-foreground">{weeklyMenu.description}</p>
+                {activeMenu.description && (
+                  <p className="text-sm text-muted-foreground">{activeMenu.description}</p>
                 )}
-                {weeklyMenu.delivery_date && (
+                {activeMenu.delivery_date && (
                   <p className="text-sm">
-                    <strong>Levering:</strong> {format(parseISO(weeklyMenu.delivery_date), "EEEE d MMMM yyyy", { locale: nl })}
+                    <strong>Levering:</strong> {format(parseISO(activeMenu.delivery_date), "EEEE d MMMM yyyy", { locale: nl })}
                   </p>
                 )}
                 <div className="pt-2">
                   <p className="text-sm font-medium">Inhoud:</p>
                   <ul className="mt-1 space-y-1">
-                    {weeklyMenu.products.map((product) => (
+                    {activeMenu.products.map((product) => (
                       <li key={product.id} className="text-sm text-muted-foreground flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
                         {product.quantity}x {product.name}
@@ -353,7 +385,7 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
 
           {/* Extra Products */}
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <Label className="flex items-center gap-2">
                 <Package className="w-4 h-4" />
                 Extra producten (optioneel)
@@ -373,20 +405,7 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
                 {extraItems.map((item, index) => {
                   const product = products.find(p => p.id === item.product_id);
                   return (
-                    <div key={index} className="flex gap-3 items-center p-2 border rounded-lg bg-muted/30">
-                      <div className="w-10 h-10 rounded-md overflow-hidden bg-muted flex-shrink-0">
-                        {product?.image_url ? (
-                          <img
-                            src={product.image_url}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                          </div>
-                        )}
-                      </div>
+                    <div key={index} className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center p-3 border rounded-lg bg-muted/30">
                       <Select
                         value={item.product_id}
                         onValueChange={(value) => updateExtraItem(index, "product_id", value)}
@@ -409,24 +428,26 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
                           ))}
                         </SelectContent>
                       </Select>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateExtraItem(index, "quantity", parseInt(e.target.value) || 1)}
-                        className="w-20"
-                      />
-                      <span className="text-sm font-medium w-16 text-right">
-                        {product ? formatCurrency(product.selling_price * item.quantity) : "-"}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeExtraItem(index)}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateExtraItem(index, "quantity", parseInt(e.target.value) || 1)}
+                          className="w-20"
+                        />
+                        <span className="text-sm font-medium w-16 text-right tabular-nums">
+                          {product ? formatCurrency(product.selling_price * item.quantity) : "-"}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeExtraItem(index)}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
@@ -454,10 +475,10 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
               <CardTitle className="text-lg">Overzicht</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {weeklyMenu && (
+              {activeMenu && (
                 <div className="flex justify-between text-sm">
-                  <span>{weeklyMenu.name}</span>
-                  <span>{formatCurrency(weeklyMenu.price)}</span>
+                  <span>{activeMenu.name}</span>
+                  <span>{formatCurrency(activeMenu.price)}</span>
                 </div>
               )}
               {extraItems.filter(i => i.product_id).map((item, index) => {
@@ -489,11 +510,11 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess }: C
           </Card>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
             Annuleren
           </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
+          <Button onClick={handleSubmit} disabled={loading} className="w-full sm:w-auto">
             {loading ? "Bestelling plaatsen..." : "Bestelling plaatsen"}
           </Button>
         </DialogFooter>
