@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Upload, X, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Trash2, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 type MeasurementUnit = Database["public"]["Enums"]["measurement_unit"];
 type Product = Database["public"]["Tables"]["products"]["Row"];
@@ -37,42 +38,17 @@ interface RecipeIngredient {
 }
 
 // Unit conversion helpers
-const UNIT_CONVERSIONS: Record<string, { compatibleUnits: MeasurementUnit[]; toBase: Record<string, number>; defaultDisplayUnit: MeasurementUnit }> = {
-  kg: { 
-    compatibleUnits: ["kg", "gram"], 
-    toBase: { kg: 1, gram: 0.001 },
-    defaultDisplayUnit: "gram", // Users typically input grams
-  },
-  gram: { 
-    compatibleUnits: ["kg", "gram"], 
-    toBase: { kg: 1, gram: 0.001 },
-    defaultDisplayUnit: "gram",
-  },
-  liter: { 
-    compatibleUnits: ["liter", "ml"], 
-    toBase: { liter: 1, ml: 0.001 },
-    defaultDisplayUnit: "ml", // Users typically input ml
-  },
-  ml: { 
-    compatibleUnits: ["liter", "ml"], 
-    toBase: { liter: 1, ml: 0.001 },
-    defaultDisplayUnit: "ml",
-  },
-  stuks: { 
-    compatibleUnits: ["stuks"], 
-    toBase: { stuks: 1 },
-    defaultDisplayUnit: "stuks",
-  },
-  uur: { 
-    compatibleUnits: ["uur"], 
-    toBase: { uur: 1 },
-    defaultDisplayUnit: "uur",
-  },
-  eetlepel: { 
-    compatibleUnits: ["eetlepel"], 
-    toBase: { eetlepel: 1 },
-    defaultDisplayUnit: "eetlepel",
-  },
+const UNIT_CONVERSIONS: Record<
+  string,
+  { compatibleUnits: MeasurementUnit[]; toBase: Record<string, number>; defaultDisplayUnit: MeasurementUnit }
+> = {
+  kg: { compatibleUnits: ["kg", "gram"], toBase: { kg: 1, gram: 0.001 }, defaultDisplayUnit: "gram" },
+  gram: { compatibleUnits: ["kg", "gram"], toBase: { kg: 1, gram: 0.001 }, defaultDisplayUnit: "gram" },
+  liter: { compatibleUnits: ["liter", "ml"], toBase: { liter: 1, ml: 0.001 }, defaultDisplayUnit: "ml" },
+  ml: { compatibleUnits: ["liter", "ml"], toBase: { liter: 1, ml: 0.001 }, defaultDisplayUnit: "ml" },
+  stuks: { compatibleUnits: ["stuks"], toBase: { stuks: 1 }, defaultDisplayUnit: "stuks" },
+  uur: { compatibleUnits: ["uur"], toBase: { uur: 1 }, defaultDisplayUnit: "uur" },
+  eetlepel: { compatibleUnits: ["eetlepel"], toBase: { eetlepel: 1 }, defaultDisplayUnit: "eetlepel" },
 };
 
 const getDefaultDisplayUnit = (baseUnit: MeasurementUnit): MeasurementUnit => {
@@ -128,7 +104,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -148,6 +124,9 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
   const [recipeIngredients, setRecipeIngredients] = useState<RecipeIngredient[]>([]);
   const [recipeFixedCosts, setRecipeFixedCosts] = useState<RecipeFixedCost[]>([]);
   const [priceTiers, setPriceTiers] = useState<PriceTier[]>([]);
+
+  // ✅ refs to focus quantity inputs
+  const qtyRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const { toast } = useToast();
 
@@ -172,7 +151,6 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
   useEffect(() => {
     const loadProductData = async () => {
       if (!editingProduct) {
-        // Reset form for new product
         setFormData({
           name: "",
           description: "",
@@ -191,7 +169,6 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
         return;
       }
 
-      // Load product data
       setFormData({
         name: editingProduct.name,
         description: editingProduct.description || "",
@@ -205,7 +182,6 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       setImagePreview(editingProduct.image_url || null);
       setImageFile(null);
 
-      // Load recipe ingredients with display_unit
       const { data: ingData } = await supabase
         .from("recipe_ingredients")
         .select("ingredient_id, quantity, display_unit")
@@ -214,10 +190,9 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       if (ingData) {
         setRecipeIngredients(
           ingData.map((i) => {
-            const ingredient = ingredients.find(ing => ing.id === i.ingredient_id);
-            const baseUnit = ingredient?.unit || "kg";
+            const ingredient = ingredients.find((ing) => ing.id === i.ingredient_id);
+            const baseUnit = (ingredient?.unit || "kg") as MeasurementUnit;
             const displayUnit = (i.display_unit || baseUnit) as MeasurementUnit;
-            // Convert from base unit to display unit for editing
             const displayQuantity = convertFromBaseUnit(Number(i.quantity), displayUnit, baseUnit);
             return {
               ingredient_id: i.ingredient_id,
@@ -228,7 +203,6 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
         );
       }
 
-      // Load recipe fixed costs
       const { data: fcData } = await supabase
         .from("recipe_fixed_costs")
         .select("fixed_cost_id, quantity")
@@ -243,7 +217,6 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
         );
       }
 
-      // Load price tiers
       const { data: tierData } = await supabase
         .from("product_price_tiers")
         .select("min_quantity, price")
@@ -260,10 +233,8 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       }
     };
 
-    if (open) {
-      loadProductData();
-    }
-  }, [editingProduct, open]);
+    if (open) loadProductData();
+  }, [editingProduct, open, ingredients]);
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
@@ -277,12 +248,10 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     let imageUrl = formData.image_url;
     if (imageFile) {
       setUploadingImage(true);
-      const fileExt = imageFile.name.split('.').pop();
+      const fileExt = imageFile.name.split(".").pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, imageFile);
+
+      const { error: uploadError } = await supabase.storage.from("product-images").upload(fileName, imageFile);
 
       if (uploadError) {
         toast({ title: "Fout", description: "Kon afbeelding niet uploaden", variant: "destructive" });
@@ -291,10 +260,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
         return;
       }
 
-      const { data: urlData } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-
+      const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(fileName);
       imageUrl = urlData.publicUrl;
       setUploadingImage(false);
     }
@@ -313,10 +279,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     let productId: string;
 
     if (editingProduct) {
-      const { error } = await supabase
-        .from("products")
-        .update(productPayload)
-        .eq("id", editingProduct.id);
+      const { error } = await supabase.from("products").update(productPayload).eq("id", editingProduct.id);
 
       if (error) {
         toast({ title: "Fout", description: "Kon product niet bijwerken", variant: "destructive" });
@@ -325,16 +288,10 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       }
       productId = editingProduct.id;
 
-      // Keep existing recipe_ingredients until we successfully upsert the new ones.
-      // (Prevents data loss when the insert payload contains duplicates or fails.)
       await supabase.from("recipe_fixed_costs").delete().eq("product_id", productId);
       await supabase.from("product_price_tiers").delete().eq("product_id", productId);
     } else {
-      const { data, error } = await supabase
-        .from("products")
-        .insert(productPayload)
-        .select("id")
-        .single();
+      const { data, error } = await supabase.from("products").insert(productPayload).select("id").single();
 
       if (error || !data) {
         toast({ title: "Fout", description: "Kon product niet aanmaken", variant: "destructive" });
@@ -344,17 +301,16 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       productId = data.id;
     }
 
-    // Delete existing recipe ingredients and insert fresh (duplicates allowed)
+    // Replace recipe ingredients
     await supabase.from("recipe_ingredients").delete().eq("product_id", productId);
 
-    const validIngredients = recipeIngredients.filter(
-      (i) => i.ingredient_id && parseFloat(i.quantity) > 0
-    );
+    const validIngredients = recipeIngredients.filter((i) => i.ingredient_id && parseFloat(i.quantity) > 0);
+
     if (validIngredients.length > 0) {
       const { error: insertError } = await supabase.from("recipe_ingredients").insert(
         validIngredients.map((i) => {
           const ingredient = ingredients.find((ing) => ing.id === i.ingredient_id);
-          const baseUnit = ingredient?.unit || "kg";
+          const baseUnit = (ingredient?.unit || "kg") as MeasurementUnit;
           const displayUnit = (i.display_unit || baseUnit) as MeasurementUnit;
           const baseQuantity = convertToBaseUnit(parseFloat(i.quantity), displayUnit, baseUnit);
           return {
@@ -378,9 +334,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     }
 
     // Insert recipe fixed costs
-    const validFixedCosts = recipeFixedCosts.filter(
-      (f) => f.fixed_cost_id && parseFloat(f.quantity) > 0
-    );
+    const validFixedCosts = recipeFixedCosts.filter((f) => f.fixed_cost_id && parseFloat(f.quantity) > 0);
     if (validFixedCosts.length > 0) {
       await supabase.from("recipe_fixed_costs").insert(
         validFixedCosts.map((f) => ({
@@ -391,24 +345,21 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       );
     }
 
-    // Insert price tiers - min_quantity must be >= yield_quantity
+    // Insert price tiers
     const yieldQty = parseFloat(formData.yield_quantity) || 1;
-    const validTiers = priceTiers.filter(
-      (t) => parseInt(t.min_quantity) >= yieldQty && parseFloat(t.price) > 0
-    );
-    
-    // Check if any tiers were filtered out due to min_quantity being less than yield
+    const validTiers = priceTiers.filter((t) => parseInt(t.min_quantity) >= yieldQty && parseFloat(t.price) > 0);
+
     const invalidTiers = priceTiers.filter(
       (t) => parseInt(t.min_quantity) > 0 && parseInt(t.min_quantity) < yieldQty && parseFloat(t.price) > 0
     );
     if (invalidTiers.length > 0) {
-      toast({ 
-        title: "Let op", 
-        description: `${invalidTiers.length} staffelkorting(en) overgeslagen: minimale hoeveelheid moet minimaal ${yieldQty} ${formData.yield_unit} zijn`, 
-        variant: "destructive" 
+      toast({
+        title: "Let op",
+        description: `${invalidTiers.length} staffelkorting(en) overgeslagen: minimale hoeveelheid moet minimaal ${yieldQty} ${formData.yield_unit} zijn`,
+        variant: "destructive",
       });
     }
-    
+
     if (validTiers.length > 0) {
       await supabase.from("product_price_tiers").insert(
         validTiers.map((t) => ({
@@ -428,16 +379,12 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     onSave();
   };
 
-  const addRecipeIngredient = () => {
-    setRecipeIngredients([...recipeIngredients, { ingredient_id: "", quantity: "", display_unit: "" }]);
-  };
-
   const removeRecipeIngredient = (index: number) => {
     setRecipeIngredients(recipeIngredients.filter((_, i) => i !== index));
   };
 
   const updateRecipeIngredient = (index: number, field: keyof RecipeIngredient, value: string) => {
-    setRecipeIngredients(prev => {
+    setRecipeIngredients((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
       return updated;
@@ -445,7 +392,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
   };
 
   const updateRecipeIngredientMultiple = (index: number, updates: Partial<RecipeIngredient>) => {
-    setRecipeIngredients(prev => {
+    setRecipeIngredients((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], ...updates };
       return updated;
@@ -480,10 +427,6 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     setPriceTiers(updated);
   };
 
-  const getIngredientUnit = (id: string) => {
-    return ingredients.find((i) => i.id === id)?.unit || "";
-  };
-
   const getFixedCostUnit = (id: string) => {
     return fixedCosts.find((f) => f.id === id)?.unit || "";
   };
@@ -493,9 +436,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     if (file) {
       setImageFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
+      reader.onloadend = () => setImagePreview(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -504,18 +445,25 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     setImageFile(null);
     setImagePreview(null);
     setFormData({ ...formData, image_url: "" });
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  // ✅ helper: focus quantity field of given index
+  const focusQty = (index: number) => {
+    setTimeout(() => qtyRefs.current[index]?.focus(), 0);
+  };
+
+  // ✅ ingredientOptions for SearchableSelect
+  const ingredientOptions = ingredients.map((ing) => ({
+    value: ing.id,
+    label: `${ing.name} (€${Number(ing.price_per_unit).toFixed(2)}/${ing.unit})`,
+  }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {editingProduct ? "Product bewerken" : "Nieuw product"}
-          </DialogTitle>
+          <DialogTitle>{editingProduct ? "Product bewerken" : "Nieuw product"}</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full">
@@ -548,17 +496,12 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
               />
             </div>
 
-            {/* Image Upload */}
             <div className="space-y-2">
               <Label>Productafbeelding</Label>
               <div className="flex items-start gap-4">
                 {imagePreview ? (
                   <div className="relative w-24 h-24 rounded-lg overflow-hidden border">
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                     <button
                       type="button"
                       onClick={removeImage}
@@ -572,37 +515,21 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                     <ImageIcon className="w-8 h-8 text-muted-foreground" />
                   </div>
                 )}
+
                 <div className="flex-1">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingImage}
-                  >
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                  <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage}>
                     <Upload className="w-4 h-4 mr-2" />
                     {imagePreview ? "Wijzigen" : "Uploaden"}
                   </Button>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    JPG, PNG of WebP, max 5MB
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">JPG, PNG of WebP, max 5MB</p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="category">Categorie</Label>
-              <Select
-                value={formData.category_id}
-                onValueChange={(value) => setFormData({ ...formData, category_id: value })}
-              >
+              <Select value={formData.category_id} onValueChange={(value) => setFormData({ ...formData, category_id: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecteer categorie" />
                 </SelectTrigger>
@@ -630,12 +557,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
               </div>
               <div className="space-y-2">
                 <Label htmlFor="yield_unit">Eenheid</Label>
-                <Select
-                  value={formData.yield_unit}
-                  onValueChange={(value: MeasurementUnit) =>
-                    setFormData({ ...formData, yield_unit: value })
-                  }
-                >
+                <Select value={formData.yield_unit} onValueChange={(value: MeasurementUnit) => setFormData({ ...formData, yield_unit: value })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -654,9 +576,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
               <Checkbox
                 id="is_orderable"
                 checked={formData.is_orderable}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, is_orderable: checked === true })
-                }
+                onCheckedChange={(checked) => setFormData({ ...formData, is_orderable: checked === true })}
               />
               <Label htmlFor="is_orderable" className="text-sm font-normal">
                 Separaat te bestellen door klanten
@@ -666,62 +586,69 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
 
           <TabsContent value="recipe" className="space-y-4 mt-4">
             <Label>Ingrediënten</Label>
-            
+
             <div className="space-y-2">
-              {/* Always show at least one empty row for quick adding */}
               {[...recipeIngredients, { ingredient_id: "", quantity: "", display_unit: "" as MeasurementUnit | "" }].map((item, index) => {
                 const isEmptyRow = index === recipeIngredients.length;
-                const selectedIngredient = ingredients.find(i => i.id === item.ingredient_id);
-                const baseUnit = selectedIngredient?.unit || "kg";
-                const compatibleUnits = getCompatibleUnits(baseUnit as MeasurementUnit);
-                const currentDisplayUnit = item.display_unit || getDefaultDisplayUnit(baseUnit as MeasurementUnit);
-                
+
+                const selectedIngredient = ingredients.find((i) => i.id === item.ingredient_id);
+                const baseUnit = (selectedIngredient?.unit || "kg") as MeasurementUnit;
+                const compatibleUnits = getCompatibleUnits(baseUnit);
+                const currentDisplayUnit = (item.display_unit || getDefaultDisplayUnit(baseUnit)) as MeasurementUnit;
+
                 return (
                   <div key={isEmptyRow ? "new-row" : index} className="flex gap-2 items-center">
-                    <Select
-                      value={item.ingredient_id}
-                      onValueChange={(value) => {
-                        const newIngredient = ingredients.find(i => i.id === value);
-                        const defaultUnit = getDefaultDisplayUnit((newIngredient?.unit || "kg") as MeasurementUnit);
-                        
-                        if (isEmptyRow) {
-                          // Add new row when selecting in empty placeholder row
-                          setRecipeIngredients([
-                            ...recipeIngredients,
-                            { ingredient_id: value, quantity: "", display_unit: defaultUnit }
-                          ]);
-                        } else {
-                          updateRecipeIngredientMultiple(index, {
-                            ingredient_id: value,
-                            display_unit: defaultUnit,
-                          });
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Selecteer ingrediënt..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ingredients.map((ing) => (
-                          <SelectItem key={ing.id} value={ing.id}>
-                            {ing.name} (€{Number(ing.price_per_unit).toFixed(2)}/{ing.unit})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {/* ✅ Searchable select */}
+                    <div className="flex-1">
+                      <SearchableSelect
+                        value={item.ingredient_id ? item.ingredient_id : null}
+                        options={ingredientOptions}
+                        placeholder="Selecteer ingrediënt..."
+                        searchPlaceholder="Typ om te zoeken..."
+                        onChange={(value) => {
+                          const newIngredient = ingredients.find((i) => i.id === value);
+                          const defaultUnit = getDefaultDisplayUnit(((newIngredient?.unit || "kg") as MeasurementUnit));
+
+                          if (isEmptyRow) {
+                            // Add new row + focus qty of newly added row
+                            setRecipeIngredients((prev) => {
+                              const next = [
+                                ...prev,
+                                { ingredient_id: value, quantity: "", display_unit: defaultUnit },
+                              ];
+                              return next;
+                            });
+                            // ✅ focus quantity on the newly inserted row index (same index as empty row)
+                            focusQty(index);
+                          } else {
+                            updateRecipeIngredientMultiple(index, {
+                              ingredient_id: value,
+                              display_unit: defaultUnit,
+                            });
+                            // ✅ focus quantity of this row
+                            focusQty(index);
+                          }
+                        }}
+                      />
+                    </div>
+
                     <Input
+                      ref={(el) => {
+                        qtyRefs.current[index] = el;
+                      }}
                       type="number"
                       step="0.001"
                       min="0"
                       value={item.quantity}
                       onChange={(e) => {
-                        if (isEmptyRow) return; // Don't allow editing quantity on placeholder row
+                        if (isEmptyRow) return;
                         updateRecipeIngredient(index, "quantity", e.target.value);
                       }}
                       className="w-24"
                       placeholder="0"
                       disabled={isEmptyRow}
                     />
+
                     <Select
                       value={currentDisplayUnit}
                       onValueChange={(value) => {
@@ -741,25 +668,21 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                         ))}
                       </SelectContent>
                     </Select>
+
                     {!isEmptyRow ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeRecipeIngredient(index)}
-                      >
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeRecipeIngredient(index)}>
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     ) : (
-                      <div className="w-10" /> // Spacer for alignment
+                      <div className="w-10" />
                     )}
                   </div>
                 );
               })}
             </div>
-            
+
             <p className="text-xs text-muted-foreground">
-              Selecteer een ingrediënt om een nieuwe regel toe te voegen.
+              Typ om te zoeken. Na selecteren springt de cursor direct naar het aantal.
             </p>
           </TabsContent>
 
@@ -780,12 +703,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
               <div className="space-y-2">
                 {recipeFixedCosts.map((item, index) => (
                   <div key={index} className="flex gap-2 items-center">
-                    <Select
-                      value={item.fixed_cost_id}
-                      onValueChange={(value) =>
-                        updateRecipeFixedCost(index, "fixed_cost_id", value)
-                      }
-                    >
+                    <Select value={item.fixed_cost_id} onValueChange={(value) => updateRecipeFixedCost(index, "fixed_cost_id", value)}>
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Selecteer vaste kost" />
                       </SelectTrigger>
@@ -797,26 +715,20 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                         ))}
                       </SelectContent>
                     </Select>
+
                     <Input
                       type="number"
                       step="0.001"
                       min="0"
                       value={item.quantity}
-                      onChange={(e) =>
-                        updateRecipeFixedCost(index, "quantity", e.target.value)
-                      }
+                      onChange={(e) => updateRecipeFixedCost(index, "quantity", e.target.value)}
                       className="w-24"
                       placeholder="0"
                     />
-                    <span className="w-16 text-sm text-muted-foreground">
-                      {getFixedCostUnit(item.fixed_cost_id)}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeRecipeFixedCost(index)}
-                    >
+
+                    <span className="w-16 text-sm text-muted-foreground">{getFixedCostUnit(item.fixed_cost_id)}</span>
+
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeRecipeFixedCost(index)}>
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
                   </div>
@@ -843,9 +755,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
               <div className="flex justify-between items-center mb-4">
                 <div>
                   <Label>Staffelprijzen</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Korting bij grotere aantallen (bijv. 4 voor €6)
-                  </p>
+                  <p className="text-sm text-muted-foreground">Korting bij grotere aantallen (bijv. 4 voor €6)</p>
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={addPriceTier}>
                   <Plus className="w-4 h-4 mr-1" />
@@ -865,9 +775,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                         type="number"
                         min="1"
                         value={tier.min_quantity}
-                        onChange={(e) =>
-                          updatePriceTier(index, "min_quantity", e.target.value)
-                        }
+                        onChange={(e) => updatePriceTier(index, "min_quantity", e.target.value)}
                         className="w-20"
                         placeholder="Aantal"
                       />
@@ -881,12 +789,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                         className="w-24"
                         placeholder="€ 0.00"
                       />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removePriceTier(index)}
-                      >
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removePriceTier(index)}>
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </div>
