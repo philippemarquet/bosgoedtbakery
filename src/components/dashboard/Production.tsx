@@ -1,5 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import { Package, Wheat, ChevronRight, ArrowLeft, Loader2, Calendar, ClipboardCheck } from "lucide-react";
+import {
+  Package,
+  Wheat,
+  ChevronRight,
+  ArrowLeft,
+  Loader2,
+  Calendar,
+  ClipboardCheck,
+} from "lucide-react";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,7 +25,7 @@ import StockCheck from "./StockCheck";
 interface ProductionItem {
   productId: string;
   productName: string;
-  totalQuantity: number;
+  totalQuantity: number; // stuks te produceren (geaggregeerd)
   orders: { orderId: string; customerName: string; quantity: number }[];
 }
 
@@ -32,29 +40,50 @@ interface ProductIngredient {
   ingredientId: string;
   ingredientName: string;
   unit: string;
-  quantityPerProduct: number;
-  totalNeeded: number;
+  quantityPerProduct: number; // per stuk (dus al yield-correct)
+  totalNeeded: number; // totaal op basis van productie-aantallen
 }
 
 // Convert to grams/ml for display
 const convertToDisplayUnit = (value: number, unit: string): { value: number; unit: string } => {
-  if (unit === "kg") {
-    return { value: value * 1000, unit: "gram" };
-  }
-  if (unit === "liter") {
-    return { value: value * 1000, unit: "ml" };
-  }
+  if (unit === "kg") return { value: value * 1000, unit: "gram" };
+  if (unit === "liter") return { value: value * 1000, unit: "ml" };
   return { value, unit };
 };
 
 const formatQuantity = (value: number, unit: string): string => {
   const converted = convertToDisplayUnit(value, unit);
-  // Round to 1 decimal for cleaner display
   const rounded = Math.round(converted.value * 10) / 10;
   return `${rounded} ${converted.unit}`;
 };
 
 type StatusFilter = "confirmed" | "in_production" | "all_production";
+
+type OrderRow = {
+  id: string;
+  status: string;
+  weekly_menu_id: string | null;
+  customer: { full_name: string | null } | null;
+};
+
+type ExtraOrderItemRow = {
+  order_id: string;
+  product_id: string;
+  quantity: number;
+  product: { id: string; name: string } | null;
+};
+
+type WeeklyMenuProductRow = {
+  weekly_menu_id: string;
+  product_id: string;
+  quantity: number;
+  product: { id: string; name: string } | null;
+};
+
+type ProductYieldRow = {
+  id: string;
+  yield_quantity: number; // opbrengst stuks per batch
+};
 
 const Production = () => {
   const isMobile = useIsMobile();
@@ -63,8 +92,7 @@ const Production = () => {
   const [allIngredientNeeds, setAllIngredientNeeds] = useState<IngredientNeed[]>([]);
   const [activeTab, setActiveTab] = useState<"products" | "ingredients" | "stockcheck">("products");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("confirmed");
-  
-  // For product detail view
+
   const [selectedProduct, setSelectedProduct] = useState<ProductionItem | null>(null);
   const [productIngredients, setProductIngredients] = useState<ProductIngredient[]>([]);
   const [loadingProductDetail, setLoadingProductDetail] = useState(false);
@@ -77,115 +105,200 @@ const Production = () => {
     fetchProductionData();
   }, [statusFilter]);
 
-  // Refresh data when tab becomes visible again
   useVisibilityRefresh(refreshData);
-
 
   const fetchProductionData = async () => {
     setLoading(true);
     setSelectedProduct(null);
 
-    // Determine which statuses to fetch based on filter
+    // 1) Orders ophalen (met statusfilter)
     let query = supabase
       .from("orders")
-      .select(`
+      .select(
+        `
         id,
         status,
         weekly_menu_id,
         customer:profiles!orders_customer_id_fkey(full_name)
-      `);
-    
+      `
+      );
+
     if (statusFilter === "confirmed") {
       query = query.eq("status", "confirmed");
     } else if (statusFilter === "in_production") {
       query = query.eq("status", "in_production");
     } else {
-      // all_production: both confirmed and in_production
       query = query.in("status", ["confirmed", "in_production"]);
     }
-    
-    const { data: orders } = await query;
 
-    if (!orders || orders.length === 0) {
+    const { data: orders, error: ordersErr } = await query;
+
+    if (ordersErr || !orders || orders.length === 0) {
       setProductionItems([]);
       setAllIngredientNeeds([]);
       setLoading(false);
       return;
     }
 
-    const orderIds = orders.map(o => o.id);
+    const orderRows = orders as unknown as OrderRow[];
+    const orderIdList = orderRows.map((o) => o.id);
+    const orderById = new Map<string, OrderRow>();
+    for (const o of orderRows) orderById.set(o.id, o);
 
-    // Fetch ALL order items — this is the single source of truth
-    const { data: orderItems } = await supabase
+    // 2) Extra items (losse producten) komen altijd uit order_items (is_weekly_menu_item = false)
+    const { data: extraItems, error: extraErr } = await supabase
       .from("order_items")
-      .select(`
+      .select(
+        `
         order_id,
         product_id,
         quantity,
         product:products(id, name)
-      `)
-      .in("order_id", orderIds);
+      `
+      )
+      .in("order_id", orderIdList)
+      .eq("is_weekly_menu_item", false);
 
-    // Aggregate products from order_items only
+    if (extraErr) {
+      console.error("Error fetching extra order items:", extraErr);
+    }
+
+    const extraItemRows = (extraItems || []) as unknown as ExtraOrderItemRow[];
+
+    // 3) Weekmenu items: altijd live uit weekly_menu_products (laatste samenstelling)
+    const menuIds = Array.from(new Set(orderRows.map((o) => o.weekly_menu_id).filter(Boolean))) as string[];
+
+    let menuProductRows: WeeklyMenuProductRow[] = [];
+    if (menuIds.length > 0) {
+      const { data: menuProducts, error: menuProdErr } = await supabase
+        .from("weekly_menu_products")
+        .select(
+          `
+          weekly_menu_id,
+          product_id,
+          quantity,
+          product:products(id, name)
+        `
+        )
+        .in("weekly_menu_id", menuIds);
+
+      if (menuProdErr) {
+        console.error("Error fetching weekly_menu_products:", menuProdErr);
+      } else {
+        menuProductRows = (menuProducts || []) as unknown as WeeklyMenuProductRow[];
+      }
+    }
+
+    // Index menuProducts per menu_id
+    const menuProductsByMenuId = new Map<string, WeeklyMenuProductRow[]>();
+    for (const mp of menuProductRows) {
+      if (!menuProductsByMenuId.has(mp.weekly_menu_id)) menuProductsByMenuId.set(mp.weekly_menu_id, []);
+      menuProductsByMenuId.get(mp.weekly_menu_id)!.push(mp);
+    }
+
+    // 4) Aggregate productieproducten
     const productMap = new Map<string, ProductionItem>();
-    
-    for (const item of (orderItems || [])) {
-      const order = orders.find(o => o.id === item.order_id);
-      const productName = item.product?.name || "Onbekend product";
-      
-      if (!productMap.has(item.product_id)) {
-        productMap.set(item.product_id, {
-          productId: item.product_id,
+
+    const addToProduction = (orderId: string, productId: string, productName: string, quantity: number) => {
+      if (!productMap.has(productId)) {
+        productMap.set(productId, {
+          productId,
           productName,
           totalQuantity: 0,
           orders: [],
         });
       }
-      
-      const prod = productMap.get(item.product_id)!;
-      prod.totalQuantity += item.quantity;
+      const prod = productMap.get(productId)!;
+      prod.totalQuantity += quantity;
+
+      const order = orderById.get(orderId);
       prod.orders.push({
-        orderId: item.order_id,
+        orderId,
         customerName: order?.customer?.full_name || "Onbekend",
-        quantity: item.quantity,
+        quantity,
       });
+    };
+
+    // 4a) Weekmenu items per order uitrollen
+    for (const o of orderRows) {
+      if (!o.weekly_menu_id) continue;
+      const menuItems = menuProductsByMenuId.get(o.weekly_menu_id) || [];
+      for (const mi of menuItems) {
+        const name = mi.product?.name || "Onbekend product";
+        // AANNAME: 1 order = 1 weekmenu (geen aparte menu-quantity in orders)
+        addToProduction(o.id, mi.product_id, name, mi.quantity);
+      }
     }
 
-    setProductionItems(Array.from(productMap.values()).sort((a, b) => b.totalQuantity - a.totalQuantity));
+    // 4b) Extra items toevoegen
+    for (const item of extraItemRows) {
+      const name = item.product?.name || "Onbekend product";
+      addToProduction(item.order_id, item.product_id, name, item.quantity);
+    }
 
-    // Fetch ingredient needs for all products
+    const productionList = Array.from(productMap.values()).sort((a, b) => b.totalQuantity - a.totalQuantity);
+    setProductionItems(productionList);
+
+    // 5) Yield info ophalen voor alle producten die in productie zitten
     const productIds = Array.from(productMap.keys());
-    const { data: recipeIngredients } = await supabase
+    const { data: yieldsData, error: yieldsErr } = await supabase
+      .from("products")
+      .select("id, yield_quantity")
+      .in("id", productIds);
+
+    if (yieldsErr) console.error("Error fetching product yields:", yieldsErr);
+
+    const yieldByProductId = new Map<string, number>();
+    for (const p of ((yieldsData || []) as unknown as ProductYieldRow[])) {
+      // yield_quantity kan bv 30 zijn; fallback minimaal 1
+      yieldByProductId.set(p.id, Math.max(1, Number(p.yield_quantity || 1)));
+    }
+
+    // 6) Ingrediëntenbehoefte (alles) — yield-correct
+    const { data: recipeIngredients, error: recipeErr } = await supabase
       .from("recipe_ingredients")
-      .select(`
+      .select(
+        `
         product_id,
         quantity,
         ingredient:ingredients(id, name, unit)
-      `)
+      `
+      )
       .in("product_id", productIds);
+
+    if (recipeErr) console.error("Error fetching recipe_ingredients:", recipeErr);
 
     if (recipeIngredients) {
       const ingredientMap = new Map<string, IngredientNeed>();
-      
-      for (const ri of recipeIngredients) {
+
+      for (const ri of recipeIngredients as any[]) {
         const productItem = productMap.get(ri.product_id);
         if (!productItem || !ri.ingredient) continue;
 
-        const totalForProduct = ri.quantity * productItem.totalQuantity;
-        
-        if (!ingredientMap.has(ri.ingredient.id)) {
-          ingredientMap.set(ri.ingredient.id, {
-            ingredientId: ri.ingredient.id,
+        const yieldQty = yieldByProductId.get(ri.product_id) ?? 1; // stuks per batch
+        const perPieceQty = Number(ri.quantity || 0) / yieldQty; // ✅ per stuk
+        const totalForProduct = perPieceQty * productItem.totalQuantity;
+
+        const ingId = ri.ingredient.id;
+        if (!ingredientMap.has(ingId)) {
+          ingredientMap.set(ingId, {
+            ingredientId: ingId,
             ingredientName: ri.ingredient.name,
             unit: ri.ingredient.unit,
             totalNeeded: 0,
           });
         }
-        
-        ingredientMap.get(ri.ingredient.id)!.totalNeeded += totalForProduct;
+
+        ingredientMap.get(ingId)!.totalNeeded += totalForProduct;
       }
 
-      setAllIngredientNeeds(Array.from(ingredientMap.values()).sort((a, b) => a.ingredientName.localeCompare(b.ingredientName)));
+      setAllIngredientNeeds(
+        Array.from(ingredientMap.values()).sort((a, b) =>
+          a.ingredientName.localeCompare(b.ingredientName)
+        )
+      );
+    } else {
+      setAllIngredientNeeds([]);
     }
 
     setLoading(false);
@@ -195,27 +308,47 @@ const Production = () => {
     setLoadingProductDetail(true);
     setSelectedProduct(product);
 
-    const { data: recipeIngredients } = await supabase
+    // Yield ophalen (voor per-stuk omrekening)
+    const { data: productRow, error: prodErr } = await supabase
+      .from("products")
+      .select("id, yield_quantity")
+      .eq("id", product.productId)
+      .single();
+
+    if (prodErr) console.error("Error fetching product yield:", prodErr);
+
+    const yieldQty = Math.max(1, Number((productRow as any)?.yield_quantity || 1));
+
+    const { data: recipeIngredients, error: recipeErr } = await supabase
       .from("recipe_ingredients")
-      .select(`
+      .select(
+        `
         quantity,
         ingredient:ingredients(id, name, unit)
-      `)
+      `
+      )
       .eq("product_id", product.productId);
 
+    if (recipeErr) console.error("Error fetching recipe_ingredients for product:", recipeErr);
+
     if (recipeIngredients) {
-      const ingredients: ProductIngredient[] = recipeIngredients
-        .filter(ri => ri.ingredient)
-        .map(ri => ({
-          ingredientId: ri.ingredient!.id,
-          ingredientName: ri.ingredient!.name,
-          unit: ri.ingredient!.unit,
-          quantityPerProduct: ri.quantity,
-          totalNeeded: ri.quantity * product.totalQuantity,
-        }))
+      const ingredients: ProductIngredient[] = (recipeIngredients as any[])
+        .filter((ri) => ri.ingredient)
+        .map((ri) => {
+          const perPieceQty = Number(ri.quantity || 0) / yieldQty; // ✅ per stuk
+          return {
+            ingredientId: ri.ingredient.id,
+            ingredientName: ri.ingredient.name,
+            unit: ri.ingredient.unit,
+            quantityPerProduct: perPieceQty,
+            totalNeeded: perPieceQty * product.totalQuantity,
+          };
+        })
         .sort((a, b) => a.ingredientName.localeCompare(b.ingredientName));
 
       setProductIngredients(ingredients);
+    } else {
+      setProductIngredients([]);
     }
 
     setLoadingProductDetail(false);
@@ -228,10 +361,14 @@ const Production = () => {
 
   const getStatusFilterLabel = () => {
     switch (statusFilter) {
-      case "confirmed": return "Bevestigd";
-      case "in_production": return "In productie";
-      case "all_production": return "Bevestigd + In productie";
-      default: return "Status";
+      case "confirmed":
+        return "Bevestigd";
+      case "in_production":
+        return "In productie";
+      case "all_production":
+        return "Bevestigd + In productie";
+      default:
+        return "Status";
     }
   };
 
@@ -240,9 +377,7 @@ const Production = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-serif font-medium">Productie</h2>
-          <p className="text-sm text-muted-foreground">
-            {getStatusFilterLabel()}
-          </p>
+          <p className="text-sm text-muted-foreground">{getStatusFilterLabel()}</p>
         </div>
         <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as StatusFilter)}>
           <SelectTrigger className="w-full sm:w-[180px] h-9 text-sm">
@@ -261,7 +396,7 @@ const Production = () => {
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "ingredients" | "stockcheck")}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="products" className="gap-1.5 text-xs sm:text-sm">
               <Package className="w-4 h-4" />
@@ -279,7 +414,6 @@ const Production = () => {
 
           <TabsContent value="products" className="mt-6">
             {selectedProduct ? (
-              // Product detail view
               <div>
                 <div className="flex items-center gap-3 mb-6">
                   <Button variant="ghost" size="icon" onClick={goBackToProductList}>
@@ -292,7 +426,7 @@ const Production = () => {
                     </p>
                   </div>
                 </div>
-                
+
                 {loadingProductDetail ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -321,7 +455,6 @@ const Production = () => {
                 )}
               </div>
             ) : (
-              // Product list
               <div>
                 {productionItems.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
@@ -339,7 +472,9 @@ const Production = () => {
                         <span className="text-foreground text-sm min-w-0 truncate">{item.productName}</span>
                         <div className="flex items-center gap-3 shrink-0">
                           <span className="text-sm tabular-nums font-medium">{item.totalQuantity}×</span>
-                          <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">{item.orders.length} orders</span>
+                          <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">
+                            {item.orders.length} orders
+                          </span>
                           <ChevronRight className="w-4 h-4 text-muted-foreground" />
                         </div>
                       </div>
