@@ -68,6 +68,9 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Generate fingerprint for deduplication
+    const fingerprint = `${parsedAmount}|${description || ""}|${counterparty_name || ""}|${date || ""}`;
+
     // Parse date if provided (expects YYYY-MM-DD or ISO format)
     let transactionDate: string | null = null;
     if (date) {
@@ -94,6 +97,21 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+
+    // Check for duplicate transaction
+    const { data: existing } = await supabase
+      .from("payment_logs")
+      .select("id")
+      .eq("fingerprint", fingerprint)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      console.log(`Duplicate transaction skipped: ${fingerprint}`);
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, message: "Duplicate transaction" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Try to extract order number from description
     // Order numbers are 8 digits starting with 202 (e.g., 20260001, 20260190)
@@ -157,6 +175,7 @@ Deno.serve(async (req) => {
       status: logStatus,
       raw_payload: payload,
       transaction_date: transactionDate,
+      fingerprint,
     });
 
     if (logError) {
