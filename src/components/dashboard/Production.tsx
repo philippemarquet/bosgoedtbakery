@@ -62,21 +62,14 @@ type StatusFilter = "confirmed" | "in_production" | "all_production";
 type OrderRow = {
   id: string;
   status: string;
-  weekly_menu_id: string | null;
   customer: { full_name: string | null } | null;
 };
 
-type ExtraOrderItemRow = {
+type OrderItemRow = {
   order_id: string;
   product_id: string;
   quantity: number;
-  product: { id: string; name: string } | null;
-};
-
-type WeeklyMenuProductRow = {
-  weekly_menu_id: string;
-  product_id: string;
-  quantity: number;
+  is_weekly_menu_item: boolean;
   product: { id: string; name: string } | null;
 };
 
@@ -114,14 +107,11 @@ const Production = () => {
     // 1) Orders ophalen (met statusfilter)
     let query = supabase
       .from("orders")
-      .select(
-        `
+      .select(`
         id,
         status,
-        weekly_menu_id,
         customer:profiles!orders_customer_id_fkey(full_name)
-      `
-      );
+      `);
 
     if (statusFilter === "confirmed") {
       query = query.eq("status", "confirmed");
@@ -145,58 +135,25 @@ const Production = () => {
     const orderById = new Map<string, OrderRow>();
     for (const o of orderRows) orderById.set(o.id, o);
 
-    // 2) Extra items (losse producten) komen altijd uit order_items (is_weekly_menu_item = false)
-    const { data: extraItems, error: extraErr } = await supabase
+    // 2) ALL order_items (single source of truth — includes weekly menu items with correct quantities)
+    const { data: allItems, error: itemsErr } = await supabase
       .from("order_items")
-      .select(
-        `
+      .select(`
         order_id,
         product_id,
         quantity,
+        is_weekly_menu_item,
         product:products(id, name)
-      `
-      )
-      .in("order_id", orderIdList)
-      .eq("is_weekly_menu_item", false);
+      `)
+      .in("order_id", orderIdList);
 
-    if (extraErr) {
-      console.error("Error fetching extra order items:", extraErr);
+    if (itemsErr) {
+      console.error("Error fetching order items:", itemsErr);
     }
 
-    const extraItemRows = (extraItems || []) as unknown as ExtraOrderItemRow[];
+    const allItemRows = (allItems || []) as unknown as OrderItemRow[];
 
-    // 3) Weekmenu items: altijd live uit weekly_menu_products (laatste samenstelling)
-    const menuIds = Array.from(new Set(orderRows.map((o) => o.weekly_menu_id).filter(Boolean))) as string[];
-
-    let menuProductRows: WeeklyMenuProductRow[] = [];
-    if (menuIds.length > 0) {
-      const { data: menuProducts, error: menuProdErr } = await supabase
-        .from("weekly_menu_products")
-        .select(
-          `
-          weekly_menu_id,
-          product_id,
-          quantity,
-          product:products(id, name)
-        `
-        )
-        .in("weekly_menu_id", menuIds);
-
-      if (menuProdErr) {
-        console.error("Error fetching weekly_menu_products:", menuProdErr);
-      } else {
-        menuProductRows = (menuProducts || []) as unknown as WeeklyMenuProductRow[];
-      }
-    }
-
-    // Index menuProducts per menu_id
-    const menuProductsByMenuId = new Map<string, WeeklyMenuProductRow[]>();
-    for (const mp of menuProductRows) {
-      if (!menuProductsByMenuId.has(mp.weekly_menu_id)) menuProductsByMenuId.set(mp.weekly_menu_id, []);
-      menuProductsByMenuId.get(mp.weekly_menu_id)!.push(mp);
-    }
-
-    // 4) Aggregate productieproducten
+    // 3) Aggregate productieproducten
     const productMap = new Map<string, ProductionItem>();
 
     const addToProduction = (orderId: string, productId: string, productName: string, quantity: number) => {
@@ -219,19 +176,7 @@ const Production = () => {
       });
     };
 
-    // 4a) Weekmenu items per order uitrollen
-    for (const o of orderRows) {
-      if (!o.weekly_menu_id) continue;
-      const menuItems = menuProductsByMenuId.get(o.weekly_menu_id) || [];
-      for (const mi of menuItems) {
-        const name = mi.product?.name || "Onbekend product";
-        // AANNAME: 1 order = 1 weekmenu (geen aparte menu-quantity in orders)
-        addToProduction(o.id, mi.product_id, name, mi.quantity);
-      }
-    }
-
-    // 4b) Extra items toevoegen
-    for (const item of extraItemRows) {
+    for (const item of allItemRows) {
       const name = item.product?.name || "Onbekend product";
       addToProduction(item.order_id, item.product_id, name, item.quantity);
     }
