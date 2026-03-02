@@ -51,6 +51,7 @@ interface Order {
   invoice_date?: string;
   customer: { id: string; full_name: string | null } | null;
   weekly_menu: { id: string; name: string; delivery_date: string | null } | null;
+  weekly_menu_quantity?: number;
   pickup_location_id?: string | null;
 }
 
@@ -110,6 +111,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [selectedMenuId, setSelectedMenuId] = useState<string>("");
+  const [menuQuantity, setMenuQuantity] = useState<number>(1);
   const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [extraItems, setExtraItems] = useState<{ product_id: string; quantity: number }[]>([]);
@@ -249,8 +251,9 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
   useEffect(() => {
     const loadOrderData = async () => {
       if (!editingOrder) {
-        setSelectedCustomerId("");
+      setSelectedCustomerId("");
         setSelectedMenuId("");
+        setMenuQuantity(1);
         setSelectedPickupLocationId("");
         setNotes("");
         setExtraItems([]);
@@ -260,6 +263,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
 
       setSelectedCustomerId(editingOrder.customer?.id || "");
       setSelectedMenuId(editingOrder.weekly_menu?.id || "");
+      setMenuQuantity(editingOrder.weekly_menu_quantity || 1);
       setSelectedPickupLocationId(editingOrder.pickup_location_id || "");
       setNotes(editingOrder.notes || "");
       
@@ -316,9 +320,9 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
   const { subtotal, discountAmount, total } = useMemo(() => {
     let subtotal = 0;
 
-    // Add weekly menu price
+    // Add weekly menu price × quantity
     if (selectedMenu) {
-      subtotal += selectedMenu.price;
+      subtotal += selectedMenu.price * menuQuantity;
     }
 
     // Add extra items
@@ -364,7 +368,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
       discountAmount: totalDiscountAmount,
       total: subtotal - totalDiscountAmount,
     };
-  }, [selectedMenu, extraItems, products, discountGroups, customerDiscountPercentage]);
+  }, [selectedMenu, menuQuantity, extraItems, products, discountGroups, customerDiscountPercentage]);
 
   // Check if order is read-only (status is in_production, ready or paid)
   const isReadOnly = editingOrder && (editingOrder.status === "in_production" || editingOrder.status === "ready" || editingOrder.status === "paid");
@@ -436,6 +440,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
     const orderPayload = {
       customer_id: selectedCustomerId,
       weekly_menu_id: selectedMenuId || null,
+      weekly_menu_quantity: selectedMenuId ? menuQuantity : 1,
       pickup_location_id: selectedPickupLocationId === "anders" || selectedPickupLocationId === "none" ? null : selectedPickupLocationId || null,
       notes: notes.trim() || null,
       subtotal,
@@ -644,6 +649,24 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                 ))}
               </SelectContent>
             </Select>
+            {selectedMenuId && (
+              <div className="flex items-center gap-3 mt-2">
+                <Label className="text-sm whitespace-nowrap">Aantal menu's:</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={menuQuantity}
+                  onChange={(e) => setMenuQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-20"
+                  disabled={isReadOnly}
+                />
+                {selectedMenu && (
+                  <span className="text-sm text-muted-foreground">
+                    = {formatCurrency(selectedMenu.price * menuQuantity)}
+                  </span>
+                )}
+              </div>
+            )}
             {weeklyMenus.length === 0 && !editingOrder && (
               <p className="text-sm text-muted-foreground">
                 Geen weekmenu's beschikbaar. Maak er eerst een aan met een toekomstige leverdag.
