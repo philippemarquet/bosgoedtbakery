@@ -70,6 +70,7 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess, ava
   const [customerProfile, setCustomerProfile] = useState<{ id: string; discount_percentage: number } | null>(null);
 
   const [selectedMenuId, setSelectedMenuId] = useState<string>("none");
+  const [menuQuantity, setMenuQuantity] = useState<number>(1);
   const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
   const [customPickupLocation, setCustomPickupLocation] = useState("");
   const [notes, setNotes] = useState("");
@@ -138,6 +139,7 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess, ava
   useEffect(() => {
     if (open) {
       setSelectedMenuId(weeklyMenu ? weeklyMenu.id : "none");
+      setMenuQuantity(1);
       setSelectedPickupLocationId("");
       setCustomPickupLocation("");
       setNotes("");
@@ -165,7 +167,7 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess, ava
     let subtotal = 0;
 
     if (activeMenu) {
-      subtotal += activeMenu.price;
+      subtotal += activeMenu.price * menuQuantity;
     }
 
     extraItems.forEach(item => {
@@ -183,7 +185,7 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess, ava
       discountAmount,
       total: subtotal - discountAmount,
     };
-  }, [activeMenu, extraItems, products, customerProfile]);
+  }, [activeMenu, menuQuantity, extraItems, products, customerProfile]);
 
   const addExtraItem = () => {
     setExtraItems([...extraItems, { product_id: "", quantity: 1 }]);
@@ -226,6 +228,7 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess, ava
     const orderPayload = {
       customer_id: customerProfile.id,
       weekly_menu_id: activeMenu?.id || null,
+      weekly_menu_quantity: activeMenu ? menuQuantity : 1,
       pickup_location_id: selectedPickupLocationId === "anders" ? null : selectedPickupLocationId,
       notes: orderNotes,
       subtotal,
@@ -317,7 +320,7 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess, ava
                   <Calendar className="w-4 h-4" />
                   {activeMenu.name}
                   <span className="ml-auto text-sm font-normal text-muted-foreground">
-                    {formatCurrency(activeMenu.price)}
+                    {formatCurrency(activeMenu.price)} / stuk
                   </span>
                 </CardTitle>
               </CardHeader>
@@ -340,6 +343,20 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess, ava
                       </li>
                     ))}
                   </ul>
+                </div>
+                <Separator className="my-2" />
+                <div className="flex items-center gap-3">
+                  <Label className="text-sm whitespace-nowrap">Aantal menu's:</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={menuQuantity}
+                    onChange={(e) => setMenuQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-20"
+                  />
+                  <span className="text-sm font-medium">
+                    = {formatCurrency(activeMenu.price * menuQuantity)}
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -477,8 +494,8 @@ const CustomerNewOrderDialog = ({ open, onOpenChange, weeklyMenu, onSuccess, ava
             <CardContent className="space-y-2">
               {activeMenu && (
                 <div className="flex justify-between text-sm">
-                  <span>{activeMenu.name}</span>
-                  <span>{formatCurrency(activeMenu.price)}</span>
+                  <span>{menuQuantity}x {activeMenu.name}</span>
+                  <span>{formatCurrency(activeMenu.price * menuQuantity)}</span>
                 </div>
               )}
               {extraItems.filter(i => i.product_id).map((item, index) => {

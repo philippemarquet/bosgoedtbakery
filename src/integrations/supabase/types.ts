@@ -236,6 +236,7 @@ export type Database = {
           total: number
           updated_at: string
           weekly_menu_id: string | null
+          weekly_menu_quantity: number
         }
         Insert: {
           created_at?: string
@@ -252,6 +253,7 @@ export type Database = {
           total?: number
           updated_at?: string
           weekly_menu_id?: string | null
+          weekly_menu_quantity?: number
         }
         Update: {
           created_at?: string
@@ -268,6 +270,7 @@ export type Database = {
           total?: number
           updated_at?: string
           weekly_menu_id?: string | null
+          weekly_menu_quantity?: number
         }
         Relationships: [
           {
