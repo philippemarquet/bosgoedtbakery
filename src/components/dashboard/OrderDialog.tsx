@@ -493,6 +493,28 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
       is_weekly_menu_item: boolean;
     }[] = [];
 
+    // For edited orders, manually re-insert weekly menu items (trigger only fires on INSERT)
+    if (editingOrder && selectedMenuId) {
+      const { data: menuProducts } = await supabase
+        .from("weekly_menu_products")
+        .select("product_id, quantity")
+        .eq("weekly_menu_id", selectedMenuId);
+
+      if (menuProducts) {
+        menuProducts.forEach(mp => {
+          orderItems.push({
+            order_id: orderId,
+            product_id: mp.product_id,
+            quantity: mp.quantity * menuQuantity,
+            unit_price: 0,
+            discount_amount: 0,
+            total: 0,
+            is_weekly_menu_item: true,
+          });
+        });
+      }
+    }
+
     // Add extra items
     extraItems.forEach(item => {
       if (!item.product_id || item.quantity <= 0) return;
@@ -505,7 +527,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
         product_id: item.product_id,
         quantity: item.quantity,
         unit_price: product.selling_price,
-        discount_amount: 0, // Calculated at order level
+        discount_amount: 0,
         total: itemTotal,
         is_weekly_menu_item: false,
       });
