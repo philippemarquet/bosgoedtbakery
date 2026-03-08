@@ -570,7 +570,7 @@ const OrderOverview = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={isMobile ? 3 : 6} className="text-center py-12 text-muted-foreground">
+                      <td colSpan={isMobile ? 4 : 6} className="text-center py-12 text-muted-foreground">
                         Laden...
                       </td>
                     </tr>
