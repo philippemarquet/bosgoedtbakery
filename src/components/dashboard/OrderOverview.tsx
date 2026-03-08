@@ -86,26 +86,106 @@ const OrderRow = ({
   onWhatsApp,
   getStatusBadge,
   formatCurrency 
-}: OrderRowProps) => (
-  <tr className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-    <td className="py-4 px-0">
-      <div className="flex flex-col">
-        <span className="text-foreground text-sm font-light">
-          {order.customer?.full_name || "Onbekend"}
-        </span>
-        {isMobile && (
-          <span className="text-xs text-muted-foreground">
-            {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
+}: OrderRowProps) => {
+  if (isMobile) {
+    return (
+      <tr 
+        className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+        onClick={() => onEdit(order)}
+      >
+        <td className="py-3 px-0">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-foreground text-sm font-light">
+              {order.customer?.full_name || "Onbekend"}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
+            </span>
+          </div>
+        </td>
+        <td className="py-3 px-2 text-right tabular-nums font-medium text-sm">
+          {formatCurrency(order.total)}
+        </td>
+        <td className="py-3 px-1" onClick={(e) => e.stopPropagation()}>
+          <Select
+            value={order.status}
+            onValueChange={(value) => onStatusChange(order.id, value)}
+          >
+            <SelectTrigger className="w-auto h-7 border-0 bg-transparent px-0 focus:ring-0">
+              <SelectValue>
+                {getStatusBadge(order.status)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {ORDER_STATUSES.map((status) => (
+                <SelectItem key={status.value} value={status.value}>
+                  {status.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </td>
+        <td className="py-3 px-0 w-10" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-end gap-0.5">
+            {order.notes && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="p-1.5 text-amber-500 hover:text-amber-600 transition-colors"
+                    title="Notities bekijken"
+                  >
+                    <StickyNote className="w-4 h-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 text-sm" side="left">
+                  <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide mb-1">Notities</p>
+                  <p className="text-foreground whitespace-pre-wrap">{order.notes}</p>
+                </PopoverContent>
+              </Popover>
+            )}
+            {(order.status === "ready" || order.status === "in_production") && (
+              <button
+                onClick={() => onWhatsApp(order)}
+                className="p-1.5 text-green-500 hover:text-green-700 transition-colors"
+                title="WhatsApp openen"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+      <td className="py-4 px-0">
+        <div className="flex items-center gap-2">
+          <span className="text-foreground text-sm font-light">
+            {order.customer?.full_name || "Onbekend"}
           </span>
-        )}
-      </div>
-    </td>
-    {!isMobile && (
+          {order.notes && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className="p-0.5 text-amber-500 hover:text-amber-600 transition-colors"
+                  title="Notities bekijken"
+                >
+                  <StickyNote className="w-3.5 h-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 text-sm">
+                <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide mb-1">Notities</p>
+                <p className="text-foreground whitespace-pre-wrap">{order.notes}</p>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+      </td>
       <td className="py-4 px-4 text-muted-foreground tabular-nums text-sm font-light">
         {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
       </td>
-    )}
-    {!isMobile && (
       <td className="py-4 px-4">
         {order.weekly_menu ? (
           <span className="text-foreground text-sm font-light">{order.weekly_menu.name}</span>
@@ -113,11 +193,9 @@ const OrderRow = ({
           <span className="text-muted-foreground text-sm font-light">—</span>
         )}
       </td>
-    )}
-    <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">
-      {formatCurrency(order.total)}
-    </td>
-    {!isMobile && (
+      <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">
+        {formatCurrency(order.total)}
+      </td>
       <td className="py-4 px-4">
         <Select
           value={order.status}
@@ -137,38 +215,34 @@ const OrderRow = ({
           </SelectContent>
         </Select>
       </td>
-    )}
-    <td className="py-4 px-0">
-      <div className="flex justify-end gap-1">
-        {(order.status === "ready" || order.status === "in_production") && (
+      <td className="py-4 px-0">
+        <div className="flex justify-end gap-1">
+          {(order.status === "ready" || order.status === "in_production") && (
+            <button
+              onClick={() => onWhatsApp(order)}
+              className="p-2 text-green-500 hover:text-green-700 transition-colors"
+              title="WhatsApp openen"
+            >
+              <MessageCircle className="w-4 h-4" />
+            </button>
+          )}
           <button
-            onClick={() => onWhatsApp(order)}
-            className="p-2 text-green-500 hover:text-green-700 transition-colors"
-            title="WhatsApp openen"
+            onClick={() => onEdit(order)}
+            className="p-2 text-muted-foreground hover:text-primary transition-colors"
           >
-            <MessageCircle className="w-4 h-4" />
+            <Pencil className="w-4 h-4" />
           </button>
-        )}
-        {!isMobile && (
-          <>
-            <button
-              onClick={() => onEdit(order)}
-              className="p-2 text-muted-foreground hover:text-primary transition-colors"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onDelete(order.id)}
-              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </>
-        )}
-      </div>
-    </td>
-  </tr>
-);
+          <button
+            onClick={() => onDelete(order.id)}
+            className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+};
 
 const OrderOverview = () => {
   const [orders, setOrders] = useState<Order[]>([]);
