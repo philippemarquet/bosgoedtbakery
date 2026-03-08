@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Search, ShoppingCart, MapPin, MessageCircle, Banknote } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ShoppingCart, MapPin, MessageCircle, Banknote, StickyNote } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { format, parseISO } from "date-fns";
