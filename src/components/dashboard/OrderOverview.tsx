@@ -563,8 +563,8 @@ const OrderOverview = () => {
                     {!isMobile && <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Datum</th>}
                     {!isMobile && <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Menu</th>}
                     <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal</th>
-                    {!isMobile && <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>}
-                    <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider w-20"></th>
+                    <th className="text-left py-3 px-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">{isMobile ? "" : "Status"}</th>
+                    <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider w-10 sm:w-20"></th>
                   </tr>
                 </thead>
                 <tbody>
