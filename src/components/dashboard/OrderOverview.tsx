@@ -586,7 +586,7 @@ const OrderOverview = () => {
                     Object.entries(groupedOrders).map(([groupKey, groupOrders]) => (
                       <>
                         <tr key={`group-${groupKey}`} className="bg-muted/50">
-                          <td colSpan={isMobile ? 3 : 6} className="py-2 px-2">
+                          <td colSpan={isMobile ? 4 : 6} className="py-2 px-2">
                             <span className="font-medium text-sm">{groupKey}</span>
                             <span className="text-muted-foreground text-xs ml-2">
                               ({groupOrders.length} {groupOrders.length === 1 ? "bestelling" : "bestellingen"})
