@@ -189,7 +189,7 @@ const Production = () => {
     const productIds = Array.from(productMap.keys());
     const { data: yieldsData, error: yieldsErr } = await supabase
       .from("products")
-      .select("id, yield_quantity")
+      .select("id, yield_quantity, yield_unit")
       .in("id", productIds);
 
     if (yieldsErr) console.error("Error fetching product yields:", yieldsErr);
