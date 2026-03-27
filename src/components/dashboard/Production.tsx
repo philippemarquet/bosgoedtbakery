@@ -263,7 +263,7 @@ const Production = () => {
     // Yield ophalen (voor per-stuk omrekening)
     const { data: productRow, error: prodErr } = await supabase
       .from("products")
-      .select("id, yield_quantity")
+      .select("id, yield_quantity, yield_unit")
       .eq("id", product.productId)
       .single();
 
