@@ -270,6 +270,7 @@ const Production = () => {
     if (prodErr) console.error("Error fetching product yield:", prodErr);
 
     const yieldQty = Math.max(1, Number((productRow as any)?.yield_quantity || 1));
+    const yieldUnit = (productRow as any)?.yield_unit || "stuks";
 
     const { data: recipeIngredients, error: recipeErr } = await supabase
       .from("recipe_ingredients")
