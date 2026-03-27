@@ -75,7 +75,8 @@ type OrderItemRow = {
 
 type ProductYieldRow = {
   id: string;
-  yield_quantity: number; // opbrengst stuks per batch
+  yield_quantity: number;
+  yield_unit: string;
 };
 
 const Production = () => {
@@ -188,15 +189,17 @@ const Production = () => {
     const productIds = Array.from(productMap.keys());
     const { data: yieldsData, error: yieldsErr } = await supabase
       .from("products")
-      .select("id, yield_quantity")
+      .select("id, yield_quantity, yield_unit")
       .in("id", productIds);
 
     if (yieldsErr) console.error("Error fetching product yields:", yieldsErr);
 
-    const yieldByProductId = new Map<string, number>();
+    const yieldByProductId = new Map<string, { qty: number; unit: string }>();
     for (const p of ((yieldsData || []) as unknown as ProductYieldRow[])) {
-      // yield_quantity kan bv 30 zijn; fallback minimaal 1
-      yieldByProductId.set(p.id, Math.max(1, Number(p.yield_quantity || 1)));
+      yieldByProductId.set(p.id, {
+        qty: Math.max(1, Number(p.yield_quantity || 1)),
+        unit: p.yield_unit || "stuks",
+      });
     }
 
     // 6) Ingrediëntenbehoefte (alles) — yield-correct
@@ -220,8 +223,12 @@ const Production = () => {
         const productItem = productMap.get(ri.product_id);
         if (!productItem || !ri.ingredient) continue;
 
-        const yieldQty = yieldByProductId.get(ri.product_id) ?? 1; // stuks per batch
-        const perPieceQty = Number(ri.quantity || 0) / yieldQty; // ✅ per stuk
+        const yieldInfo = yieldByProductId.get(ri.product_id) ?? { qty: 1, unit: "stuks" };
+        // Only divide by yield_quantity when unit is "stuks" (pieces per batch)
+        // For weight-based yields (gram, kg, etc.), recipe = 1 batch, ordered qty = number of batches
+        const perPieceQty = yieldInfo.unit === "stuks"
+          ? Number(ri.quantity || 0) / yieldInfo.qty
+          : Number(ri.quantity || 0); // recipe IS per batch
         const totalForProduct = perPieceQty * productItem.totalQuantity;
 
         const ingId = ri.ingredient.id;
@@ -256,13 +263,14 @@ const Production = () => {
     // Yield ophalen (voor per-stuk omrekening)
     const { data: productRow, error: prodErr } = await supabase
       .from("products")
-      .select("id, yield_quantity")
+      .select("id, yield_quantity, yield_unit")
       .eq("id", product.productId)
       .single();
 
     if (prodErr) console.error("Error fetching product yield:", prodErr);
 
     const yieldQty = Math.max(1, Number((productRow as any)?.yield_quantity || 1));
+    const yieldUnit = (productRow as any)?.yield_unit || "stuks";
 
     const { data: recipeIngredients, error: recipeErr } = await supabase
       .from("recipe_ingredients")
@@ -280,7 +288,9 @@ const Production = () => {
       const ingredients: ProductIngredient[] = (recipeIngredients as any[])
         .filter((ri) => ri.ingredient)
         .map((ri) => {
-          const perPieceQty = Number(ri.quantity || 0) / yieldQty; // ✅ per stuk
+          const perPieceQty = yieldUnit === "stuks"
+            ? Number(ri.quantity || 0) / yieldQty
+            : Number(ri.quantity || 0);
           return {
             ingredientId: ri.ingredient.id,
             ingredientName: ri.ingredient.name,
