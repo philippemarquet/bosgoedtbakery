@@ -223,8 +223,12 @@ const Production = () => {
         const productItem = productMap.get(ri.product_id);
         if (!productItem || !ri.ingredient) continue;
 
-        const yieldQty = yieldByProductId.get(ri.product_id) ?? 1; // stuks per batch
-        const perPieceQty = Number(ri.quantity || 0) / yieldQty; // ✅ per stuk
+        const yieldInfo = yieldByProductId.get(ri.product_id) ?? { qty: 1, unit: "stuks" };
+        // Only divide by yield_quantity when unit is "stuks" (pieces per batch)
+        // For weight-based yields (gram, kg, etc.), recipe = 1 batch, ordered qty = number of batches
+        const perPieceQty = yieldInfo.unit === "stuks"
+          ? Number(ri.quantity || 0) / yieldInfo.qty
+          : Number(ri.quantity || 0); // recipe IS per batch
         const totalForProduct = perPieceQty * productItem.totalQuantity;
 
         const ingId = ri.ingredient.id;
