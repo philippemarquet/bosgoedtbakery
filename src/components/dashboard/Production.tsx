@@ -194,10 +194,12 @@ const Production = () => {
 
     if (yieldsErr) console.error("Error fetching product yields:", yieldsErr);
 
-    const yieldByProductId = new Map<string, number>();
+    const yieldByProductId = new Map<string, { qty: number; unit: string }>();
     for (const p of ((yieldsData || []) as unknown as ProductYieldRow[])) {
-      // yield_quantity kan bv 30 zijn; fallback minimaal 1
-      yieldByProductId.set(p.id, Math.max(1, Number(p.yield_quantity || 1)));
+      yieldByProductId.set(p.id, {
+        qty: Math.max(1, Number(p.yield_quantity || 1)),
+        unit: p.yield_unit || "stuks",
+      });
     }
 
     // 6) Ingrediëntenbehoefte (alles) — yield-correct
