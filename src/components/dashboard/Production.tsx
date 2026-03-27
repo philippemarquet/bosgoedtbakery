@@ -75,7 +75,8 @@ type OrderItemRow = {
 
 type ProductYieldRow = {
   id: string;
-  yield_quantity: number; // opbrengst stuks per batch
+  yield_quantity: number;
+  yield_unit: string;
 };
 
 const Production = () => {
