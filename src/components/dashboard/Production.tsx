@@ -288,7 +288,9 @@ const Production = () => {
       const ingredients: ProductIngredient[] = (recipeIngredients as any[])
         .filter((ri) => ri.ingredient)
         .map((ri) => {
-          const perPieceQty = Number(ri.quantity || 0) / yieldQty; // ✅ per stuk
+          const perPieceQty = yieldUnit === "stuks"
+            ? Number(ri.quantity || 0) / yieldQty
+            : Number(ri.quantity || 0);
           return {
             ingredientId: ri.ingredient.id,
             ingredientName: ri.ingredient.name,
