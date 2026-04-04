@@ -85,7 +85,7 @@ const Production = () => {
   const [loading, setLoading] = useState(true);
   const [productionItems, setProductionItems] = useState<ProductionItem[]>([]);
   const [allIngredientNeeds, setAllIngredientNeeds] = useState<IngredientNeed[]>([]);
-  const [activeTab, setActiveTab] = useState<"products" | "ingredients" | "stockcheck">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "ingredients" | "stockcheck" | "checklist">("products");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("confirmed");
 
   const [selectedProduct, setSelectedProduct] = useState<ProductionItem | null>(null);
