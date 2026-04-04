@@ -362,6 +362,10 @@ const Production = () => {
               <Wheat className="w-4 h-4" />
               {isMobile ? "Ingr." : "Ingrediënten"}
             </TabsTrigger>
+            <TabsTrigger value="checklist" className="gap-1.5 text-xs sm:text-sm">
+              <ClipboardCheck className="w-4 h-4" />
+              {isMobile ? "To do" : "Te produceren"}
+            </TabsTrigger>
             <TabsTrigger value="stockcheck" className="gap-1.5 text-xs sm:text-sm">
               <ClipboardCheck className="w-4 h-4" />
               {isMobile ? "Voorraad" : "Voorraadcheck"}
