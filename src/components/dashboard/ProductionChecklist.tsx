@@ -307,7 +307,7 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+        <Select value={groupBy} onValueChange={(v) => { const val = v as GroupBy; setGroupBy(val); localStorage.setItem("production_checklist_groupBy", val); }}>
           <SelectTrigger className="w-[160px] h-9 text-sm">
             <SelectValue />
           </SelectTrigger>

@@ -339,7 +339,7 @@ const Production = () => {
           <h2 className="text-lg font-serif font-medium">Productie</h2>
           <p className="text-sm text-muted-foreground">{getStatusFilterLabel()}</p>
         </div>
-        <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as StatusFilter)}>
+        <Select value={statusFilter} onValueChange={(val) => { const v = val as StatusFilter; setStatusFilter(v); localStorage.setItem("production_statusFilter", v); }}>
           <SelectTrigger className="w-full sm:w-[180px] h-9 text-sm">
             <SelectValue />
           </SelectTrigger>
