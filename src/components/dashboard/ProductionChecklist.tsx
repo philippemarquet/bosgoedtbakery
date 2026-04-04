@@ -223,6 +223,8 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
 
   const setOrderReady = async (orderId: string) => {
     setUpdatingOrder(orderId);
+    const orderItemIds = items.filter((i) => i.orderId === orderId).map((i) => i.orderItemId);
+
     const { error } = await supabase
       .from("orders")
       .update({ status: "ready" })
@@ -232,11 +234,16 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
       toast.error("Fout bij het bijwerken van de status");
       console.error(error);
     } else {
+      // Clean up production checks for this order
+      await supabase
+        .from("production_checks")
+        .delete()
+        .in("order_item_id", orderItemIds);
+
       toast.success("Bestelling op 'Gereed' gezet!");
-      // Remove checked items for this order and refresh
       setCheckedItems((prev) => {
         const next = new Set(prev);
-        items.filter((i) => i.orderId === orderId).forEach((i) => next.delete(i.orderItemId));
+        orderItemIds.forEach((id) => next.delete(id));
         return next;
       });
       await fetchData();
