@@ -130,31 +130,84 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
     fetchData();
   }, [fetchData]);
 
-  const toggleItem = (orderItemId: string) => {
+  const toggleItem = async (orderItemId: string) => {
+    const isChecked = checkedItems.has(orderItemId);
+
+    // Optimistic update
     setCheckedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(orderItemId)) {
+      if (isChecked) {
         next.delete(orderItemId);
       } else {
         next.add(orderItemId);
       }
       return next;
     });
+
+    if (isChecked) {
+      const { error } = await supabase
+        .from("production_checks")
+        .delete()
+        .eq("order_item_id", orderItemId);
+      if (error) {
+        console.error("Error removing check:", error);
+        setCheckedItems((prev) => new Set([...prev, orderItemId]));
+      }
+    } else {
+      const { error } = await supabase
+        .from("production_checks")
+        .insert({ order_item_id: orderItemId, checked_by: (await supabase.auth.getUser()).data.user?.id || "" });
+      if (error) {
+        console.error("Error saving check:", error);
+        setCheckedItems((prev) => {
+          const next = new Set(prev);
+          next.delete(orderItemId);
+          return next;
+        });
+      }
+    }
   };
 
-  const toggleAllForGroup = (groupItems: OrderLineItem[]) => {
+  const toggleAllForGroup = async (groupItems: OrderLineItem[]) => {
     const allChecked = groupItems.every((i) => checkedItems.has(i.orderItemId));
+    const itemIds = groupItems.map((i) => i.orderItemId);
+
+    // Optimistic update
     setCheckedItems((prev) => {
       const next = new Set(prev);
-      for (const item of groupItems) {
+      for (const id of itemIds) {
         if (allChecked) {
-          next.delete(item.orderItemId);
+          next.delete(id);
         } else {
-          next.add(item.orderItemId);
+          next.add(id);
         }
       }
       return next;
     });
+
+    if (allChecked) {
+      // Uncheck all
+      const { error } = await supabase
+        .from("production_checks")
+        .delete()
+        .in("order_item_id", itemIds);
+      if (error) {
+        console.error("Error removing checks:", error);
+        await fetchData();
+      }
+    } else {
+      // Check unchecked items
+      const uncheckedIds = itemIds.filter((id) => !checkedItems.has(id));
+      const userId = (await supabase.auth.getUser()).data.user?.id || "";
+      const rows = uncheckedIds.map((id) => ({ order_item_id: id, checked_by: userId }));
+      const { error } = await supabase
+        .from("production_checks")
+        .upsert(rows, { onConflict: "order_item_id" });
+      if (error) {
+        console.error("Error saving checks:", error);
+        await fetchData();
+      }
+    }
   };
 
   const getOrdersForCustomer = (customerId: string) => {
