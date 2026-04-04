@@ -34,7 +34,10 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<OrderLineItem[]>([]);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
-  const [groupBy, setGroupBy] = useState<GroupBy>("customer");
+  const [groupBy, setGroupBy] = useState<GroupBy>(() => {
+    const saved = localStorage.getItem("production_checklist_groupBy");
+    return (saved === "product" || saved === "customer") ? saved : "customer";
+  });
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {

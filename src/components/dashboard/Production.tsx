@@ -87,7 +87,10 @@ const Production = () => {
   const [productionItems, setProductionItems] = useState<ProductionItem[]>([]);
   const [allIngredientNeeds, setAllIngredientNeeds] = useState<IngredientNeed[]>([]);
   const [activeTab, setActiveTab] = useState<"products" | "ingredients" | "stockcheck" | "checklist">("products");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("confirmed");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    const saved = localStorage.getItem("production_statusFilter");
+    return (saved === "confirmed" || saved === "in_production" || saved === "all_production") ? saved : "confirmed";
+  });
 
   const [selectedProduct, setSelectedProduct] = useState<ProductionItem | null>(null);
   const [productIngredients, setProductIngredients] = useState<ProductIngredient[]>([]);
