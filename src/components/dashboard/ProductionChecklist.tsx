@@ -62,25 +62,32 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
 
     if (ordersErr || !orders || orders.length === 0) {
       setItems([]);
+      setCheckedItems(new Set());
       setLoading(false);
       return;
     }
 
     const orderIds = orders.map((o: any) => o.id);
 
-    const { data: orderItems, error: itemsErr } = await supabase
-      .from("order_items")
-      .select(`
-        id,
-        order_id,
-        product_id,
-        quantity,
-        product:products(id, name)
-      `)
-      .in("order_id", orderIds);
+    // Fetch order items and production checks in parallel
+    const [orderItemsResult, checksResult] = await Promise.all([
+      supabase
+        .from("order_items")
+        .select(`
+          id,
+          order_id,
+          product_id,
+          quantity,
+          product:products(id, name)
+        `)
+        .in("order_id", orderIds),
+      supabase
+        .from("production_checks")
+        .select("order_item_id"),
+    ]);
 
-    if (itemsErr) {
-      console.error("Error fetching order items:", itemsErr);
+    if (orderItemsResult.error) {
+      console.error("Error fetching order items:", orderItemsResult.error);
       setItems([]);
       setLoading(false);
       return;
@@ -91,7 +98,7 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
       orderMap.set(o.id, o);
     }
 
-    const lineItems: OrderLineItem[] = ((orderItems || []) as any[]).map((item) => {
+    const lineItems: OrderLineItem[] = ((orderItemsResult.data || []) as any[]).map((item) => {
       const order = orderMap.get(item.order_id);
       return {
         orderItemId: item.id,
@@ -104,6 +111,16 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
         quantity: item.quantity,
       };
     });
+
+    // Restore checked state from DB
+    const checkedSet = new Set<string>();
+    const allOrderItemIds = new Set(lineItems.map(li => li.orderItemId));
+    for (const check of (checksResult.data || []) as any[]) {
+      if (allOrderItemIds.has(check.order_item_id)) {
+        checkedSet.add(check.order_item_id);
+      }
+    }
+    setCheckedItems(checkedSet);
 
     setItems(lineItems);
     setLoading(false);
