@@ -447,6 +447,35 @@ export type Database = {
           },
         ]
       }
+      production_checks: {
+        Row: {
+          checked_by: string
+          created_at: string
+          id: string
+          order_item_id: string
+        }
+        Insert: {
+          checked_by: string
+          created_at?: string
+          id?: string
+          order_item_id: string
+        }
+        Update: {
+          checked_by?: string
+          created_at?: string
+          id?: string
+          order_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_checks_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: true
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category_id: string | null

@@ -62,25 +62,32 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
 
     if (ordersErr || !orders || orders.length === 0) {
       setItems([]);
+      setCheckedItems(new Set());
       setLoading(false);
       return;
     }
 
     const orderIds = orders.map((o: any) => o.id);
 
-    const { data: orderItems, error: itemsErr } = await supabase
-      .from("order_items")
-      .select(`
-        id,
-        order_id,
-        product_id,
-        quantity,
-        product:products(id, name)
-      `)
-      .in("order_id", orderIds);
+    // Fetch order items and production checks in parallel
+    const [orderItemsResult, checksResult] = await Promise.all([
+      supabase
+        .from("order_items")
+        .select(`
+          id,
+          order_id,
+          product_id,
+          quantity,
+          product:products(id, name)
+        `)
+        .in("order_id", orderIds),
+      supabase
+        .from("production_checks")
+        .select("order_item_id"),
+    ]);
 
-    if (itemsErr) {
-      console.error("Error fetching order items:", itemsErr);
+    if (orderItemsResult.error) {
+      console.error("Error fetching order items:", orderItemsResult.error);
       setItems([]);
       setLoading(false);
       return;
@@ -91,7 +98,7 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
       orderMap.set(o.id, o);
     }
 
-    const lineItems: OrderLineItem[] = ((orderItems || []) as any[]).map((item) => {
+    const lineItems: OrderLineItem[] = ((orderItemsResult.data || []) as any[]).map((item) => {
       const order = orderMap.get(item.order_id);
       return {
         orderItemId: item.id,
@@ -105,6 +112,16 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
       };
     });
 
+    // Restore checked state from DB
+    const checkedSet = new Set<string>();
+    const allOrderItemIds = new Set(lineItems.map(li => li.orderItemId));
+    for (const check of (checksResult.data || []) as any[]) {
+      if (allOrderItemIds.has(check.order_item_id)) {
+        checkedSet.add(check.order_item_id);
+      }
+    }
+    setCheckedItems(checkedSet);
+
     setItems(lineItems);
     setLoading(false);
   }, [statusFilter]);
@@ -113,31 +130,84 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
     fetchData();
   }, [fetchData]);
 
-  const toggleItem = (orderItemId: string) => {
+  const toggleItem = async (orderItemId: string) => {
+    const isChecked = checkedItems.has(orderItemId);
+
+    // Optimistic update
     setCheckedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(orderItemId)) {
+      if (isChecked) {
         next.delete(orderItemId);
       } else {
         next.add(orderItemId);
       }
       return next;
     });
+
+    if (isChecked) {
+      const { error } = await supabase
+        .from("production_checks")
+        .delete()
+        .eq("order_item_id", orderItemId);
+      if (error) {
+        console.error("Error removing check:", error);
+        setCheckedItems((prev) => new Set([...prev, orderItemId]));
+      }
+    } else {
+      const { error } = await supabase
+        .from("production_checks")
+        .insert({ order_item_id: orderItemId, checked_by: (await supabase.auth.getUser()).data.user?.id || "" });
+      if (error) {
+        console.error("Error saving check:", error);
+        setCheckedItems((prev) => {
+          const next = new Set(prev);
+          next.delete(orderItemId);
+          return next;
+        });
+      }
+    }
   };
 
-  const toggleAllForGroup = (groupItems: OrderLineItem[]) => {
+  const toggleAllForGroup = async (groupItems: OrderLineItem[]) => {
     const allChecked = groupItems.every((i) => checkedItems.has(i.orderItemId));
+    const itemIds = groupItems.map((i) => i.orderItemId);
+
+    // Optimistic update
     setCheckedItems((prev) => {
       const next = new Set(prev);
-      for (const item of groupItems) {
+      for (const id of itemIds) {
         if (allChecked) {
-          next.delete(item.orderItemId);
+          next.delete(id);
         } else {
-          next.add(item.orderItemId);
+          next.add(id);
         }
       }
       return next;
     });
+
+    if (allChecked) {
+      // Uncheck all
+      const { error } = await supabase
+        .from("production_checks")
+        .delete()
+        .in("order_item_id", itemIds);
+      if (error) {
+        console.error("Error removing checks:", error);
+        await fetchData();
+      }
+    } else {
+      // Check unchecked items
+      const uncheckedIds = itemIds.filter((id) => !checkedItems.has(id));
+      const userId = (await supabase.auth.getUser()).data.user?.id || "";
+      const rows = uncheckedIds.map((id) => ({ order_item_id: id, checked_by: userId }));
+      const { error } = await supabase
+        .from("production_checks")
+        .upsert(rows, { onConflict: "order_item_id" });
+      if (error) {
+        console.error("Error saving checks:", error);
+        await fetchData();
+      }
+    }
   };
 
   const getOrdersForCustomer = (customerId: string) => {
@@ -153,6 +223,8 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
 
   const setOrderReady = async (orderId: string) => {
     setUpdatingOrder(orderId);
+    const orderItemIds = items.filter((i) => i.orderId === orderId).map((i) => i.orderItemId);
+
     const { error } = await supabase
       .from("orders")
       .update({ status: "ready" })
@@ -162,11 +234,16 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
       toast.error("Fout bij het bijwerken van de status");
       console.error(error);
     } else {
+      // Clean up production checks for this order
+      await supabase
+        .from("production_checks")
+        .delete()
+        .in("order_item_id", orderItemIds);
+
       toast.success("Bestelling op 'Gereed' gezet!");
-      // Remove checked items for this order and refresh
       setCheckedItems((prev) => {
         const next = new Set(prev);
-        items.filter((i) => i.orderId === orderId).forEach((i) => next.delete(i.orderItemId));
+        orderItemIds.forEach((id) => next.delete(id));
         return next;
       });
       await fetchData();
