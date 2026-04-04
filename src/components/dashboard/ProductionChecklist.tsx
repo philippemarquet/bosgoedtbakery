@@ -353,11 +353,16 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
                     {group.items.reduce((sum, i) => sum + i.quantity, 0)} items
                   </span>
                 )}
-                {!isCustomerGroup && (
-                  <span className="text-sm font-medium tabular-nums">
-                    {group.items.reduce((sum, i) => sum + i.quantity, 0)}×
-                  </span>
-                )}
+                {!isCustomerGroup && (() => {
+                  const totalQty = group.items.reduce((sum, i) => sum + i.quantity, 0);
+                  const checkedQty = group.items.filter((i) => checkedItems.has(i.orderItemId)).reduce((sum, i) => sum + i.quantity, 0);
+                  return (
+                    <span className="text-sm font-medium tabular-nums">
+                      <span className={checkedQty > 0 ? "text-green-600" : ""}>{checkedQty}</span>
+                      <span className="text-muted-foreground">/{totalQty}</span>
+                    </span>
+                  );
+                })()}
               </div>
 
               {/* Items */}
