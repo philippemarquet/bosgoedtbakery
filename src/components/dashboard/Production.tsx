@@ -7,6 +7,7 @@ import {
   Loader2,
   Calendar,
   ClipboardCheck,
+  ListChecks,
 } from "lucide-react";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
