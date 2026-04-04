@@ -465,6 +465,10 @@ const Production = () => {
             )}
           </TabsContent>
 
+          <TabsContent value="checklist" className="mt-6">
+            <ProductionChecklist statusFilter={statusFilter} />
+          </TabsContent>
+
           <TabsContent value="stockcheck" className="mt-6">
             <StockCheck />
           </TabsContent>
