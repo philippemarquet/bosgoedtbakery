@@ -7,6 +7,7 @@ import {
   Loader2,
   Calendar,
   ClipboardCheck,
+  ListChecks,
 } from "lucide-react";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -21,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import StockCheck from "./StockCheck";
+import ProductionChecklist from "./ProductionChecklist";
 
 interface ProductionItem {
   productId: string;
@@ -84,7 +86,7 @@ const Production = () => {
   const [loading, setLoading] = useState(true);
   const [productionItems, setProductionItems] = useState<ProductionItem[]>([]);
   const [allIngredientNeeds, setAllIngredientNeeds] = useState<IngredientNeed[]>([]);
-  const [activeTab, setActiveTab] = useState<"products" | "ingredients" | "stockcheck">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "ingredients" | "stockcheck" | "checklist">("products");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("confirmed");
 
   const [selectedProduct, setSelectedProduct] = useState<ProductionItem | null>(null);
@@ -361,6 +363,10 @@ const Production = () => {
               <Wheat className="w-4 h-4" />
               {isMobile ? "Ingr." : "Ingrediënten"}
             </TabsTrigger>
+            <TabsTrigger value="checklist" className="gap-1.5 text-xs sm:text-sm">
+              <ListChecks className="w-4 h-4" />
+              {isMobile ? "To do" : "Te produceren"}
+            </TabsTrigger>
             <TabsTrigger value="stockcheck" className="gap-1.5 text-xs sm:text-sm">
               <ClipboardCheck className="w-4 h-4" />
               {isMobile ? "Voorraad" : "Voorraadcheck"}
@@ -458,6 +464,10 @@ const Production = () => {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="checklist" className="mt-6">
+            <ProductionChecklist statusFilter={statusFilter} />
           </TabsContent>
 
           <TabsContent value="stockcheck" className="mt-6">
