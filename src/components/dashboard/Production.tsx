@@ -87,7 +87,10 @@ const Production = () => {
   const [productionItems, setProductionItems] = useState<ProductionItem[]>([]);
   const [allIngredientNeeds, setAllIngredientNeeds] = useState<IngredientNeed[]>([]);
   const [activeTab, setActiveTab] = useState<"products" | "ingredients" | "stockcheck" | "checklist">("products");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("confirmed");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    const saved = localStorage.getItem("production_statusFilter");
+    return (saved === "confirmed" || saved === "in_production" || saved === "all_production") ? saved : "confirmed";
+  });
 
   const [selectedProduct, setSelectedProduct] = useState<ProductionItem | null>(null);
   const [productIngredients, setProductIngredients] = useState<ProductIngredient[]>([]);
@@ -336,7 +339,7 @@ const Production = () => {
           <h2 className="text-lg font-serif font-medium">Productie</h2>
           <p className="text-sm text-muted-foreground">{getStatusFilterLabel()}</p>
         </div>
-        <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as StatusFilter)}>
+        <Select value={statusFilter} onValueChange={(val) => { const v = val as StatusFilter; setStatusFilter(v); localStorage.setItem("production_statusFilter", v); }}>
           <SelectTrigger className="w-full sm:w-[180px] h-9 text-sm">
             <SelectValue />
           </SelectTrigger>

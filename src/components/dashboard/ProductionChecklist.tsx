@@ -34,7 +34,10 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<OrderLineItem[]>([]);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
-  const [groupBy, setGroupBy] = useState<GroupBy>("customer");
+  const [groupBy, setGroupBy] = useState<GroupBy>(() => {
+    const saved = localStorage.getItem("production_checklist_groupBy");
+    return (saved === "product" || saved === "customer") ? saved : "customer";
+  });
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -304,7 +307,7 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+        <Select value={groupBy} onValueChange={(v) => { const val = v as GroupBy; setGroupBy(val); localStorage.setItem("production_checklist_groupBy", val); }}>
           <SelectTrigger className="w-[160px] h-9 text-sm">
             <SelectValue />
           </SelectTrigger>
@@ -350,11 +353,16 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
                     {group.items.reduce((sum, i) => sum + i.quantity, 0)} items
                   </span>
                 )}
-                {!isCustomerGroup && (
-                  <span className="text-sm font-medium tabular-nums">
-                    {group.items.reduce((sum, i) => sum + i.quantity, 0)}×
-                  </span>
-                )}
+                {!isCustomerGroup && (() => {
+                  const totalQty = group.items.reduce((sum, i) => sum + i.quantity, 0);
+                  const checkedQty = group.items.filter((i) => checkedItems.has(i.orderItemId)).reduce((sum, i) => sum + i.quantity, 0);
+                  return (
+                    <span className="text-sm font-medium tabular-nums">
+                      <span className={checkedQty > 0 ? "text-green-600" : ""}>{checkedQty}</span>
+                      <span className="text-muted-foreground">/{totalQty}</span>
+                    </span>
+                  );
+                })()}
               </div>
 
               {/* Items */}
