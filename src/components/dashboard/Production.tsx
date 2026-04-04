@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import StockCheck from "./StockCheck";
+import ProductionChecklist from "./ProductionChecklist";
 
 interface ProductionItem {
   productId: string;
