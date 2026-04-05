@@ -111,7 +111,6 @@ const OrderRow = ({
             <span className="tabular-nums font-medium text-sm">{formatCurrency(order.total)}</span>
           </div>
         </td>
-        </td>
         <td className="py-3 px-1" onClick={(e) => e.stopPropagation()}>
           <Select
             value={order.status}
