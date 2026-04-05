@@ -81,6 +81,7 @@ interface OrderRowProps {
 const OrderRow = ({ 
   order, 
   isMobile, 
+  isMatched,
   onEdit, 
   onDelete, 
   onStatusChange, 
