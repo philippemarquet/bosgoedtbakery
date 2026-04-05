@@ -199,8 +199,11 @@ const OrderRow = ({
           <span className="text-muted-foreground text-sm font-light">—</span>
         )}
       </td>
-      <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">
-        {formatCurrency(order.total)}
+      <td className="py-4 px-4 text-right">
+        <div className="flex items-center justify-end gap-2">
+          <Banknote className={`w-4 h-4 ${isMatched ? "text-emerald-500" : "text-muted-foreground/30"}`} title={isMatched ? "Gematcht met transactie" : "Niet gematcht"} />
+          <span className="tabular-nums font-medium text-sm">{formatCurrency(order.total)}</span>
+        </div>
       </td>
       <td className="py-4 px-4">
         <Select
