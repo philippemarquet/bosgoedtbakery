@@ -69,6 +69,7 @@ const ORDER_STATUSES = [
 interface OrderRowProps {
   order: Order;
   isMobile: boolean;
+  isMatched: boolean;
   onEdit: (order: Order) => void;
   onDelete: (id: string) => void;
   onStatusChange: (orderId: string, newStatus: string) => void;
