@@ -262,23 +262,34 @@ const OrderOverview = () => {
   const fetchOrders = async () => {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("orders")
-      .select(`
-        *,
-        customer:profiles!orders_customer_id_fkey(id, full_name, phone),
-        weekly_menu:weekly_menus(id, name, delivery_date),
-        pickup_location:pickup_locations(id, title)
-      `)
-      .order("created_at", { ascending: false });
+    const [ordersResult, paymentsResult] = await Promise.all([
+      supabase
+        .from("orders")
+        .select(`
+          *,
+          customer:profiles!orders_customer_id_fkey(id, full_name, phone),
+          weekly_menu:weekly_menus(id, name, delivery_date),
+          pickup_location:pickup_locations(id, title)
+        `)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("payment_logs")
+        .select("order_id")
+        .eq("status", "matched")
+        .not("order_id", "is", null),
+    ]);
 
-    if (error) {
+    if (ordersResult.error) {
       toast({ title: "Fout", description: "Kon bestellingen niet laden", variant: "destructive" });
       setLoading(false);
       return;
     }
 
-    setOrders(data || []);
+    const matched = new Set<string>();
+    (paymentsResult.data || []).forEach((p: any) => { if (p.order_id) matched.add(p.order_id); });
+    setMatchedOrderIds(matched);
+
+    setOrders(ordersResult.data || []);
     setLoading(false);
   };
 
