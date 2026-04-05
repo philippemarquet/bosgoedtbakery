@@ -69,6 +69,7 @@ const ORDER_STATUSES = [
 interface OrderRowProps {
   order: Order;
   isMobile: boolean;
+  isMatched: boolean;
   onEdit: (order: Order) => void;
   onDelete: (id: string) => void;
   onStatusChange: (orderId: string, newStatus: string) => void;
@@ -80,6 +81,7 @@ interface OrderRowProps {
 const OrderRow = ({ 
   order, 
   isMobile, 
+  isMatched,
   onEdit, 
   onDelete, 
   onStatusChange, 
@@ -103,8 +105,11 @@ const OrderRow = ({
             </span>
           </div>
         </td>
-        <td className="py-3 px-2 text-right tabular-nums font-medium text-sm">
-          {formatCurrency(order.total)}
+        <td className="py-3 px-2 text-right">
+          <div className="flex items-center justify-end gap-1.5">
+            <Banknote className={`w-3.5 h-3.5 ${isMatched ? "text-emerald-500" : "text-muted-foreground/30"}`} />
+            <span className="tabular-nums font-medium text-sm">{formatCurrency(order.total)}</span>
+          </div>
         </td>
         <td className="py-3 px-1" onClick={(e) => e.stopPropagation()}>
           <Select
@@ -193,8 +198,11 @@ const OrderRow = ({
           <span className="text-muted-foreground text-sm font-light">—</span>
         )}
       </td>
-      <td className="py-4 px-4 text-right tabular-nums font-medium text-sm">
-        {formatCurrency(order.total)}
+      <td className="py-4 px-4 text-right">
+        <div className="flex items-center justify-end gap-2">
+          <Banknote className={`w-4 h-4 ${isMatched ? "text-emerald-500" : "text-muted-foreground/30"}`} />
+          <span className="tabular-nums font-medium text-sm">{formatCurrency(order.total)}</span>
+        </div>
       </td>
       <td className="py-4 px-4">
         <Select
@@ -246,6 +254,7 @@ const OrderRow = ({
 
 const OrderOverview = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [matchedOrderIds, setMatchedOrderIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -261,23 +270,34 @@ const OrderOverview = () => {
   const fetchOrders = async () => {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("orders")
-      .select(`
-        *,
-        customer:profiles!orders_customer_id_fkey(id, full_name, phone),
-        weekly_menu:weekly_menus(id, name, delivery_date),
-        pickup_location:pickup_locations(id, title)
-      `)
-      .order("created_at", { ascending: false });
+    const [ordersResult, paymentsResult] = await Promise.all([
+      supabase
+        .from("orders")
+        .select(`
+          *,
+          customer:profiles!orders_customer_id_fkey(id, full_name, phone),
+          weekly_menu:weekly_menus(id, name, delivery_date),
+          pickup_location:pickup_locations(id, title)
+        `)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("payment_logs")
+        .select("order_id")
+        .eq("status", "matched")
+        .not("order_id", "is", null),
+    ]);
 
-    if (error) {
+    if (ordersResult.error) {
       toast({ title: "Fout", description: "Kon bestellingen niet laden", variant: "destructive" });
       setLoading(false);
       return;
     }
 
-    setOrders(data || []);
+    const matched = new Set<string>();
+    (paymentsResult.data || []).forEach((p: any) => { if (p.order_id) matched.add(p.order_id); });
+    setMatchedOrderIds(matched);
+
+    setOrders(ordersResult.data || []);
     setLoading(false);
   };
 
@@ -598,6 +618,7 @@ const OrderOverview = () => {
                             key={order.id} 
                             order={order} 
                             isMobile={isMobile}
+                            isMatched={matchedOrderIds.has(order.id)}
                             onEdit={openEditDialog}
                             onDelete={handleDelete}
                             onStatusChange={handleStatusChange}
@@ -615,6 +636,7 @@ const OrderOverview = () => {
                         key={order.id} 
                         order={order} 
                         isMobile={isMobile}
+                        isMatched={matchedOrderIds.has(order.id)}
                         onEdit={openEditDialog}
                         onDelete={handleDelete}
                         onStatusChange={handleStatusChange}
