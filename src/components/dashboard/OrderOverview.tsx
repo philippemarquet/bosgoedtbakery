@@ -105,8 +105,12 @@ const OrderRow = ({
             </span>
           </div>
         </td>
-        <td className="py-3 px-2 text-right tabular-nums font-medium text-sm">
-          {formatCurrency(order.total)}
+        <td className="py-3 px-2 text-right">
+          <div className="flex items-center justify-end gap-1.5">
+            <Banknote className={`w-3.5 h-3.5 ${isMatched ? "text-emerald-500" : "text-muted-foreground/30"}`} />
+            <span className="tabular-nums font-medium text-sm">{formatCurrency(order.total)}</span>
+          </div>
+        </td>
         </td>
         <td className="py-3 px-1" onClick={(e) => e.stopPropagation()}>
           <Select
