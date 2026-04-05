@@ -246,6 +246,7 @@ const OrderRow = ({
 
 const OrderOverview = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [matchedOrderIds, setMatchedOrderIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
