@@ -630,6 +630,7 @@ const OrderOverview = () => {
                         key={order.id} 
                         order={order} 
                         isMobile={isMobile}
+                        isMatched={matchedOrderIds.has(order.id)}
                         onEdit={openEditDialog}
                         onDelete={handleDelete}
                         onStatusChange={handleStatusChange}
