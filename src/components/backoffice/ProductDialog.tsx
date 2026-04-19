@@ -24,8 +24,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import {
+  UNIT_OPTIONS,
+  toBase,
+  fromBase,
+  isCompatible,
+  getDimension,
+  type MeasurementUnit,
+} from "@/lib/units";
 
-type MeasurementUnit = Database["public"]["Enums"]["measurement_unit"];
 type Product = Database["public"]["Tables"]["products"]["Row"];
 type Category = Database["public"]["Tables"]["categories"]["Row"];
 type Ingredient = Database["public"]["Tables"]["ingredients"]["Row"];
@@ -37,40 +44,42 @@ interface RecipeIngredient {
   display_unit: MeasurementUnit | "";
 }
 
-// Unit conversion helpers
-const UNIT_CONVERSIONS: Record<
-  string,
-  { compatibleUnits: MeasurementUnit[]; toBase: Record<string, number>; defaultDisplayUnit: MeasurementUnit }
-> = {
-  kg: { compatibleUnits: ["kg", "gram"], toBase: { kg: 1, gram: 0.001 }, defaultDisplayUnit: "gram" },
-  gram: { compatibleUnits: ["kg", "gram"], toBase: { kg: 1, gram: 0.001 }, defaultDisplayUnit: "gram" },
-  liter: { compatibleUnits: ["liter", "ml"], toBase: { liter: 1, ml: 0.001 }, defaultDisplayUnit: "ml" },
-  ml: { compatibleUnits: ["liter", "ml"], toBase: { liter: 1, ml: 0.001 }, defaultDisplayUnit: "ml" },
-  stuks: { compatibleUnits: ["stuks"], toBase: { stuks: 1 }, defaultDisplayUnit: "stuks" },
-  uur: { compatibleUnits: ["uur"], toBase: { uur: 1 }, defaultDisplayUnit: "uur" },
-  eetlepel: { compatibleUnits: ["eetlepel"], toBase: { eetlepel: 1 }, defaultDisplayUnit: "eetlepel" },
-};
-
+// For recipe-ingredient rows we want users to type in a friendly unit (e.g.
+// "500 gram" instead of "0.5 kg"). These helpers pick the handiest display
+// unit within the ingredient's dimension and let us round-trip numbers
+// between storage (the ingredient's base unit) and the input field.
 const getDefaultDisplayUnit = (baseUnit: MeasurementUnit): MeasurementUnit => {
-  return UNIT_CONVERSIONS[baseUnit]?.defaultDisplayUnit || baseUnit;
+  const dim = getDimension(baseUnit);
+  if (dim === "mass") return "gram";
+  if (dim === "volume") return "ml";
+  return baseUnit;
 };
 
 const getCompatibleUnits = (baseUnit: MeasurementUnit): MeasurementUnit[] => {
-  return UNIT_CONVERSIONS[baseUnit]?.compatibleUnits || [baseUnit];
+  const dim = getDimension(baseUnit);
+  if (dim === "mass") return ["kg", "gram"];
+  if (dim === "volume") return ["liter", "ml"];
+  return [baseUnit];
 };
 
-const convertToBaseUnit = (quantity: number, fromUnit: MeasurementUnit, baseUnit: MeasurementUnit): number => {
-  const conversion = UNIT_CONVERSIONS[baseUnit];
-  if (!conversion) return quantity;
-  const factor = conversion.toBase[fromUnit] || 1;
-  return quantity * factor;
+// Storage unit for a recipe ingredient is always the ingredient's own base
+// unit — so convert the input back to that unit before persisting.
+const convertToBaseUnit = (
+  quantity: number,
+  fromUnit: MeasurementUnit,
+  baseUnit: MeasurementUnit,
+): number => {
+  if (!isCompatible(fromUnit, baseUnit)) return quantity;
+  return toBase(quantity, fromUnit) / toBase(1, baseUnit);
 };
 
-const convertFromBaseUnit = (quantity: number, toUnit: MeasurementUnit, baseUnit: MeasurementUnit): number => {
-  const conversion = UNIT_CONVERSIONS[baseUnit];
-  if (!conversion) return quantity;
-  const factor = conversion.toBase[toUnit] || 1;
-  return quantity / factor;
+const convertFromBaseUnit = (
+  quantity: number,
+  toUnit: MeasurementUnit,
+  baseUnit: MeasurementUnit,
+): number => {
+  if (!isCompatible(baseUnit, toUnit)) return quantity;
+  return fromBase(toBase(quantity, baseUnit), toUnit);
 };
 
 interface RecipeFixedCost {
@@ -82,15 +91,6 @@ interface PriceTier {
   min_quantity: string;
   price: string;
 }
-
-const UNITS: { value: MeasurementUnit; label: string }[] = [
-  { value: "kg", label: "Kilogram (kg)" },
-  { value: "gram", label: "Gram (g)" },
-  { value: "liter", label: "Liter (L)" },
-  { value: "ml", label: "Milliliter (ml)" },
-  { value: "stuks", label: "Stuks" },
-  { value: "uur", label: "Uur" },
-];
 
 interface ProductDialogProps {
   open: boolean;
@@ -109,8 +109,12 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     name: "",
     description: "",
     category_id: "",
-    yield_quantity: "1",
-    yield_unit: "stuks" as MeasurementUnit,
+    // How much one batch of the recipe produces — drives ingredient math.
+    recipe_yield_quantity: "1",
+    recipe_yield_unit: "stuks" as MeasurementUnit,
+    // The unit customers actually buy in — can differ from the recipe.
+    sell_unit_quantity: "1",
+    sell_unit_unit: "stuks" as MeasurementUnit,
     selling_price: "",
     is_orderable: false,
     image_url: "",
@@ -155,8 +159,10 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
           name: "",
           description: "",
           category_id: "",
-          yield_quantity: "1",
-          yield_unit: "stuks",
+          recipe_yield_quantity: "1",
+          recipe_yield_unit: "stuks",
+          sell_unit_quantity: "1",
+          sell_unit_unit: "stuks",
           selling_price: "",
           is_orderable: false,
           image_url: "",
@@ -173,8 +179,19 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
         name: editingProduct.name,
         description: editingProduct.description || "",
         category_id: editingProduct.category_id || "",
-        yield_quantity: String(editingProduct.yield_quantity),
-        yield_unit: editingProduct.yield_unit,
+        // Prefer the new columns, but fall back to the legacy ones for products
+        // that haven't been re-saved since the migration — the DB migration
+        // already backfilled, so this is belt-and-suspenders.
+        recipe_yield_quantity: String(
+          editingProduct.recipe_yield_quantity ?? editingProduct.yield_quantity,
+        ),
+        recipe_yield_unit: (editingProduct.recipe_yield_unit ??
+          editingProduct.yield_unit) as MeasurementUnit,
+        sell_unit_quantity: String(
+          editingProduct.sell_unit_quantity ?? editingProduct.yield_quantity,
+        ),
+        sell_unit_unit: (editingProduct.sell_unit_unit ??
+          editingProduct.yield_unit) as MeasurementUnit,
         selling_price: String(editingProduct.selling_price),
         is_orderable: editingProduct.is_orderable,
         image_url: editingProduct.image_url || "",
@@ -242,6 +259,19 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       return;
     }
 
+    // Recipe yield and sell unit must share a dimension (both mass, both
+    // volume, or both count) — otherwise `batches = ordered × sell / recipe`
+    // is nonsense.
+    if (!isCompatible(formData.recipe_yield_unit, formData.sell_unit_unit)) {
+      toast({
+        title: "Eenheden kloppen niet",
+        description:
+          "De recept-eenheid en verkoop-eenheid moeten vergelijkbaar zijn (allebei gewicht, allebei volume, of allebei stuks).",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     // Upload image if selected
@@ -265,12 +295,27 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       setUploadingImage(false);
     }
 
+    const recipeYieldQty = parseFloat(formData.recipe_yield_quantity) || 1;
+    const sellUnitQty = parseFloat(formData.sell_unit_quantity) || 1;
+
+    // Write both the new columns *and* the legacy yield_* columns until
+    // every screen (Production, StockCheck, FinancialOverview) has moved to
+    // the new model. Legacy yield_* mirrors the *recipe* side — that's what
+    // it originally meant ("how much one batch produces"). Existing products
+    // where recipe == sell unit will behave exactly as before; products that
+    // now use the new split will have legacy fields that old screens can't
+    // fully interpret, which is acceptable because we're migrating those
+    // screens next.
     const productPayload = {
       name: formData.name.trim(),
       description: formData.description.trim() || null,
       category_id: formData.category_id || null,
-      yield_quantity: parseFloat(formData.yield_quantity) || 1,
-      yield_unit: formData.yield_unit,
+      recipe_yield_quantity: recipeYieldQty,
+      recipe_yield_unit: formData.recipe_yield_unit,
+      sell_unit_quantity: sellUnitQty,
+      sell_unit_unit: formData.sell_unit_unit,
+      yield_quantity: recipeYieldQty,
+      yield_unit: formData.recipe_yield_unit,
       selling_price: parseFloat(formData.selling_price) || 0,
       is_orderable: formData.is_orderable,
       image_url: imageUrl || null,
@@ -345,20 +390,13 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       );
     }
 
-    // Insert price tiers
-    const yieldQty = parseFloat(formData.yield_quantity) || 1;
-    const validTiers = priceTiers.filter((t) => parseInt(t.min_quantity) >= yieldQty && parseFloat(t.price) > 0);
-
-    const invalidTiers = priceTiers.filter(
-      (t) => parseInt(t.min_quantity) > 0 && parseInt(t.min_quantity) < yieldQty && parseFloat(t.price) > 0
+    // Insert price tiers — min_quantity is expressed in sell-units (so "per
+    // stuk" products get "5+ stuks", "per 400 g" products get "5+ × 400 g").
+    // Tiers must specify a positive integer threshold and a positive price;
+    // everything else is silently dropped (UI already hints at this).
+    const validTiers = priceTiers.filter(
+      (t) => parseInt(t.min_quantity) > 0 && parseFloat(t.price) > 0,
     );
-    if (invalidTiers.length > 0) {
-      toast({
-        title: "Let op",
-        description: `${invalidTiers.length} staffelkorting(en) overgeslagen: minimale hoeveelheid moet minimaal ${yieldQty} ${formData.yield_unit} zijn`,
-        variant: "destructive",
-      });
-    }
 
     if (validTiers.length > 0) {
       await supabase.from("product_price_tiers").insert(
@@ -543,26 +581,38 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="yield_quantity">Opbrengst (aantal)</Label>
+            {/* Recipe-yield: how much one batch of the recipe produces.
+                Drives ingredient and cost calculations. */}
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
+              <div>
+                <Label className="text-sm font-medium">Recept maakt</Label>
+                <p className="text-xs text-muted-foreground">
+                  Hoeveel produceert één batch van het recept? Dit bepaalt de ingrediënten-berekening.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <Input
-                  id="yield_quantity"
+                  id="recipe_yield_quantity"
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formData.yield_quantity}
-                  onChange={(e) => setFormData({ ...formData, yield_quantity: e.target.value })}
+                  value={formData.recipe_yield_quantity}
+                  onChange={(e) =>
+                    setFormData({ ...formData, recipe_yield_quantity: e.target.value })
+                  }
+                  placeholder="1"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="yield_unit">Eenheid</Label>
-                <Select value={formData.yield_unit} onValueChange={(value: MeasurementUnit) => setFormData({ ...formData, yield_unit: value })}>
+                <Select
+                  value={formData.recipe_yield_unit}
+                  onValueChange={(value: MeasurementUnit) =>
+                    setFormData({ ...formData, recipe_yield_unit: value })
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {UNITS.map((u) => (
+                    {UNIT_OPTIONS.map((u) => (
                       <SelectItem key={u.value} value={u.value}>
                         {u.label}
                       </SelectItem>
@@ -570,6 +620,52 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Sell-unit: the unit customers actually buy in. May differ from
+                the recipe (e.g. recipe makes 1 kg, sold per 400 g). */}
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
+              <div>
+                <Label className="text-sm font-medium">Verkocht per</Label>
+                <p className="text-xs text-muted-foreground">
+                  In welke eenheid bied je het aan klanten aan? Mag anders zijn dan de recept-eenheid, zolang het dezelfde soort is (allebei gewicht, allebei volume, of allebei stuks).
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  id="sell_unit_quantity"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.sell_unit_quantity}
+                  onChange={(e) =>
+                    setFormData({ ...formData, sell_unit_quantity: e.target.value })
+                  }
+                  placeholder="1"
+                />
+                <Select
+                  value={formData.sell_unit_unit}
+                  onValueChange={(value: MeasurementUnit) =>
+                    setFormData({ ...formData, sell_unit_unit: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNIT_OPTIONS.map((u) => (
+                      <SelectItem key={u.value} value={u.value}>
+                        {u.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {!isCompatible(formData.recipe_yield_unit, formData.sell_unit_unit) && (
+                <p className="text-xs text-destructive">
+                  Let op: deze eenheid past niet bij de recept-eenheid ({formData.recipe_yield_unit}).
+                </p>
+              )}
             </div>
 
             <div className="flex items-center space-x-2 pt-2">
@@ -739,7 +835,7 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
 
           <TabsContent value="pricing" className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label htmlFor="selling_price">Standaard verkoopprijs (€)</Label>
+              <Label htmlFor="selling_price">Verkoopprijs per eenheid (€)</Label>
               <Input
                 id="selling_price"
                 type="number"
@@ -749,13 +845,18 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                 onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
                 placeholder="0.00"
               />
+              <p className="text-xs text-muted-foreground">
+                Prijs voor één verkoop-eenheid ({formData.sell_unit_quantity || "?"} {formData.sell_unit_unit}).
+              </p>
             </div>
 
             <div className="border-t pt-4 mt-4">
               <div className="flex justify-between items-center mb-4">
                 <div>
                   <Label>Staffelprijzen</Label>
-                  <p className="text-sm text-muted-foreground">Korting bij grotere aantallen (bijv. 4 voor €6)</p>
+                  <p className="text-sm text-muted-foreground">
+                    Vanaf dit aantal verkoop-eenheden geldt een andere prijs per eenheid.
+                  </p>
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={addPriceTier}>
                   <Plus className="w-4 h-4 mr-1" />
@@ -771,15 +872,21 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                 <div className="space-y-2">
                   {priceTiers.map((tier, index) => (
                     <div key={index} className="flex gap-2 items-center">
+                      <span className="text-sm text-muted-foreground">vanaf</span>
                       <Input
                         type="number"
                         min="1"
                         value={tier.min_quantity}
                         onChange={(e) => updatePriceTier(index, "min_quantity", e.target.value)}
                         className="w-20"
-                        placeholder="Aantal"
+                        placeholder="1"
                       />
-                      <span className="text-sm text-muted-foreground">stuks voor</span>
+                      <span className="text-sm text-muted-foreground">
+                        {formData.sell_unit_quantity && formData.sell_unit_quantity !== "1"
+                          ? `× ${formData.sell_unit_quantity} ${formData.sell_unit_unit}`
+                          : formData.sell_unit_unit}
+                        {" = "}€
+                      </span>
                       <Input
                         type="number"
                         step="0.01"
@@ -787,8 +894,9 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
                         value={tier.price}
                         onChange={(e) => updatePriceTier(index, "price", e.target.value)}
                         className="w-24"
-                        placeholder="€ 0.00"
+                        placeholder="0.00"
                       />
+                      <span className="text-sm text-muted-foreground">p/st</span>
                       <Button type="button" variant="ghost" size="icon" onClick={() => removePriceTier(index)}>
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
