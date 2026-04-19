@@ -183,7 +183,7 @@ const CustomerOrdersTab = () => {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Zoek op ordernummer of weekmenu..."
+            placeholder="Zoek op ordernummer..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -261,7 +261,7 @@ const CustomerOrdersTab = () => {
               <tr className="border-b border-border">
                 <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Order</th>
                 <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Datum</th>
-                <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Weekmenu</th>
+                <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Inhoud</th>
                 <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal</th>
                 <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                 <th className="w-32"></th>
