@@ -485,6 +485,10 @@ export type Database = {
           image_url: string | null
           is_orderable: boolean
           name: string
+          recipe_yield_quantity: number
+          recipe_yield_unit: Database["public"]["Enums"]["measurement_unit"]
+          sell_unit_quantity: number
+          sell_unit_unit: Database["public"]["Enums"]["measurement_unit"]
           selling_price: number
           updated_at: string
           yield_quantity: number
@@ -498,6 +502,10 @@ export type Database = {
           image_url?: string | null
           is_orderable?: boolean
           name: string
+          recipe_yield_quantity?: number
+          recipe_yield_unit?: Database["public"]["Enums"]["measurement_unit"]
+          sell_unit_quantity?: number
+          sell_unit_unit?: Database["public"]["Enums"]["measurement_unit"]
           selling_price?: number
           updated_at?: string
           yield_quantity?: number
@@ -511,6 +519,10 @@ export type Database = {
           image_url?: string | null
           is_orderable?: boolean
           name?: string
+          recipe_yield_quantity?: number
+          recipe_yield_unit?: Database["public"]["Enums"]["measurement_unit"]
+          sell_unit_quantity?: number
+          sell_unit_unit?: Database["public"]["Enums"]["measurement_unit"]
           selling_price?: number
           updated_at?: string
           yield_quantity?: number
@@ -831,6 +843,41 @@ export type Database = {
           week_start_date?: string
         }
         Relationships: []
+      }
+      weekly_product_offerings: {
+        Row: {
+          created_at: string
+          id: string
+          price_override: number | null
+          product_id: string
+          updated_at: string
+          week_start_date: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          price_override?: number | null
+          product_id: string
+          updated_at?: string
+          week_start_date: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          price_override?: number | null
+          product_id?: string
+          updated_at?: string
+          week_start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_product_offerings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
