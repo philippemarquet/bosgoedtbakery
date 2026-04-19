@@ -12,7 +12,7 @@ import ProductsTab from "@/components/backoffice/ProductsTab";
 import IngredientsTab from "@/components/backoffice/IngredientsTab";
 import FixedCostsTab from "@/components/backoffice/FixedCostsTab";
 import CategoriesTab from "@/components/backoffice/CategoriesTab";
-import WeeklyMenusTab from "@/components/backoffice/WeeklyMenusTab";
+import WeeklyOfferingsTab from "@/components/backoffice/WeeklyOfferingsTab";
 import DiscountGroupsTab from "@/components/backoffice/DiscountGroupsTab";
 
 type TabValue = 
@@ -20,8 +20,8 @@ type TabValue =
   | "ingredients" 
   | "fixed-costs" 
   | "categories" 
-  | "discount-groups" 
-  | "weekly-menus";
+  | "discount-groups"
+  | "weekly-offerings";
 
 const productSubItems = [
   { value: "products" as const, label: "Producten", icon: Package, description: "Beheer je producten en recepten" },
@@ -45,8 +45,8 @@ const BackOffice = () => {
         return <CategoriesTab />;
       case "discount-groups":
         return <DiscountGroupsTab />;
-      case "weekly-menus":
-        return <WeeklyMenusTab />;
+      case "weekly-offerings":
+        return <WeeklyOfferingsTab />;
       default:
         return <ProductsTab />;
     }
@@ -113,19 +113,19 @@ const BackOffice = () => {
             </button>
           </NavigationMenuItem>
 
-          {/* Weekmenu's - direct button */}
+          {/* Weekaanbod - direct button */}
           <NavigationMenuItem>
             <button
-              onClick={() => setActiveTab("weekly-menus")}
+              onClick={() => setActiveTab("weekly-offerings")}
               className={cn(
                 "group inline-flex h-10 w-max items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors",
                 "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none",
                 "disabled:pointer-events-none disabled:opacity-50",
-                activeTab === "weekly-menus" && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                activeTab === "weekly-offerings" && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
               )}
             >
               <Calendar className="w-4 h-4 mr-2" />
-              Weekmenu's
+              Weekaanbod
             </button>
           </NavigationMenuItem>
         </NavigationMenuList>
