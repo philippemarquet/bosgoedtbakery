@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { User, ShoppingCart, CreditCard, TrendingUp, Package, AlertCircle, CheckCircle2 } from "lucide-react";
+import { User, ShoppingCart, Package } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,7 +31,6 @@ interface OrderWithItems {
   status: string;
   total: number;
   created_at: string;
-  weekly_menu: { name: string } | null;
 }
 
 interface ProductStats {
@@ -51,12 +50,6 @@ const CustomerAnalysis = () => {
   // Fetch all customers
   useEffect(() => {
     const fetchCustomers = async () => {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .eq("is_archived", false)
-        .order("full_name");
-
       // Get baker user_ids to exclude
       const { data: bakerRoles } = await supabase
         .from("user_roles")
@@ -66,14 +59,15 @@ const CustomerAnalysis = () => {
       const { data: allProfiles } = await supabase
         .from("profiles")
         .select("id, full_name, user_id")
-        .eq("is_archived", false);
+        .eq("is_archived", false)
+        .order("full_name");
 
-      const bakerUserIds = new Set(bakerRoles?.map(r => r.user_id) || []);
-      const customerProfiles = (allProfiles || []).filter(p => 
-        !p.user_id || !bakerUserIds.has(p.user_id)
+      const bakerUserIds = new Set(bakerRoles?.map((r) => r.user_id) || []);
+      const customerProfiles = (allProfiles || []).filter(
+        (p) => !p.user_id || !bakerUserIds.has(p.user_id),
       );
 
-      setCustomers(customerProfiles.map(p => ({ id: p.id, full_name: p.full_name })));
+      setCustomers(customerProfiles.map((p) => ({ id: p.id, full_name: p.full_name })));
     };
     fetchCustomers();
   }, []);
@@ -89,65 +83,45 @@ const CustomerAnalysis = () => {
 
       setLoading(true);
 
-      // Fetch orders with weekly menu price
       const { data: ordersData } = await supabase
         .from("orders")
-        .select("id, status, total, created_at, weekly_menu_id, weekly_menu:weekly_menus(name, price)")
+        .select("id, status, total, created_at")
         .eq("customer_id", selectedCustomerId)
         .order("created_at", { ascending: false });
 
       setOrders(ordersData || []);
 
-      // Fetch order items for product stats
+      // order_items is the single source of truth — legacy orders that once
+      // pointed at a weekly_menu still have their items denormalised here,
+      // so no special-casing needed.
       if (ordersData && ordersData.length > 0) {
-        const orderIds = ordersData.map(o => o.id);
+        const orderIds = ordersData.map((o) => o.id);
         const { data: items } = await supabase
           .from("order_items")
-          .select("product_id, quantity, total, is_weekly_menu_item, product:products(name)")
+          .select("product_id, quantity, total, product:products(name)")
           .in("order_id", orderIds);
 
         const statsMap = new Map<string, ProductStats>();
 
-        // Add individual product items (exclude weekly menu items - those are part of the menu, not chosen separately)
-        if (items) {
-          items.forEach(item => {
-            // Skip items that are part of a weekly menu
-            if (item.is_weekly_menu_item) return;
-            
-            const existing = statsMap.get(item.product_id);
-            if (existing) {
-              existing.total_quantity += item.quantity;
-              existing.total_revenue += item.total;
-            } else {
-              statsMap.set(item.product_id, {
-                product_id: item.product_id,
-                product_name: item.product?.name || "Onbekend",
-                total_quantity: item.quantity,
-                total_revenue: item.total,
-              });
-            }
-          });
-        }
-
-        // Add weekly menu orders as "Weekmenu" product
-        const weeklyMenuOrders = ordersData.filter(o => o.weekly_menu);
-        if (weeklyMenuOrders.length > 0) {
-          const weeklyMenuRevenue = weeklyMenuOrders.reduce((sum, o) => {
-            // Use the weekly menu price from the joined data
-            const menuPrice = (o.weekly_menu as { name: string; price: number } | null)?.price || 0;
-            return sum + menuPrice;
-          }, 0);
-
-          statsMap.set("weekmenu", {
-            product_id: "weekmenu",
-            product_name: "Weekmenu",
-            total_quantity: weeklyMenuOrders.length,
-            total_revenue: weeklyMenuRevenue,
-          });
+        for (const item of items || []) {
+          const existing = statsMap.get(item.product_id);
+          if (existing) {
+            existing.total_quantity += Number(item.quantity || 0);
+            existing.total_revenue += Number(item.total || 0);
+          } else {
+            statsMap.set(item.product_id, {
+              product_id: item.product_id,
+              product_name: item.product?.name || "Onbekend",
+              total_quantity: Number(item.quantity || 0),
+              total_revenue: Number(item.total || 0),
+            });
+          }
         }
 
         setProductStats(
-          Array.from(statsMap.values()).sort((a, b) => b.total_quantity - a.total_quantity)
+          Array.from(statsMap.values()).sort(
+            (a, b) => b.total_quantity - a.total_quantity,
+          ),
         );
       } else {
         setProductStats([]);
@@ -160,12 +134,12 @@ const CustomerAnalysis = () => {
 
   const stats = useMemo(() => {
     const totalOrders = orders.length;
-    const paidOrders = orders.filter(o => o.status === "paid");
-    const openOrders = orders.filter(o => o.status !== "paid");
-    const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
-    const paidRevenue = paidOrders.reduce((sum, o) => sum + o.total, 0);
-    const openRevenue = openOrders.reduce((sum, o) => sum + o.total, 0);
-    
+    const paidOrders = orders.filter((o) => o.status === "paid");
+    const openOrders = orders.filter((o) => o.status !== "paid");
+    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const paidRevenue = paidOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const openRevenue = openOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
     return {
       totalOrders,
       paidOrders: paidOrders.length,
@@ -179,16 +153,23 @@ const CustomerAnalysis = () => {
   const formatCurrency = (value: number) => `€${value.toFixed(2)}`;
 
   const getStatusBadge = (status: string) => {
-    const configs: Record<string, { label: string; variant: "default" | "secondary" | "destructive"; className: string }> = {
+    const configs: Record<
+      string,
+      { label: string; variant: "default" | "secondary" | "destructive"; className: string }
+    > = {
       confirmed: { label: "Bevestigd", variant: "default", className: "bg-blue-500" },
       ready: { label: "Gereed", variant: "default", className: "bg-purple-500" },
       paid: { label: "Betaald", variant: "default", className: "bg-emerald-600" },
     };
     const config = configs[status] || { label: status, variant: "secondary", className: "" };
-    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
+    return (
+      <Badge variant={config.variant} className={config.className}>
+        {config.label}
+      </Badge>
+    );
   };
 
-  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
 
   return (
     <div className="space-y-6">
@@ -221,24 +202,40 @@ const CustomerAnalysis = () => {
           {/* Stats Overview - Clean minimal layout */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Bestellingen</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Bestellingen
+              </p>
               <p className="text-2xl font-light tabular-nums">{stats.totalOrders}</p>
             </div>
 
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Totale omzet</p>
-              <p className="text-2xl font-light tabular-nums">{formatCurrency(stats.totalRevenue)}</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Totale omzet
+              </p>
+              <p className="text-2xl font-light tabular-nums">
+                {formatCurrency(stats.totalRevenue)}
+              </p>
             </div>
 
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Betaald</p>
-              <p className="text-2xl font-light tabular-nums text-emerald-600">{formatCurrency(stats.paidRevenue)}</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Betaald
+              </p>
+              <p className="text-2xl font-light tabular-nums text-emerald-600">
+                {formatCurrency(stats.paidRevenue)}
+              </p>
               <p className="text-xs text-muted-foreground mt-1">{stats.paidOrders} bestellingen</p>
             </div>
 
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Openstaand</p>
-              <p className={`text-2xl font-light tabular-nums ${stats.openRevenue > 0 ? "text-orange-600" : ""}`}>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Openstaand
+              </p>
+              <p
+                className={`text-2xl font-light tabular-nums ${
+                  stats.openRevenue > 0 ? "text-orange-600" : ""
+                }`}
+              >
                 {formatCurrency(stats.openRevenue)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">{stats.openOrders} bestellingen</p>
@@ -259,15 +256,12 @@ const CustomerAnalysis = () => {
               </CardHeader>
               <CardContent>
                 {orders.length === 0 ? (
-                  <p className="text-center py-8 text-muted-foreground">
-                    Nog geen bestellingen
-                  </p>
+                  <p className="text-center py-8 text-muted-foreground">Nog geen bestellingen</p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Datum</TableHead>
-                        <TableHead>Menu</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Totaal</TableHead>
                       </TableRow>
@@ -278,12 +272,9 @@ const CustomerAnalysis = () => {
                           <TableCell className="text-sm">
                             {format(parseISO(order.created_at), "d MMM yyyy", { locale: nl })}
                           </TableCell>
-                          <TableCell className="text-sm">
-                            {order.weekly_menu?.name || "-"}
-                          </TableCell>
                           <TableCell>{getStatusBadge(order.status)}</TableCell>
                           <TableCell className="text-right font-medium">
-                            {formatCurrency(order.total)}
+                            {formatCurrency(Number(order.total || 0))}
                           </TableCell>
                         </TableRow>
                       ))}
