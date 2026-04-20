@@ -80,6 +80,16 @@ export interface RecipeIngredient {
   unit: MeasurementUnit;
 }
 
+/**
+ * A "cost line" — either a recipe ingredient or a recipe fixed-cost row.
+ * Each entry represents the amount used per one recipe batch, paired with the
+ * price-per-unit of the referenced ingredient / fixed cost.
+ */
+export interface RecipeCostLine {
+  quantity: number;
+  price_per_unit: number;
+}
+
 // ---------------------------------------------------------------------------
 // Production math
 // ---------------------------------------------------------------------------
@@ -338,4 +348,62 @@ export function batchesPerProduct(
     result.push({ product_id, batches: batchesForOrder(product, quantity) });
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Cost math (for ProductsTab, StockCheck, FinancialOverview)
+// ---------------------------------------------------------------------------
+
+/**
+ * Sum all cost lines for one recipe batch. Works for both ingredient rows and
+ * fixed-cost rows — the only thing that matters is quantity × price_per_unit.
+ *
+ * Assumes the caller has already joined in the price (ingredient.price_per_unit
+ * or fixed_cost.price_per_unit) and matched units. The recipe row stores
+ * `quantity` in the referenced item's own unit, so no conversion is needed.
+ */
+export function batchCostFromLines(lines: RecipeCostLine[]): number {
+  let total = 0;
+  for (const line of lines) {
+    total += Number(line.quantity || 0) * Number(line.price_per_unit || 0);
+  }
+  return total;
+}
+
+/**
+ * Cost of producing one sell-unit of a product, given the total recipe-batch
+ * cost. Uses the same recipe-yield / sell-unit math as production — so a
+ * product sold per 400 g out of a 1 kg batch costs 40% of the batch.
+ *
+ * Returns 0 if the product's yield is non-positive or its yield/sell units
+ * are incompatible (data-modeling bug we surface as €0 rather than NaN).
+ */
+export function costPerSellUnit(
+  product: ProductForPricing,
+  batchCost: number,
+): number {
+  if (product.recipe_yield_quantity <= 0) return 0;
+  if (!isCompatible(product.recipe_yield_unit, product.sell_unit_unit)) return 0;
+  const batchesPerOne = batchesForOrder(product, 1);
+  return batchCost * batchesPerOne;
+}
+
+/**
+ * Full production cost for an order: sum of `costPerSellUnit(p) × quantity`
+ * across all lines.
+ */
+export function orderProductionCost(
+  lines: OrderLine[],
+  products: ProductForPricing[],
+  batchCostByProductId: Record<string, number>,
+): number {
+  const productById = new Map(products.map((p) => [p.id, p]));
+  let total = 0;
+  for (const line of lines) {
+    const product = productById.get(line.product_id);
+    if (!product) continue;
+    const batchCost = batchCostByProductId[line.product_id] ?? 0;
+    total += costPerSellUnit(product, batchCost) * Number(line.quantity || 0);
+  }
+  return total;
 }

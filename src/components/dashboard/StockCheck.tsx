@@ -12,11 +12,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
+import {
+  batchesForOrder,
+  ingredientNeeded,
+  type ProductForPricing,
+} from "@/lib/pricing";
+import { formatQuantity as formatUnitQuantity, type MeasurementUnit } from "@/lib/units";
 
 interface IngredientNeed {
   ingredientId: string;
   ingredientName: string;
-  unit: string;
+  unit: MeasurementUnit;
   totalNeeded: number;
 }
 
@@ -38,21 +44,12 @@ interface StockCheck {
   items: StockCheckItem[];
 }
 
-// Convert to grams/ml for display
-const convertToDisplayUnit = (value: number, unit: string): { value: number; unit: string } => {
-  if (unit === "kg") {
-    return { value: value * 1000, unit: "gram" };
-  }
-  if (unit === "liter") {
-    return { value: value * 1000, unit: "ml" };
-  }
-  return { value, unit };
-};
-
 const formatQuantity = (value: number, unit: string): string => {
-  const converted = convertToDisplayUnit(value, unit);
-  const rounded = Math.round(converted.value * 10) / 10;
-  return `${rounded} ${converted.unit}`;
+  // stock_check_items.unit is stored as the ingredient's measurement_unit enum
+  // (e.g. "kg", "gram", "ml"). Fall back gracefully if an unknown string sneaks in.
+  const known = new Set<string>(["kg", "gram", "liter", "ml", "stuks", "uur", "eetlepel"]);
+  if (known.has(unit)) return formatUnitQuantity(value, unit as MeasurementUnit);
+  return `${Math.round(value * 10) / 10} ${unit}`;
 };
 
 const StockCheck = () => {
@@ -129,82 +126,99 @@ const StockCheck = () => {
   };
 
   const fetchIngredientNeeds = async (): Promise<IngredientNeed[]> => {
-    // Fetch orders with status "confirmed" only
+    // Fetch orders with status "confirmed" only.
     const { data: orders } = await supabase
       .from("orders")
-      .select(`id, weekly_menu_id`)
+      .select(`id`)
       .eq("status", "confirmed");
 
-    if (!orders || orders.length === 0) {
-      return [];
-    }
+    if (!orders || orders.length === 0) return [];
 
-    const orderIds = orders.map(o => o.id);
-    const weeklyMenuIds = orders
-      .filter(o => o.weekly_menu_id)
-      .map(o => o.weekly_menu_id) as string[];
+    const orderIds = orders.map((o) => o.id);
 
-    // Fetch order items
+    // All order_items are the single source of truth — legacy orders with a
+    // weekly_menu_id still have all their items denormalised here.
     const { data: orderItems } = await supabase
       .from("order_items")
       .select(`product_id, quantity`)
       .in("order_id", orderIds);
 
-    // Fetch weekly menu products
-    let weeklyMenuProducts: { weekly_menu_id: string; product_id: string; quantity: number }[] = [];
-    if (weeklyMenuIds.length > 0) {
-      const { data } = await supabase
-        .from("weekly_menu_products")
-        .select(`weekly_menu_id, product_id, quantity`)
-        .in("weekly_menu_id", weeklyMenuIds);
-      weeklyMenuProducts = data || [];
+    // Aggregate sell-units per product.
+    const qtyByProduct = new Map<string, number>();
+    for (const item of orderItems || []) {
+      qtyByProduct.set(
+        item.product_id,
+        (qtyByProduct.get(item.product_id) || 0) + Number(item.quantity || 0),
+      );
     }
 
-    // Aggregate products
-    const productMap = new Map<string, number>();
-    
-    for (const item of (orderItems || [])) {
-      productMap.set(item.product_id, (productMap.get(item.product_id) || 0) + item.quantity);
+    const productIds = Array.from(qtyByProduct.keys());
+    if (productIds.length === 0) return [];
+
+    // Parallel: product yield/sell-unit info + recipe ingredients.
+    const [productsRes, recipesRes] = await Promise.all([
+      supabase
+        .from("products")
+        .select(
+          "id, recipe_yield_quantity, recipe_yield_unit, sell_unit_quantity, sell_unit_unit, selling_price",
+        )
+        .in("id", productIds),
+      supabase
+        .from("recipe_ingredients")
+        .select(`product_id, quantity, ingredient:ingredients(id, name, unit)`)
+        .in("product_id", productIds),
+    ]);
+
+    const productById = new Map<string, ProductForPricing>();
+    for (const p of productsRes.data || []) {
+      productById.set(p.id, {
+        id: p.id,
+        selling_price: Number(p.selling_price || 0),
+        recipe_yield_quantity: Number(p.recipe_yield_quantity || 0),
+        recipe_yield_unit: p.recipe_yield_unit as MeasurementUnit,
+        sell_unit_quantity: Number(p.sell_unit_quantity || 0),
+        sell_unit_unit: p.sell_unit_unit as MeasurementUnit,
+      });
     }
 
-    for (const order of orders) {
-      if (!order.weekly_menu_id) continue;
-      const menuProducts = weeklyMenuProducts.filter(wmp => wmp.weekly_menu_id === order.weekly_menu_id);
-      for (const wmp of menuProducts) {
-        productMap.set(wmp.product_id, (productMap.get(wmp.product_id) || 0) + wmp.quantity);
+    // Pre-compute batches per product (= sell-units ordered → recipe batches).
+    const batchesByProduct = new Map<string, number>();
+    for (const [productId, qty] of qtyByProduct) {
+      const product = productById.get(productId);
+      if (!product) continue;
+      try {
+        batchesByProduct.set(productId, batchesForOrder(product, qty));
+      } catch (err) {
+        console.warn("batchesForOrder failed for product", productId, err);
       }
     }
 
-    // Fetch ingredient needs
-    const productIds = Array.from(productMap.keys());
-    if (productIds.length === 0) return [];
-
-    const { data: recipeIngredients } = await supabase
-      .from("recipe_ingredients")
-      .select(`product_id, quantity, ingredient:ingredients(id, name, unit)`)
-      .in("product_id", productIds);
-
     const ingredientMap = new Map<string, IngredientNeed>();
-    
-    for (const ri of (recipeIngredients || [])) {
-      const productQty = productMap.get(ri.product_id) || 0;
+    for (const ri of recipesRes.data || []) {
       if (!ri.ingredient) continue;
+      const ing = ri.ingredient as { id: string; name: string; unit: MeasurementUnit };
+      const batches = batchesByProduct.get(ri.product_id) ?? 0;
+      if (batches <= 0) continue;
 
-      const totalForProduct = ri.quantity * productQty;
-      
-      if (!ingredientMap.has(ri.ingredient.id)) {
-        ingredientMap.set(ri.ingredient.id, {
-          ingredientId: ri.ingredient.id,
-          ingredientName: ri.ingredient.name,
-          unit: ri.ingredient.unit,
+      const totalNeeded = ingredientNeeded(
+        { quantity: Number(ri.quantity || 0) },
+        batches,
+      );
+
+      if (!ingredientMap.has(ing.id)) {
+        ingredientMap.set(ing.id, {
+          ingredientId: ing.id,
+          ingredientName: ing.name,
+          unit: ing.unit,
           totalNeeded: 0,
         });
       }
-      
-      ingredientMap.get(ri.ingredient.id)!.totalNeeded += totalForProduct;
+      ingredientMap.get(ing.id)!.totalNeeded += totalNeeded;
     }
 
-    return Array.from(ingredientMap.values()).sort((a, b) => a.ingredientName.localeCompare(b.ingredientName));
+    return Array.from(ingredientMap.values()).sort((a, b) =>
+      a.ingredientName.localeCompare(b.ingredientName),
+    );
   };
 
   const startNewCheck = async () => {
