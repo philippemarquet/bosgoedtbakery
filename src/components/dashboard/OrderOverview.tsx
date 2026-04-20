@@ -1,5 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Search, ShoppingCart, MapPin, MessageCircle, Banknote, StickyNote } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  ShoppingCart,
+  MapPin,
+  MessageCircle,
+  Banknote,
+  StickyNote,
+} from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { format, parseISO } from "date-fns";
@@ -7,7 +17,6 @@ import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -16,11 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import OrderDialog from "./OrderDialog";
 import PickupLocationsTab from "@/components/backoffice/PickupLocationsTab";
@@ -59,13 +64,36 @@ interface Order {
 }
 
 const ORDER_STATUSES = [
-  { value: "confirmed", label: "Bevestigd", color: "blue" },
-  { value: "in_production", label: "In productie", color: "orange" },
-  { value: "ready", label: "Gereed", color: "purple" },
-  { value: "paid", label: "Betaald", color: "emerald" },
+  { value: "confirmed", label: "Bevestigd" },
+  { value: "in_production", label: "In productie" },
+  { value: "ready", label: "Gereed" },
+  { value: "paid", label: "Betaald" },
 ] as const;
 
-// Extracted OrderRow component for reusability
+const STATUS_LABEL: Record<string, string> = Object.fromEntries(
+  ORDER_STATUSES.map((s) => [s.value, s.label]),
+);
+
+const StatusChip = ({ status }: { status: string }) => {
+  const label = STATUS_LABEL[status] || status;
+  const cls: Record<string, string> = {
+    confirmed: "bg-muted/60 text-foreground ring-1 ring-inset ring-border/70",
+    in_production:
+      "bg-[hsl(var(--ember))]/10 text-[hsl(var(--ember))] ring-1 ring-inset ring-[hsl(var(--ember))]/30",
+    ready: "bg-accent/10 text-foreground ring-1 ring-inset ring-accent/40",
+    paid: "bg-foreground text-background ring-1 ring-inset ring-foreground",
+  };
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 text-[10px] tracking-[0.08em] uppercase rounded-[calc(var(--radius)-4px)] ${
+        cls[status] || "bg-muted/60 text-muted-foreground ring-1 ring-inset ring-border/70"
+      }`}
+    >
+      {label}
+    </span>
+  );
+};
+
 interface OrderRowProps {
   order: Order;
   isMobile: boolean;
@@ -74,51 +102,50 @@ interface OrderRowProps {
   onDelete: (id: string) => void;
   onStatusChange: (orderId: string, newStatus: string) => void;
   onWhatsApp: (order: Order) => void;
-  getStatusBadge: (status: string) => React.ReactNode;
   formatCurrency: (value: number) => string;
 }
 
-const OrderRow = ({ 
-  order, 
-  isMobile, 
+const OrderRow = ({
+  order,
+  isMobile,
   isMatched,
-  onEdit, 
-  onDelete, 
-  onStatusChange, 
+  onEdit,
+  onDelete,
+  onStatusChange,
   onWhatsApp,
-  getStatusBadge,
-  formatCurrency 
+  formatCurrency,
 }: OrderRowProps) => {
   if (isMobile) {
     return (
-      <tr 
-        className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+      <tr
+        className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors cursor-pointer"
         onClick={() => onEdit(order)}
       >
-        <td className="py-3 px-0">
+        <td className="py-3 pl-4">
           <div className="flex flex-col gap-0.5">
-            <span className="text-foreground text-sm font-light">
+            <span className="text-foreground text-sm">
               {order.customer?.full_name || "Onbekend"}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-[11px] tracking-[0.04em] text-muted-foreground">
               {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
             </span>
           </div>
         </td>
         <td className="py-3 px-2 text-right">
           <div className="flex items-center justify-end gap-1.5">
-            <Banknote className={`w-3.5 h-3.5 ${isMatched ? "text-emerald-500" : "text-muted-foreground/30"}`} />
-            <span className="tabular-nums font-medium text-sm">{formatCurrency(order.total)}</span>
+            <Banknote
+              className={`w-3.5 h-3.5 ${isMatched ? "text-foreground" : "text-muted-foreground/30"}`}
+            />
+            <span className="tabular-nums text-sm text-foreground">
+              {formatCurrency(order.total)}
+            </span>
           </div>
         </td>
         <td className="py-3 px-1" onClick={(e) => e.stopPropagation()}>
-          <Select
-            value={order.status}
-            onValueChange={(value) => onStatusChange(order.id, value)}
-          >
-            <SelectTrigger className="w-auto h-7 border-0 bg-transparent px-0 focus:ring-0">
+          <Select value={order.status} onValueChange={(value) => onStatusChange(order.id, value)}>
+            <SelectTrigger className="w-auto h-7 border-0 bg-transparent px-0 focus:ring-0 shadow-none">
               <SelectValue>
-                {getStatusBadge(order.status)}
+                <StatusChip status={order.status} />
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -130,20 +157,20 @@ const OrderRow = ({
             </SelectContent>
           </Select>
         </td>
-        <td className="py-3 px-0 w-10" onClick={(e) => e.stopPropagation()}>
+        <td className="py-3 pr-4 w-10" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-end gap-0.5">
             {order.notes && (
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    className="p-1.5 text-amber-500 hover:text-amber-600 transition-colors"
+                    className="p-1.5 text-[hsl(var(--ember))] hover:bg-[hsl(var(--ember))]/10 rounded-[calc(var(--radius)-4px)] transition-colors"
                     title="Notities bekijken"
                   >
                     <StickyNote className="w-4 h-4" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 text-sm" side="left">
-                  <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide mb-1">Notities</p>
+                  <p className="bakery-eyebrow mb-1.5">Notities</p>
                   <p className="text-foreground whitespace-pre-wrap">{order.notes}</p>
                 </PopoverContent>
               </Popover>
@@ -151,7 +178,7 @@ const OrderRow = ({
             {(order.status === "ready" || order.status === "in_production") && (
               <button
                 onClick={() => onWhatsApp(order)}
-                className="p-1.5 text-green-500 hover:text-green-700 transition-colors"
+                className="p-1.5 text-foreground/70 hover:bg-muted/60 rounded-[calc(var(--radius)-4px)] transition-colors"
                 title="WhatsApp openen"
               >
                 <MessageCircle className="w-4 h-4" />
@@ -164,54 +191,55 @@ const OrderRow = ({
   }
 
   return (
-    <tr className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-      <td className="py-4 px-0">
+    <tr className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors">
+      <td className="py-3.5 pl-6">
         <div className="flex items-center gap-2">
-          <span className="text-foreground text-sm font-light">
+          <span className="text-foreground text-sm">
             {order.customer?.full_name || "Onbekend"}
           </span>
           {order.notes && (
             <Popover>
               <PopoverTrigger asChild>
                 <button
-                  className="p-0.5 text-amber-500 hover:text-amber-600 transition-colors"
+                  className="p-0.5 text-[hsl(var(--ember))] hover:opacity-80 transition-opacity"
                   title="Notities bekijken"
                 >
                   <StickyNote className="w-3.5 h-3.5" />
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-72 text-sm">
-                <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide mb-1">Notities</p>
+                <p className="bakery-eyebrow mb-1.5">Notities</p>
                 <p className="text-foreground whitespace-pre-wrap">{order.notes}</p>
               </PopoverContent>
             </Popover>
           )}
         </div>
       </td>
-      <td className="py-4 px-4 text-muted-foreground tabular-nums text-sm font-light">
+      <td className="py-3.5 px-4 text-muted-foreground tabular-nums text-sm">
         {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
       </td>
-      <td className="py-4 px-4">
+      <td className="py-3.5 px-4">
         {order.weekly_menu ? (
-          <span className="text-foreground text-sm font-light">{order.weekly_menu.name}</span>
+          <span className="text-foreground text-sm">{order.weekly_menu.name}</span>
         ) : (
-          <span className="text-muted-foreground text-sm font-light">—</span>
+          <span className="text-muted-foreground text-sm">—</span>
         )}
       </td>
-      <td className="py-4 px-4 text-right">
+      <td className="py-3.5 px-4 text-right">
         <div className="flex items-center justify-end gap-2">
-          <Banknote className={`w-4 h-4 ${isMatched ? "text-emerald-500" : "text-muted-foreground/30"}`} />
-          <span className="tabular-nums font-medium text-sm">{formatCurrency(order.total)}</span>
+          <Banknote
+            className={`w-4 h-4 ${isMatched ? "text-foreground" : "text-muted-foreground/30"}`}
+          />
+          <span className="tabular-nums text-sm text-foreground">
+            {formatCurrency(order.total)}
+          </span>
         </div>
       </td>
-      <td className="py-4 px-4">
-        <Select
-          value={order.status}
-          onValueChange={(value) => onStatusChange(order.id, value)}
-        >
-          <SelectTrigger className="w-28 h-8 border-0 bg-transparent px-0 focus:ring-0">
+      <td className="py-3.5 px-4">
+        <Select value={order.status} onValueChange={(value) => onStatusChange(order.id, value)}>
+          <SelectTrigger className="w-32 h-8 border-0 bg-transparent px-0 focus:ring-0 shadow-none">
             <SelectValue>
-              {getStatusBadge(order.status)}
+              <StatusChip status={order.status} />
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -223,12 +251,12 @@ const OrderRow = ({
           </SelectContent>
         </Select>
       </td>
-      <td className="py-4 px-0">
-        <div className="flex justify-end gap-1">
+      <td className="py-3.5 pr-4">
+        <div className="flex justify-end gap-0.5">
           {(order.status === "ready" || order.status === "in_production") && (
             <button
               onClick={() => onWhatsApp(order)}
-              className="p-2 text-green-500 hover:text-green-700 transition-colors"
+              className="p-2 text-foreground/70 hover:bg-muted/60 rounded-[calc(var(--radius)-4px)] transition-colors"
               title="WhatsApp openen"
             >
               <MessageCircle className="w-4 h-4" />
@@ -236,13 +264,13 @@ const OrderRow = ({
           )}
           <button
             onClick={() => onEdit(order)}
-            className="p-2 text-muted-foreground hover:text-primary transition-colors"
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-[calc(var(--radius)-4px)] transition-colors"
           >
             <Pencil className="w-4 h-4" />
           </button>
           <button
             onClick={() => onDelete(order.id)}
-            className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-[calc(var(--radius)-4px)] transition-colors"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -294,7 +322,9 @@ const OrderOverview = () => {
     }
 
     const matched = new Set<string>();
-    (paymentsResult.data || []).forEach((p: any) => { if (p.order_id) matched.add(p.order_id); });
+    (paymentsResult.data || []).forEach((p: any) => {
+      if (p.order_id) matched.add(p.order_id);
+    });
     setMatchedOrderIds(matched);
 
     setOrders(ordersResult.data || []);
@@ -307,7 +337,7 @@ const OrderOverview = () => {
       .select("value")
       .eq("key", "whatsapp_message_template")
       .single();
-    
+
     if (data) {
       setWhatsappTemplate(data.value);
     }
@@ -322,12 +352,9 @@ const OrderOverview = () => {
     fetchWhatsAppTemplate();
   }, []);
 
-  // Refresh data when tab becomes visible again
   useVisibilityRefresh(refreshOrders);
 
-  // Filter, sort, and group orders
   const { processedOrders, groupedOrders } = useMemo(() => {
-    // First filter
     let filtered = orders.filter((o) => {
       const customerName = o.customer?.full_name?.toLowerCase() || "";
       const menuName = o.weekly_menu?.name?.toLowerCase() || "";
@@ -337,7 +364,6 @@ const OrderOverview = () => {
       return matchesSearch && matchesStatus;
     });
 
-    // Then sort
     filtered.sort((a, b) => {
       switch (sortOption) {
         case "date-desc":
@@ -353,7 +379,6 @@ const OrderOverview = () => {
       }
     });
 
-    // Group if needed
     if (groupOption === "none") {
       return { processedOrders: filtered, groupedOrders: null };
     }
@@ -370,20 +395,18 @@ const OrderOverview = () => {
       groups[key].push(order);
     });
 
-    // Sort group keys
     const sortedGroups: Record<string, Order[]> = {};
     const sortedKeys = Object.keys(groups).sort((a, b) => {
       if (groupOption === "date") {
-        // For date grouping, use the first order's date in each group
         const dateA = groups[a][0]?.invoice_date || "";
         const dateB = groups[b][0]?.invoice_date || "";
-        return sortOption.includes("desc") 
+        return sortOption.includes("desc")
           ? new Date(dateB).getTime() - new Date(dateA).getTime()
           : new Date(dateA).getTime() - new Date(dateB).getTime();
       }
       return sortOption.includes("desc") ? b.localeCompare(a) : a.localeCompare(b);
     });
-    sortedKeys.forEach(key => {
+    sortedKeys.forEach((key) => {
       sortedGroups[key] = groups[key];
     });
 
@@ -391,7 +414,7 @@ const OrderOverview = () => {
   }, [orders, searchQuery, statusFilter, sortOption, groupOption]);
 
   const getOrderCountByStatus = (status: string) => {
-    return orders.filter(o => o.status === status).length;
+    return orders.filter((o) => o.status === status).length;
   };
 
   const openCreateDialog = () => {
@@ -432,11 +455,10 @@ const OrderOverview = () => {
     fetchOrders();
   };
 
-  const formatCurrency = (value: number) => `€${value.toFixed(2)}`;
+  const formatCurrency = (value: number) => `€ ${value.toFixed(2)}`;
 
   const generatePaymentLink = (order: Order) => {
-    // Format: https://bunq.me/BosgoedtBakery/{total}/{order_number}
-    const amount = order.total.toFixed(2).replace(',', '.');
+    const amount = order.total.toFixed(2).replace(",", ".");
     return `https://bunq.me/BosgoedtBakery/${amount}/${order.order_number}`;
   };
 
@@ -447,46 +469,43 @@ const OrderOverview = () => {
       return;
     }
 
-    // Clean phone number (remove spaces, dashes, etc.) and ensure it starts with country code
-    let cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
-    // Remove leading 0 if present and add +31 for Dutch numbers
-    if (cleanPhone.startsWith('0') && !cleanPhone.startsWith('00')) {
-      cleanPhone = '+31' + cleanPhone.substring(1);
+    let cleanPhone = phone.replace(/[\s\-()]/g, "");
+    if (cleanPhone.startsWith("0") && !cleanPhone.startsWith("00")) {
+      cleanPhone = "+31" + cleanPhone.substring(1);
     }
-    // Remove leading + for wa.me format
-    cleanPhone = cleanPhone.replace(/^\+/, '');
+    cleanPhone = cleanPhone.replace(/^\+/, "");
 
     const paymentLink = generatePaymentLink(order);
-    const message = whatsappTemplate.replace('{{betaallink}}', paymentLink);
+    const message = whatsappTemplate.replace("{{betaallink}}", paymentLink);
     const encodedMessage = encodeURIComponent(message);
-    
+
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank');
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = ORDER_STATUSES.find(s => s.value === status);
-    if (!statusConfig) return <Badge variant="secondary">{status}</Badge>;
-
-    const colorClasses: Record<string, string> = {
-      blue: "bg-blue-500 hover:bg-blue-600 text-white",
-      orange: "bg-orange-500 hover:bg-orange-600 text-white",
-      purple: "bg-purple-500 hover:bg-purple-600 text-white",
-      emerald: "bg-emerald-600 hover:bg-emerald-700 text-white",
-    };
-
-    return (
-      <Badge 
-        variant="default"
-        className={colorClasses[statusConfig.color] || ""}
-      >
-        {statusConfig.label}
-      </Badge>
-    );
+    window.open(whatsappUrl, "_blank");
   };
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <p className="bakery-eyebrow mb-2">Bestellingen</p>
+          <h2
+            className="font-serif text-3xl md:text-4xl font-medium text-foreground leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Overzicht
+          </h2>
+          <p className="text-sm text-muted-foreground mt-2">
+            Klantbestellingen, status en betalingen op één plek.
+          </p>
+        </div>
+        {!isMobile && (
+          <Button onClick={openCreateDialog}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            Nieuwe bestelling
+          </Button>
+        )}
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         {!isMobile && (
           <TabsList>
@@ -509,145 +528,174 @@ const OrderOverview = () => {
           </TabsList>
         )}
 
-        <TabsContent value="orders" className={isMobile ? "mt-0" : "mt-6"} forceMount={isMobile ? true : undefined} hidden={!isMobile && activeTab !== "orders"}>
-          <div className="space-y-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col sm:flex-row gap-4 justify-between">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Zoek op klant of weekmenu..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-                {!isMobile && (
-                  <Button onClick={openCreateDialog}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nieuwe bestelling
-                  </Button>
-                )}
+        <TabsContent
+          value="orders"
+          className={isMobile ? "mt-0" : "mt-6"}
+          forceMount={isMobile ? true : undefined}
+          hidden={!isMobile && activeTab !== "orders"}
+        >
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <div className="relative flex-1 max-w-sm w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Zoek op klant of weekmenu..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
               </div>
-              
-              <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-                <TabsList>
-                  {ORDER_STATUSES.map((status) => (
-                    <TabsTrigger key={status.value} value={status.value} className="text-xs sm:text-sm">
-                      {isMobile ? status.label : `${status.label} (${getOrderCountByStatus(status.value)})`}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
 
-              {/* Sort & Group Options - only for paid orders */}
-              {statusFilter === "paid" && !isMobile && (
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-xs uppercase tracking-wide">Sorteer</span>
-                    <Select value={sortOption} onValueChange={(val) => setSortOption(val as SortOption)}>
-                      <SelectTrigger className="h-8 w-auto min-w-[120px] border-0 bg-transparent px-2 text-sm font-light hover:bg-muted/50 focus:ring-0">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent align="start">
-                        <SelectItem value="date-desc">Datum ↓</SelectItem>
-                        <SelectItem value="date-asc">Datum ↑</SelectItem>
-                        <SelectItem value="customer-asc">Klant A-Z</SelectItem>
-                        <SelectItem value="customer-desc">Klant Z-A</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-xs uppercase tracking-wide">Groepeer</span>
-                    <Select value={groupOption} onValueChange={(val) => setGroupOption(val as GroupOption)}>
-                      <SelectTrigger className="h-8 w-auto min-w-[100px] border-0 bg-transparent px-2 text-sm font-light hover:bg-muted/50 focus:ring-0">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent align="start">
-                        <SelectItem value="none">Geen</SelectItem>
-                        <SelectItem value="date">Op datum</SelectItem>
-                        <SelectItem value="customer">Op klant</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {ORDER_STATUSES.map((status) => {
+                  const active = statusFilter === status.value;
+                  const count = getOrderCountByStatus(status.value);
+                  return (
+                    <button
+                      key={status.value}
+                      onClick={() => setStatusFilter(status.value)}
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-[calc(var(--radius)-4px)] text-xs transition-colors border ${
+                        active
+                          ? "bg-foreground text-background border-foreground"
+                          : "bg-transparent text-muted-foreground border-border/60 hover:bg-muted/50 hover:text-foreground"
+                      }`}
+                    >
+                      <span>{status.label}</span>
+                      <span
+                        className={`tabular-nums text-[10px] ${
+                          active ? "text-background/75" : "text-muted-foreground/75"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">Klant</th>
-                    {!isMobile && <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Datum</th>}
-                    {!isMobile && <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Menu</th>}
-                    <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Totaal</th>
-                    <th className="text-left py-3 px-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">{isMobile ? "" : "Status"}</th>
-                    <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider w-10 sm:w-20"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={isMobile ? 4 : 6} className="text-center py-12 text-muted-foreground">
-                        Laden...
-                      </td>
+            {statusFilter === "paid" && !isMobile && (
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="bakery-eyebrow">Sorteer</span>
+                  <Select value={sortOption} onValueChange={(val) => setSortOption(val as SortOption)}>
+                    <SelectTrigger className="h-8 w-auto min-w-[120px] border-0 bg-transparent px-2 text-sm hover:bg-muted/50 focus:ring-0 shadow-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      <SelectItem value="date-desc">Datum ↓</SelectItem>
+                      <SelectItem value="date-asc">Datum ↑</SelectItem>
+                      <SelectItem value="customer-asc">Klant A-Z</SelectItem>
+                      <SelectItem value="customer-desc">Klant Z-A</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="bakery-eyebrow">Groepeer</span>
+                  <Select value={groupOption} onValueChange={(val) => setGroupOption(val as GroupOption)}>
+                    <SelectTrigger className="h-8 w-auto min-w-[100px] border-0 bg-transparent px-2 text-sm hover:bg-muted/50 focus:ring-0 shadow-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      <SelectItem value="none">Geen</SelectItem>
+                      <SelectItem value="date">Op datum</SelectItem>
+                      <SelectItem value="customer">Op klant</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            <div className="paper-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border/60 bg-muted/30">
+                      <th className="text-left py-3 pl-6 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
+                        Klant
+                      </th>
+                      {!isMobile && (
+                        <th className="text-left py-3 px-4 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
+                          Datum
+                        </th>
+                      )}
+                      {!isMobile && (
+                        <th className="text-left py-3 px-4 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
+                          Menu
+                        </th>
+                      )}
+                      <th className="text-right py-3 px-4 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
+                        Totaal
+                      </th>
+                      <th className="text-left py-3 px-4 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
+                        {isMobile ? "" : "Status"}
+                      </th>
+                      <th className="text-right py-3 pr-4 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em] w-10 sm:w-24"></th>
                     </tr>
-                  ) : processedOrders.length === 0 ? (
-                    <tr>
-                      <td colSpan={isMobile ? 4 : 6} className="text-center py-12 text-muted-foreground">
-                        <ShoppingCart className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                        {searchQuery ? "Geen bestellingen gevonden" : "Nog geen bestellingen"}
-                      </td>
-                    </tr>
-                  ) : groupedOrders ? (
-                    // Grouped view
-                    Object.entries(groupedOrders).map(([groupKey, groupOrders]) => (
-                      <>
-                        <tr key={`group-${groupKey}`} className="bg-muted/50">
-                          <td colSpan={isMobile ? 4 : 6} className="py-2 px-2">
-                            <span className="font-medium text-sm">{groupKey}</span>
-                            <span className="text-muted-foreground text-xs ml-2">
-                              ({groupOrders.length} {groupOrders.length === 1 ? "bestelling" : "bestellingen"})
-                            </span>
-                          </td>
-                        </tr>
-                        {groupOrders.map((order) => (
-                          <OrderRow 
-                            key={order.id} 
-                            order={order} 
-                            isMobile={isMobile}
-                            isMatched={matchedOrderIds.has(order.id)}
-                            onEdit={openEditDialog}
-                            onDelete={handleDelete}
-                            onStatusChange={handleStatusChange}
-                            onWhatsApp={openWhatsApp}
-                            getStatusBadge={getStatusBadge}
-                            formatCurrency={formatCurrency}
-                          />
-                        ))}
-                      </>
-                    ))
-                  ) : (
-                    // Flat view
-                    processedOrders.map((order) => (
-                      <OrderRow 
-                        key={order.id} 
-                        order={order} 
-                        isMobile={isMobile}
-                        isMatched={matchedOrderIds.has(order.id)}
-                        onEdit={openEditDialog}
-                        onDelete={handleDelete}
-                        onStatusChange={handleStatusChange}
-                        onWhatsApp={openWhatsApp}
-                        getStatusBadge={getStatusBadge}
-                        formatCurrency={formatCurrency}
-                      />
-                    ))
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={isMobile ? 4 : 6} className="text-center py-16 text-muted-foreground">
+                          <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+                          <p className="text-sm">Laden…</p>
+                        </td>
+                      </tr>
+                    ) : processedOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={isMobile ? 4 : 6} className="text-center py-16 text-muted-foreground">
+                          <ShoppingCart className="w-5 h-5 mx-auto mb-2 opacity-40" />
+                          <p className="text-sm">
+                            {searchQuery ? "Geen bestellingen gevonden." : "Nog geen bestellingen."}
+                          </p>
+                        </td>
+                      </tr>
+                    ) : groupedOrders ? (
+                      Object.entries(groupedOrders).map(([groupKey, groupOrders]) => (
+                        <>
+                          <tr key={`group-${groupKey}`} className="bg-muted/40">
+                            <td colSpan={isMobile ? 4 : 6} className="py-2 px-6">
+                              <span className="bakery-eyebrow">{groupKey}</span>
+                              <span className="text-[11px] tracking-[0.04em] text-muted-foreground ml-3">
+                                {groupOrders.length}{" "}
+                                {groupOrders.length === 1 ? "bestelling" : "bestellingen"}
+                              </span>
+                            </td>
+                          </tr>
+                          {groupOrders.map((order) => (
+                            <OrderRow
+                              key={order.id}
+                              order={order}
+                              isMobile={isMobile}
+                              isMatched={matchedOrderIds.has(order.id)}
+                              onEdit={openEditDialog}
+                              onDelete={handleDelete}
+                              onStatusChange={handleStatusChange}
+                              onWhatsApp={openWhatsApp}
+                              formatCurrency={formatCurrency}
+                            />
+                          ))}
+                        </>
+                      ))
+                    ) : (
+                      processedOrders.map((order) => (
+                        <OrderRow
+                          key={order.id}
+                          order={order}
+                          isMobile={isMobile}
+                          isMatched={matchedOrderIds.has(order.id)}
+                          onEdit={openEditDialog}
+                          onDelete={handleDelete}
+                          onStatusChange={handleStatusChange}
+                          onWhatsApp={openWhatsApp}
+                          formatCurrency={formatCurrency}
+                        />
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </TabsContent>

@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calendar, ExternalLink, Hash, Lock, MapPin, Package, Plus, Trash2 } from "lucide-react";
+import { Calendar, Hash, Lock, MapPin, Package, Plus, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
 interface OrderItem {
@@ -85,13 +83,32 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   paid: "Betaald",
 };
 
+const StatusChip = ({ status }: { status: string }) => {
+  const label = ORDER_STATUS_LABELS[status] || status;
+  const cls: Record<string, string> = {
+    confirmed: "bg-muted/50 text-foreground ring-1 ring-inset ring-border/70",
+    in_production:
+      "bg-[hsl(var(--ember))]/10 text-[hsl(var(--ember))] ring-1 ring-inset ring-[hsl(var(--ember))]/30",
+    ready: "bg-accent/10 text-foreground ring-1 ring-inset ring-accent/40",
+    paid: "bg-foreground text-background ring-1 ring-inset ring-foreground",
+  };
+  return (
+    <span
+      className={`inline-flex items-center px-2.5 py-1 text-[11px] tracking-[0.08em] uppercase rounded-[calc(var(--radius)-4px)] ${
+        cls[status] || "bg-muted/50 text-muted-foreground ring-1 ring-inset ring-border/70"
+      }`}
+    >
+      {label}
+    </span>
+  );
+};
+
 const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrderDialogProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
   const canEdit = order?.status === "confirmed";
-  // Only show edit UI when both canEdit is true AND user clicked "Wijzig"
   const isReadOnly = !canEdit || !isEditing;
 
   const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
@@ -102,14 +119,7 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
   const [notes, setNotes] = useState("");
   const [extraItemsDraft, setExtraItemsDraft] = useState<{ product_id: string; quantity: number }[]>([]);
 
-  // --- Helpers ---
-  const formatCurrency = (value: number) => `€${Number(value || 0).toFixed(2)}`;
-
-  const generatePaymentLink = () => {
-    if (!order) return "";
-    const amount = Number(order.total || 0).toFixed(2);
-    return `https://bunq.me/BosgoedtBakery/${amount}/${order.order_number}`;
-  };
+  const formatCurrency = (value: number) => `€ ${Number(value || 0).toFixed(2)}`;
 
   const weeklyItems = useMemo(() => (order?.items || []).filter((i) => i.is_weekly_menu_item), [order]);
   const extraOrderItems = useMemo(() => (order?.items || []).filter((i) => !i.is_weekly_menu_item), [order]);
@@ -120,7 +130,6 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
   }, [order]);
 
   const extrasTotalFromItems = useMemo(() => {
-    // Som van extra items; als totals niet gevuld zijn, val terug op unit_price * qty
     const sum = extraOrderItems.reduce((acc, it) => {
       const line = Number(it.total ?? 0);
       if (line > 0) return acc + line;
@@ -130,7 +139,6 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
   }, [extraOrderItems]);
 
   const extrasTotalFallback = useMemo(() => {
-    // Als item totals 0 zijn, probeer uit subtotal een redelijke schatting te halen
     const subtotal = Number(order?.subtotal ?? 0);
     const estimate = Math.max(0, subtotal - (menuPrice || 0));
     return estimate;
@@ -140,7 +148,6 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
     return extrasTotalFromItems > 0 ? extrasTotalFromItems : extrasTotalFallback;
   }, [extrasTotalFromItems, extrasTotalFallback]);
 
-  // --- Fetch pickup locations (altijd) ---
   useEffect(() => {
     if (!open) return;
     const fetchPickupLocations = async () => {
@@ -155,7 +162,6 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
     fetchPickupLocations();
   }, [open]);
 
-  // --- Fetch products (alleen nodig als editable extra items) ---
   useEffect(() => {
     if (!open || !isEditing) return;
     const fetchProducts = async () => {
@@ -177,14 +183,12 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
     fetchProducts();
   }, [open, isEditing]);
 
-  // --- Reset editing mode when dialog closes ---
   useEffect(() => {
     if (!open) {
       setIsEditing(false);
     }
   }, [open]);
 
-  // --- Init form state from order ---
   useEffect(() => {
     if (!open) return;
 
@@ -199,12 +203,10 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
     setSelectedPickupLocationId(order.pickup_location_id || "anders");
     setNotes(order.notes || "");
 
-    // init editable extras from existing extra order items
     const draft = extraOrderItems.map((i) => ({ product_id: i.product_id, quantity: i.quantity }));
     setExtraItemsDraft(draft);
   }, [open, order, extraOrderItems]);
 
-  // --- Editable extras actions ---
   const addExtraItem = () => {
     if (isReadOnly) return;
     setExtraItemsDraft([...extraItemsDraft, { product_id: "", quantity: 1 }]);
@@ -222,7 +224,6 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
     setExtraItemsDraft(updated);
   };
 
-  // --- Save ---
   const handleSave = async () => {
     if (!order || isReadOnly) return;
 
@@ -250,7 +251,6 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
       return;
     }
 
-    // Replace only extra items (non-weekly)
     await supabase.from("order_items").delete().eq("order_id", order.id).eq("is_weekly_menu_item", false);
 
     const newItems = extraItemsDraft
@@ -279,16 +279,19 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
     onSave();
   };
 
-  // --- UI: rows ---
   const WeeklyRow = ({ item }: { item: OrderItem }) => {
     const name = item.product?.name || "Onbekend product";
     return (
-      <div className="flex items-start justify-between py-2">
-        <div className="min-w-0">
+      <div className="flex items-start justify-between py-2.5">
+        <div className="min-w-0 pr-3">
           <div className="text-sm text-foreground truncate">{name}</div>
-          <div className="text-xs text-muted-foreground">{item.quantity}× • Inbegrepen</div>
+          <div className="text-[11px] tracking-[0.06em] uppercase text-muted-foreground mt-0.5">
+            {item.quantity}× · inbegrepen
+          </div>
         </div>
-        <div className="text-xs text-muted-foreground whitespace-nowrap">Inbegrepen</div>
+        <div className="text-[11px] tracking-[0.06em] uppercase text-muted-foreground whitespace-nowrap pt-1">
+          inbegrepen
+        </div>
       </div>
     );
   };
@@ -299,25 +302,35 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
       Number(item.total ?? 0) > 0 ? Number(item.total) : Number(item.unit_price ?? 0) * Number(item.quantity ?? 0);
 
     return (
-      <div className="flex items-start justify-between py-2">
-        <div className="min-w-0">
+      <div className="flex items-start justify-between py-2.5">
+        <div className="min-w-0 pr-3">
           <div className="text-sm text-foreground truncate">{name}</div>
-          <div className="text-xs text-muted-foreground">{item.quantity}×</div>
+          <div className="text-[11px] tracking-[0.06em] uppercase text-muted-foreground mt-0.5">
+            {item.quantity}×
+          </div>
         </div>
-        <div className="text-sm text-foreground whitespace-nowrap tabular-nums">{formatCurrency(lineTotal)}</div>
+        <div className="text-sm text-foreground whitespace-nowrap tabular-nums pt-0.5">
+          {formatCurrency(lineTotal)}
+        </div>
       </div>
     );
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto scroll-soft">
+        <DialogHeader className="space-y-3">
+          <p className="bakery-eyebrow">Bestelling</p>
           <div className="flex items-baseline justify-between gap-4">
-            <DialogTitle className="font-serif text-2xl">Bestelling</DialogTitle>
+            <DialogTitle
+              className="font-serif text-3xl md:text-4xl font-medium leading-tight text-foreground"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              Overzicht
+            </DialogTitle>
             {order?.order_number && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Hash className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-1.5 text-[11px] tracking-[0.08em] uppercase text-muted-foreground">
+                <Hash className="w-3 h-3" />
                 <span className="tabular-nums">{order.order_number}</span>
               </div>
             )}
@@ -325,34 +338,32 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
         </DialogHeader>
 
         {order && (
-          <div className="py-2 space-y-6">
-            {/* Slimme, rustige header info */}
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge variant="secondary" className="rounded-md">
-                {ORDER_STATUS_LABELS[order.status] || order.status}
-              </Badge>
+          <div className="pt-2 space-y-6">
+            {/* Meta strip */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              <StatusChip status={order.status} />
 
-              <div className="text-xs text-muted-foreground">
-                Factuurdatum{" "}
-                <span className="text-foreground">
+              <div className="text-[11px] tracking-[0.06em] uppercase text-muted-foreground">
+                Factuur{" "}
+                <span className="text-foreground tracking-normal normal-case">
                   {format(parseISO(order.invoice_date), "d MMM yyyy", { locale: nl })}
                 </span>
               </div>
 
               {order.weekly_menu?.delivery_date && (
-                <div className="text-xs text-muted-foreground">
-                  Leverdatum{" "}
-                  <span className="text-foreground">
+                <div className="text-[11px] tracking-[0.06em] uppercase text-muted-foreground">
+                  Levering{" "}
+                  <span className="text-foreground tracking-normal normal-case">
                     {format(parseISO(order.weekly_menu.delivery_date), "d MMM yyyy", { locale: nl })}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Read-only notice or Edit button */}
+            {/* Edit notice */}
             {!canEdit && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Lock className="w-4 h-4" />
+                <Lock className="w-3.5 h-3.5" />
                 Deze bestelling kan niet meer worden aangepast.
               </div>
             )}
@@ -363,38 +374,40 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
             )}
             {canEdit && isEditing && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="text-primary font-medium">Bewerkingsmodus actief</span>
-                <span>—</span>
-                <button 
-                  type="button" 
-                  onClick={() => setIsEditing(false)} 
-                  className="underline hover:no-underline"
+                <span className="text-foreground font-medium">Bewerkingsmodus</span>
+                <span className="text-border">·</span>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="underline underline-offset-2 hover:no-underline"
                 >
                   Annuleren
                 </button>
               </div>
             )}
 
-            {/* Weekmenu block (minimal, no card) */}
+            {/* Weekmenu block */}
             {(order.weekly_menu || order.weekly_menu_id) && (
-              <div className="space-y-2">
+              <div className="paper-card px-5 py-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Calendar className="w-4 h-4" />
-                    Weekmenu
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="bakery-eyebrow">Weekmenu</span>
                   </div>
-                  {/* menuprijs 1x tonen */}
                   <div className="text-sm text-foreground tabular-nums">
                     {menuPrice > 0 ? formatCurrency(menuPrice) : ""}
                   </div>
                 </div>
 
-                <div className="text-sm text-foreground">
+                <div
+                  className="font-serif text-xl text-foreground"
+                  style={{ letterSpacing: "-0.01em" }}
+                >
                   {order.weekly_menu?.name || "Weekmenu"}
                 </div>
 
                 {weeklyItems.length > 0 && (
-                  <div className="mt-2 divide-y divide-border/40">
+                  <div className="divide-y divide-border/60 border-t border-border/60">
                     {weeklyItems.map((it) => (
                       <WeeklyRow key={it.id} item={it} />
                     ))}
@@ -410,13 +423,12 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
             )}
 
             {/* Extra producten */}
-            <div className="space-y-2">
+            <div className="paper-card px-5 py-4 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Package className="w-4 h-4" />
-                  Extra producten
+                <div className="flex items-center gap-2">
+                  <Package className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="bakery-eyebrow">Extra producten</span>
                 </div>
-                {/* geen harde waarheid, maar netjes: extra’s totaal */}
                 <div className="text-sm text-foreground tabular-nums">
                   {extraOrderItems.length > 0 ? formatCurrency(extrasTotal) : ""}
                 </div>
@@ -425,16 +437,15 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
               {extraOrderItems.length === 0 ? (
                 <div className="text-xs text-muted-foreground">Geen extra producten.</div>
               ) : (
-                <div className="divide-y divide-border/40">
+                <div className="divide-y divide-border/60 border-t border-border/60">
                   {extraOrderItems.map((it) => (
                     <ExtraRow key={it.id} item={it} />
                   ))}
                 </div>
               )}
 
-              {/* Editable extra items (confirmed only) */}
               {!isReadOnly && (
-                <div className="pt-3 space-y-3">
+                <div className="pt-3 space-y-3 border-t border-border/60">
                   {extraItemsDraft.map((item, idx) => (
                     <div key={`${item.product_id}-${idx}`} className="flex gap-2 items-center">
                       <Select value={item.product_id} onValueChange={(v) => updateExtraItem(idx, "product_id", v)}>
@@ -455,31 +466,35 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
                         min={1}
                         value={item.quantity}
                         onChange={(e) => updateExtraItem(idx, "quantity", Number(e.target.value))}
-                        className="w-20"
+                        className="w-20 tabular-nums"
                       />
 
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeExtraItem(idx)} title="Verwijderen">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeExtraItem(idx)}
+                        title="Verwijderen"
+                      >
                         <Trash2 className="w-4 h-4 text-muted-foreground" />
                       </Button>
                     </div>
                   ))}
 
                   <Button type="button" variant="outline" size="sm" onClick={addExtraItem}>
-                    <Plus className="w-4 h-4 mr-1" />
+                    <Plus className="w-4 h-4 mr-1.5" />
                     Product toevoegen
                   </Button>
                 </div>
               )}
             </div>
 
-            <Separator />
-
-            {/* Afhaallocatie + notes (clean) */}
-            <div className="space-y-4">
+            {/* Afhaallocatie + notes */}
+            <div className="paper-card px-5 py-4 space-y-5">
               <div className="space-y-2">
-                <Label className="flex items-center gap-2 text-sm font-medium">
-                  <MapPin className="w-4 h-4" />
-                  Afhaallocatie
+                <Label className="flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="bakery-eyebrow">Afhaallocatie</span>
                 </Label>
 
                 {isReadOnly ? (
@@ -519,7 +534,7 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes" className="text-sm font-medium">
+                <Label htmlFor="notes" className="bakery-eyebrow">
                   Opmerkingen
                 </Label>
                 {isReadOnly ? (
@@ -538,40 +553,47 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
               </div>
             </div>
 
-            <Separator />
+            {/* Overzicht */}
+            <div className="paper-card px-5 py-4 space-y-3">
+              <p className="bakery-eyebrow">Overzicht</p>
 
-            {/* Overzicht (menuprijs 1x, geen productprijzen in menu) */}
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Overzicht</div>
+              <div className="space-y-2 pt-1">
+                {order.weekly_menu_id && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Weekmenu</span>
+                    <span className="tabular-nums text-foreground">{formatCurrency(menuPrice)}</span>
+                  </div>
+                )}
 
-              {order.weekly_menu_id && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Weekmenu</span>
-                  <span className="tabular-nums">{formatCurrency(menuPrice)}</span>
+                  <span className="text-muted-foreground">Extra producten</span>
+                  <span className="tabular-nums text-foreground">{formatCurrency(extrasTotal)}</span>
                 </div>
-              )}
 
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Extra producten</span>
-                <span className="tabular-nums">{formatCurrency(extrasTotal)}</span>
+                {Number(order.discount_amount || 0) > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[hsl(var(--ember))]">Korting</span>
+                    <span className="tabular-nums text-[hsl(var(--ember))]">
+                      −{formatCurrency(order.discount_amount)}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {Number(order.discount_amount || 0) > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Korting</span>
-                  <span className="tabular-nums">-{formatCurrency(order.discount_amount)}</span>
-                </div>
-              )}
-
-              <div className="flex justify-between text-base font-semibold pt-2">
-                <span>Totaal</span>
-                <span className="tabular-nums">{formatCurrency(order.total)}</span>
+              <div className="flex items-baseline justify-between pt-3 border-t border-border/60">
+                <span className="bakery-eyebrow">Totaal</span>
+                <span
+                  className="font-serif text-2xl text-foreground tabular-nums"
+                  style={{ letterSpacing: "-0.015em" }}
+                >
+                  {formatCurrency(order.total)}
+                </span>
               </div>
             </div>
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 pt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Sluiten
           </Button>

@@ -2,8 +2,11 @@ import * as React from "react";
 
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 
-const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
+// Max toasts tegelijk zichtbaar
+const TOAST_LIMIT = 3;
+// Wachttijd tussen dismiss en uit-state-verwijderen — lang genoeg voor de
+// close-animatie (~300 ms), kort genoeg dat state netjes opruimt.
+const TOAST_REMOVE_DELAY = 4000;
 
 type ToasterToast = ToastProps & {
   id: string;

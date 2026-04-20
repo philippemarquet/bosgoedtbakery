@@ -1,14 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Package, TrendingUp, Award, BarChart3 } from "lucide-react";
+import { Package, TrendingUp, Award } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -37,6 +29,19 @@ interface ProductStats {
   total_orders: number;
   total_revenue: number;
 }
+
+const MetricCard = ({ label, value, hint }: { label: string; value: string; hint?: string }) => (
+  <div className="paper-card px-5 py-4">
+    <p className="bakery-eyebrow mb-2">{label}</p>
+    <p
+      className="font-serif text-2xl md:text-3xl font-medium tabular-nums text-foreground leading-tight"
+      style={{ letterSpacing: "-0.02em" }}
+    >
+      {value}
+    </p>
+    {hint && <p className="text-xs text-muted-foreground mt-1.5">{hint}</p>}
+  </div>
+);
 
 const ProductAnalysis = () => {
   const [productStats, setProductStats] = useState<ProductStats[]>([]);
@@ -140,218 +145,246 @@ const ProductAnalysis = () => {
       .sort((a, b) => b.quantity - a.quantity);
   }, [productStats]);
 
-  const COLORS = [
-    "hsl(var(--primary))",
-    "hsl(var(--chart-2))",
-    "hsl(var(--chart-3))",
-    "hsl(var(--chart-4))",
-    "hsl(var(--chart-5))",
+  // Warm Japandi palette for chart bars
+  const BAR_COLORS = [
+    "hsl(var(--foreground))",
+    "hsl(var(--ember))",
+    "hsl(var(--clay))",
+    "hsl(var(--sage))",
+    "hsl(var(--stone))",
+    "hsl(var(--foreground) / 0.65)",
+    "hsl(var(--ember) / 0.7)",
+    "hsl(var(--clay) / 0.7)",
   ];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="paper-card py-16 text-center">
+        <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+        <p className="text-sm text-muted-foreground">Laden…</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Overview Stats */}
+      {/* Overview stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Unieke producten verkocht</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <Package className="w-5 h-5 text-muted-foreground" />
-              <span className="text-2xl font-bold">{totalStats.totalProducts}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Totaal stuks verkocht</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-muted-foreground" />
-              <span className="text-2xl font-bold">{totalStats.totalQuantity}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Totale productomzet</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-muted-foreground" />
-              <span className="text-2xl font-bold">
-                {formatCurrency(totalStats.totalRevenue)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        <MetricCard
+          label="Unieke producten"
+          value={String(totalStats.totalProducts)}
+          hint="verkocht in totaal"
+        />
+        <MetricCard
+          label="Totaal verkocht"
+          value={String(totalStats.totalQuantity)}
+          hint="stuks"
+        />
+        <MetricCard
+          label="Productomzet"
+          value={formatCurrency(totalStats.totalRevenue)}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Products Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="w-5 h-5" />
-              Top 8 Hardlopers
-            </CardTitle>
-            <CardDescription>Meest verkochte producten op aantal</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={chartData}
-                  layout="vertical"
-                  margin={{ left: 0, right: 20 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                  <XAxis type="number" />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    width={100}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <Tooltip
-                    formatter={(value: number) => [`${value} stuks`, "Verkocht"]}
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--popover))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Bar dataKey="quantity" radius={[0, 4, 4, 0]}>
-                    {chartData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-center py-8 text-muted-foreground">Nog geen data</p>
-            )}
-          </CardContent>
-        </Card>
+        <div className="paper-card p-5 md:p-6">
+          <div className="mb-5 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
+              <Award className="w-4 h-4 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="bakery-eyebrow mb-1">Top 8</p>
+              <h3
+                className="font-serif text-xl font-medium text-foreground leading-tight"
+                style={{ letterSpacing: "-0.02em" }}
+              >
+                Hardlopers
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Op aantal verkocht.</p>
+            </div>
+          </div>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={chartData}
+                layout="vertical"
+                margin={{ left: 0, right: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} stroke="hsl(var(--border))" />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  stroke="hsl(var(--border))"
+                />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  width={100}
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  stroke="hsl(var(--border))"
+                />
+                <Tooltip
+                  formatter={(value: number) => [`${value} stuks`, "Verkocht"]}
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    boxShadow: "0 4px 16px -2px hsl(var(--ink) / 0.12)",
+                  }}
+                />
+                <Bar dataKey="quantity" radius={[0, 3, 3, 0]}>
+                  {chartData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-center py-8 text-muted-foreground text-sm">Nog geen data</p>
+          )}
+        </div>
 
         {/* Category Breakdown */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5" />
-              Per categorie
-            </CardTitle>
-            <CardDescription>Verkoop verdeeld over categorieën</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {categoryStats.map((cat, idx) => (
-                <div key={cat.name} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: COLORS[idx % COLORS.length] }}
-                      />
-                      <span className="font-medium">{cat.name}</span>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {cat.quantity} stuks · {formatCurrency(cat.revenue)}
-                    </div>
-                  </div>
-                  <Progress
-                    value={(cat.quantity / (categoryStats[0]?.quantity || 1)) * 100}
-                    className="h-2"
-                  />
-                </div>
-              ))}
-              {categoryStats.length === 0 && (
-                <p className="text-center py-8 text-muted-foreground">Nog geen data</p>
-              )}
+        <div className="paper-card p-5 md:p-6">
+          <div className="mb-5 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
+              <Package className="w-4 h-4 text-muted-foreground" />
             </div>
-          </CardContent>
-        </Card>
+            <div>
+              <p className="bakery-eyebrow mb-1">Verdeling</p>
+              <h3
+                className="font-serif text-xl font-medium text-foreground leading-tight"
+                style={{ letterSpacing: "-0.02em" }}
+              >
+                Per categorie
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Verkoop per groep.</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            {categoryStats.map((cat, idx) => (
+              <div key={cat.name} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: BAR_COLORS[idx % BAR_COLORS.length] }}
+                    />
+                    <span className="text-sm font-medium text-foreground">{cat.name}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground tabular-nums">
+                    {cat.quantity} stuks · {formatCurrency(cat.revenue)}
+                  </div>
+                </div>
+                <Progress
+                  value={(cat.quantity / (categoryStats[0]?.quantity || 1)) * 100}
+                  className="h-1.5"
+                />
+              </div>
+            ))}
+            {categoryStats.length === 0 && (
+              <p className="text-center py-8 text-muted-foreground text-sm">Nog geen data</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Full Product Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Alle producten
-          </CardTitle>
-          <CardDescription>Gesorteerd op aantal verkocht</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="paper-card overflow-hidden">
+        <div className="flex items-start gap-3 px-5 md:px-6 pt-5 pb-4 border-b border-border/50">
+          <div className="w-9 h-9 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="bakery-eyebrow mb-1">Overzicht</p>
+            <h3
+              className="font-serif text-xl font-medium text-foreground leading-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              Alle producten
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Gesorteerd op aantal verkocht.</p>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">#</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Categorie</TableHead>
-                <TableHead className="text-right">Aantal</TableHead>
-                <TableHead className="text-right">Bestellingen</TableHead>
-                <TableHead className="text-right">Omzet</TableHead>
-                <TableHead className="w-32">Populariteit</TableHead>
+              <TableRow className="border-b border-border/60 bg-muted/30 hover:bg-muted/30">
+                <TableHead className="w-12 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  #
+                </TableHead>
+                <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Product
+                </TableHead>
+                <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Categorie
+                </TableHead>
+                <TableHead className="text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Aantal
+                </TableHead>
+                <TableHead className="text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Orders
+                </TableHead>
+                <TableHead className="text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Omzet
+                </TableHead>
+                <TableHead className="w-32 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Populariteit
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {productStats.map((product, idx) => (
-                <TableRow key={product.product_id}>
-                  <TableCell>
+                <TableRow key={product.product_id} className="border-b border-border/40 hover:bg-muted/40">
+                  <TableCell className="py-3 pl-6">
                     {idx < 3 ? (
-                      <Badge
-                        variant={idx === 0 ? "default" : "secondary"}
-                        className={idx === 0 ? "bg-amber-500" : ""}
+                      <span
+                        className={`inline-flex items-center justify-center w-6 h-6 text-[11px] font-medium tabular-nums rounded-full ${
+                          idx === 0
+                            ? "bg-foreground text-background"
+                            : "bg-muted/60 text-foreground ring-1 ring-inset ring-border/60"
+                        }`}
                       >
                         {idx + 1}
-                      </Badge>
+                      </span>
                     ) : (
-                      <span className="text-muted-foreground">{idx + 1}</span>
+                      <span className="text-muted-foreground text-sm tabular-nums">{idx + 1}</span>
                     )}
                   </TableCell>
-                  <TableCell className="font-medium">{product.product_name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{product.category_name}</Badge>
+                  <TableCell className="py-3 text-sm text-foreground">{product.product_name}</TableCell>
+                  <TableCell className="py-3">
+                    <span className="inline-flex items-center px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground bg-muted/60 rounded-[calc(var(--radius)-4px)] ring-1 ring-inset ring-border/60">
+                      {product.category_name}
+                    </span>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Badge variant="secondary">{product.total_quantity}x</Badge>
+                  <TableCell className="py-3 text-right text-sm text-foreground tabular-nums font-medium">
+                    {product.total_quantity}×
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
+                  <TableCell className="py-3 text-right text-sm text-muted-foreground tabular-nums">
                     {product.total_orders}
                   </TableCell>
-                  <TableCell className="text-right font-medium">
+                  <TableCell className="py-3 text-right text-sm text-foreground tabular-nums font-medium">
                     {formatCurrency(product.total_revenue)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-3 pr-6">
                     <Progress
                       value={(product.total_quantity / maxQuantity) * 100}
-                      className="h-2"
+                      className="h-1.5"
                     />
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          {productStats.length === 0 && (
-            <p className="text-center py-8 text-muted-foreground">
-              Nog geen producten verkocht
-            </p>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+        {productStats.length === 0 && (
+          <p className="text-center py-12 text-muted-foreground text-sm">
+            Nog geen producten verkocht
+          </p>
+        )}
+      </div>
     </div>
   );
 };

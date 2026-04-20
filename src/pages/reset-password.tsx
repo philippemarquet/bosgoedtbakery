@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 function getHashParams() {
   const hash = window.location.hash.startsWith("#")
@@ -102,53 +105,58 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-6">
+    <div className="min-h-screen flex items-center justify-center bg-background px-6 py-10">
       <div className="w-full max-w-md">
-        <h1 className="bakery-title text-foreground mb-2">Nieuw wachtwoord</h1>
-        <p className="text-sm text-muted-foreground mb-6">
-          Kies een nieuw wachtwoord voor je account.
-        </p>
+        <div className="mb-10 text-center">
+          <p className="bakery-eyebrow mb-3">Account</p>
+          <h1
+            className="font-serif text-foreground text-4xl md:text-5xl font-medium leading-tight mb-3"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Nieuw wachtwoord
+          </h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Kies een nieuw wachtwoord voor je account.
+          </p>
+        </div>
 
         {!ready ? (
-          <div className="p-4 rounded-lg border bg-muted/30 text-sm text-muted-foreground">
-            Reset-link verwerken…
+          <div className="paper-card px-5 py-6 text-center">
+            <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+            <p className="text-sm text-muted-foreground">Reset-link verwerken…</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Nieuw wachtwoord
-              </label>
-              <input
+          <form onSubmit={handleSubmit} className="paper-card px-6 py-7 space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">Nieuw wachtwoord</Label>
+              <Input
+                id="new-password"
                 type="password"
-                className="bakery-input w-full"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 minLength={6}
+                placeholder="Minimaal 6 tekens"
                 required
+                className="h-11"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Bevestig wachtwoord
-              </label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Bevestig wachtwoord</Label>
+              <Input
+                id="confirm-password"
                 type="password"
-                className="bakery-input w-full"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
+                placeholder="Herhaal wachtwoord"
                 required
+                className="h-11"
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="bakery-button-primary w-full disabled:opacity-50"
-            >
-              {isLoading ? "Opslaan..." : "Wachtwoord opslaan"}
-            </button>
+            <Button type="submit" size="lg" disabled={isLoading} className="w-full">
+              {isLoading ? "Opslaan…" : "Wachtwoord opslaan"}
+            </Button>
           </form>
         )}
       </div>

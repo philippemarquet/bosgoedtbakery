@@ -649,14 +649,20 @@ const OrderDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle>
-              {editingOrder ? "Bestelling bewerken" : "Nieuwe bestelling"}
-            </DialogTitle>
+        <DialogHeader className="space-y-1">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <p className="bakery-eyebrow">Bestelling</p>
+              <DialogTitle
+                className="font-serif text-2xl font-medium leading-tight"
+                style={{ letterSpacing: "-0.02em" }}
+              >
+                {editingOrder ? "Bewerken" : "Nieuwe bestelling"}
+              </DialogTitle>
+            </div>
             {editingOrder?.order_number && (
-              <span className="flex items-center gap-1.5 text-sm font-normal text-muted-foreground">
-                <Hash className="h-3.5 w-3.5" />
+              <span className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground tabular-nums">
+                <Hash className="h-3 w-3" />
                 {editingOrder.order_number}
               </span>
             )}
@@ -999,19 +1005,25 @@ const OrderDialog = ({
 
       <AlertDialog open={showEditWarning} onOpenChange={setShowEditWarning}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-500" />
+          <AlertDialogHeader className="space-y-1">
+            <p className="bakery-eyebrow flex items-center gap-1.5 text-[hsl(var(--ember))]">
+              <AlertTriangle className="h-3 w-3" />
+              Let op
+            </p>
+            <AlertDialogTitle
+              className="font-serif text-xl font-medium leading-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
               Bestelling bewerken
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Deze bestelling heeft de status "
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              Deze bestelling heeft de status &ldquo;
               {editingOrder?.status === "in_production"
                 ? "In productie"
                 : editingOrder?.status === "ready"
                   ? "Gereed"
                   : "Betaald"}
-              ". Weet je zeker dat je deze bestelling wilt wijzigen?
+              &rdquo;. Weet je zeker dat je deze bestelling wilt wijzigen?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

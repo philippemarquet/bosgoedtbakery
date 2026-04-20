@@ -156,91 +156,130 @@ const IngredientsTab = () => {
   };
 
   const formatPrice = (price: number, unit: string) => {
-    return `€${price.toFixed(2)} / ${unit}`;
+    return `€ ${price.toFixed(2)} / ${unit}`;
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start">
-        <div className="flex flex-1 gap-3 items-center">
-          <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <p className="bakery-eyebrow mb-2">Back-office</p>
+          <h2
+            className="font-serif text-3xl md:text-4xl font-medium text-foreground leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Ingrediënten
+          </h2>
+          <p className="text-sm text-muted-foreground mt-2">
+            Grondstoffen en hun inkoopprijzen.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1 md:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Zoek ingrediënt..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
+              className="pl-9"
             />
           </div>
-          {ingredientsWithoutPrice > 0 && (
-            <button
-              onClick={() => setShowOnlyWithoutPrice(!showOnlyWithoutPrice)}
-              className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
-                showOnlyWithoutPrice 
-                  ? "bg-destructive/10 text-destructive" 
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Zonder prijs ({ingredientsWithoutPrice})
-            </button>
-          )}
+          <Button onClick={openCreateDialog} size="sm">
+            <Plus className="w-4 h-4 mr-1.5" />
+            Nieuw ingrediënt
+          </Button>
         </div>
-        <Button onClick={openCreateDialog} size="sm" className="font-normal">
-          <Plus className="w-4 h-4 mr-2" />
-          Nieuw ingrediënt
-        </Button>
       </div>
 
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-b border-border hover:bg-transparent">
-              <TableHead className="w-10"></TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Naam</TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Prijs per eenheid</TableHead>
-              <TableHead className="w-10"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
-                  Laden...
-                </TableCell>
+      {ingredientsWithoutPrice > 0 && (
+        <div>
+          <button
+            onClick={() => setShowOnlyWithoutPrice(!showOnlyWithoutPrice)}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 text-[11px] tracking-[0.08em] uppercase rounded-[calc(var(--radius)-4px)] transition-colors border ${
+              showOnlyWithoutPrice
+                ? "bg-destructive/5 text-destructive border-destructive/30"
+                : "text-muted-foreground border-border/60 hover:bg-muted/50 hover:text-foreground"
+            }`}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            Zonder prijs · {ingredientsWithoutPrice}
+          </button>
+        </div>
+      )}
+
+      <div className="paper-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-border/60 bg-muted/30 hover:bg-muted/30">
+                <TableHead className="w-10"></TableHead>
+                <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Naam
+                </TableHead>
+                <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Prijs per eenheid
+                </TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
-            ) : filteredIngredients.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
-                  {searchQuery ? "Geen ingrediënten gevonden" : "Nog geen ingrediënten. Voeg er een toe!"}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredIngredients.map((ingredient) => (
-                <TableRow key={ingredient.id} className="border-0 hover:bg-muted/30">
-                  <TableCell className="py-2.5 w-10">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(ingredient)}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                  </TableCell>
-                  <TableCell className="py-2.5 text-sm font-light">{ingredient.name}</TableCell>
-                  <TableCell className="py-2.5 text-sm text-muted-foreground tabular-nums">{formatPrice(Number(ingredient.price_per_unit), ingredient.unit)}</TableCell>
-                  <TableCell className="py-2.5 w-10">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(ingredient.id)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-16 text-muted-foreground">
+                    <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+                    <p className="text-sm">Laden…</p>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : filteredIngredients.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-16 text-muted-foreground text-sm">
+                    {searchQuery ? "Geen ingrediënten gevonden." : "Nog geen ingrediënten. Voeg er een toe."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredIngredients.map((ingredient) => (
+                  <TableRow key={ingredient.id} className="border-b border-border/40 hover:bg-muted/40">
+                    <TableCell className="py-3 w-10 pl-6">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                        onClick={() => openEditDialog(ingredient)}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
+                    <TableCell className="py-3 text-sm text-foreground">{ingredient.name}</TableCell>
+                    <TableCell className="py-3 text-sm text-muted-foreground tabular-nums">
+                      {formatPrice(Number(ingredient.price_per_unit), ingredient.unit)}
+                    </TableCell>
+                    <TableCell className="py-3 w-10 pr-6">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                        onClick={() => handleDelete(ingredient.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingIngredient ? "Ingrediënt bewerken" : "Nieuw ingrediënt"}
+          <DialogHeader className="space-y-2">
+            <p className="bakery-eyebrow">Ingrediënt</p>
+            <DialogTitle
+              className="font-serif text-2xl md:text-3xl font-medium text-foreground leading-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              {editingIngredient ? "Bewerken" : "Nieuw ingrediënt"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -264,6 +303,7 @@ const IngredientsTab = () => {
                   value={formData.price_per_unit}
                   onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
                   placeholder="0.00"
+                  className="tabular-nums"
                 />
               </div>
               <div className="space-y-2">

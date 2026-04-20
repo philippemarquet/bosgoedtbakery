@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { ClipboardCheck, Play, Check, AlertCircle, Clock, ChevronRight, ArrowLeft, Loader2, Package, X } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ClipboardCheck, Play, Check, AlertCircle, Clock, ChevronRight, ArrowLeft, Package, X } from "lucide-react";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -52,15 +50,30 @@ const formatQuantity = (value: number, unit: string): string => {
   return `${Math.round(value * 10) / 10} ${unit}`;
 };
 
+const StatusChip = ({ tone, children }: { tone: "muted" | "ember" | "foreground" | "accent" | "destructive"; children: React.ReactNode }) => {
+  const styles: Record<string, string> = {
+    muted: "bg-muted/60 text-muted-foreground ring-border/60",
+    ember: "bg-[hsl(var(--ember))]/10 text-[hsl(var(--ember))] ring-[hsl(var(--ember))]/30",
+    foreground: "bg-foreground text-background ring-foreground",
+    accent: "bg-accent/10 text-foreground ring-accent/40",
+    destructive: "bg-destructive/10 text-destructive ring-destructive/30",
+  };
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium tracking-[0.08em] uppercase rounded-[calc(var(--radius)-4px)] ring-1 ring-inset ${styles[tone]}`}
+    >
+      {children}
+    </span>
+  );
+};
+
 const StockCheck = () => {
-  const isMobile = useIsMobile();
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [stockChecks, setStockChecks] = useState<StockCheck[]>([]);
   const [activeCheck, setActiveCheck] = useState<StockCheck | null>(null);
   const [selectedCheck, setSelectedCheck] = useState<StockCheck | null>(null);
-  const [ingredientNeeds, setIngredientNeeds] = useState<IngredientNeed[]>([]);
   const [creatingCheck, setCreatingCheck] = useState(false);
 
   const refreshData = useCallback(() => {
@@ -83,7 +96,7 @@ const StockCheck = () => {
 
     if (checks) {
       const checksWithItems: StockCheck[] = [];
-      
+
       for (const check of checks) {
         const { data: items } = await supabase
           .from("stock_check_items")
@@ -116,7 +129,7 @@ const StockCheck = () => {
       }
 
       setStockChecks(checksWithItems);
-      
+
       // Find active check (in_progress)
       const active = checksWithItems.find(c => c.status === "in_progress");
       setActiveCheck(active || null);
@@ -226,12 +239,12 @@ const StockCheck = () => {
     setCreatingCheck(true);
 
     const needs = await fetchIngredientNeeds();
-    
+
     if (needs.length === 0) {
-      toast({ 
-        title: "Geen ingrediënten", 
+      toast({
+        title: "Geen ingrediënten",
         description: "Er zijn geen bevestigde bestellingen om te controleren",
-        variant: "destructive" 
+        variant: "destructive"
       });
       setCreatingCheck(false);
       return;
@@ -276,7 +289,7 @@ const StockCheck = () => {
     if (activeCheck) {
       setActiveCheck({
         ...activeCheck,
-        items: activeCheck.items.map(item => 
+        items: activeCheck.items.map(item =>
           item.id === itemId ? { ...item, status } : item
         ),
       });
@@ -323,18 +336,18 @@ const StockCheck = () => {
     if (selectedCheck) {
       setSelectedCheck({
         ...selectedCheck,
-        items: selectedCheck.items.map(item => 
+        items: selectedCheck.items.map(item =>
           item.id === itemId ? { ...item, isOrdered } : item
         ),
       });
     }
 
     // Also update in stockChecks
-    setStockChecks(prev => prev.map(check => 
+    setStockChecks(prev => prev.map(check =>
       check.id === selectedCheck?.id
         ? {
             ...check,
-            items: check.items.map(item => 
+            items: check.items.map(item =>
               item.id === itemId ? { ...item, isOrdered } : item
             ),
           }
@@ -352,21 +365,12 @@ const StockCheck = () => {
     const allOrdered = itemsToOrder.every(i => i.isOrdered);
 
     if (allOrdered) {
-      return <Check className="w-4 h-4 text-green-600" />;
+      return <Check className="w-4 h-4 text-foreground" />;
     }
     if (insufficientItems.some(i => !i.isOrdered)) {
       return <AlertCircle className="w-4 h-4 text-destructive" />;
     }
-    return <Package className="w-4 h-4 text-yellow-600" />;
-  };
-
-  const getStatusLabel = (status: StockCheckItem["status"]) => {
-    switch (status) {
-      case "sufficient": return "Voldoende";
-      case "insufficient": return "Onvoldoende";
-      case "order_extra": return "Extra bestellen";
-      default: return "Nog niet gecontroleerd";
-    }
+    return <Package className="w-4 h-4 text-[hsl(var(--ember))]" />;
   };
 
   const allItemsChecked = activeCheck?.items.every(i => i.status !== "pending") ?? false;
@@ -379,54 +383,66 @@ const StockCheck = () => {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => setSelectedCheck(null)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSelectedCheck(null)}
+            className="text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <div>
-            <h3 className="text-lg font-serif font-medium">Bestellijst</h3>
-            <p className="text-sm text-muted-foreground">
-              {format(new Date(selectedCheck.createdAt), "d MMMM yyyy", { locale: nl })}
-            </p>
+          <div className="flex-1 min-w-0">
+            <p className="bakery-eyebrow">Voorraadcheck</p>
+            <h3
+              className="font-serif text-xl md:text-2xl font-medium text-foreground leading-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              Bestellijst · {format(new Date(selectedCheck.createdAt), "d MMMM yyyy", { locale: nl })}
+            </h3>
           </div>
-          {allOrdered && (
-            <Badge className="ml-auto bg-green-500 hover:bg-green-500">Alles besteld</Badge>
+          {allOrdered && itemsToOrder.length > 0 && (
+            <StatusChip tone="foreground">Alles besteld</StatusChip>
           )}
         </div>
 
-        {itemsToOrder.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Check className="w-6 h-6 mx-auto mb-2 opacity-50" />
-            <p>Alle voorraad was voldoende</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border/50">
-            {itemsToOrder.map((item) => (
-              <div key={item.id} className="py-3 flex flex-col sm:flex-row sm:items-center gap-2">
-                <div className="flex items-center justify-between sm:flex-1 gap-2">
-                  <span className="text-sm text-foreground min-w-0 truncate">{item.ingredientName}</span>
-                  <span className="text-sm tabular-nums font-medium shrink-0">
-                    {formatQuantity(item.requiredQuantity, item.unit)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between sm:justify-end gap-3">
-                  <Badge
-                    variant="outline"
-                    className={item.status === "insufficient" ? "border-destructive text-destructive" : "border-yellow-600 text-yellow-600"}
-                  >
-                    {item.status === "insufficient" ? "Onvoldoende" : "Extra"}
-                  </Badge>
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
-                      checked={item.isOrdered}
-                      onCheckedChange={(checked) => updateItemOrdered(item.id, !!checked)}
-                    />
-                    <span className="text-xs text-muted-foreground">Besteld</span>
+        <div className="paper-card overflow-hidden">
+          {itemsToOrder.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+                <Check className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <p className="font-serif text-lg text-foreground">Alle voorraad was voldoende</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {itemsToOrder.map((item) => (
+                <div key={item.id} className="py-3 px-6 flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center justify-between sm:flex-1 gap-2">
+                    <span className="text-sm text-foreground min-w-0 truncate">{item.ingredientName}</span>
+                    <span className="text-sm tabular-nums font-medium text-foreground shrink-0">
+                      {formatQuantity(item.requiredQuantity, item.unit)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between sm:justify-end gap-3">
+                    <StatusChip tone={item.status === "insufficient" ? "destructive" : "ember"}>
+                      {item.status === "insufficient" ? "Onvoldoende" : "Extra"}
+                    </StatusChip>
+                    <div className="flex items-center gap-1.5">
+                      <Checkbox
+                        id={`ordered-${item.id}`}
+                        checked={item.isOrdered}
+                        onCheckedChange={(checked) => updateItemOrdered(item.id, !!checked)}
+                      />
+                      <Label htmlFor={`ordered-${item.id}`} className="text-xs text-muted-foreground cursor-pointer">
+                        Besteld
+                      </Label>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -435,58 +451,62 @@ const StockCheck = () => {
   if (activeCheck) {
     return (
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
-            <h3 className="text-lg font-serif font-medium">Voorraadcheck actief</h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="bakery-eyebrow mb-2">Voorraadcheck actief</p>
+            <h3
+              className="font-serif text-2xl md:text-3xl font-medium text-foreground leading-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              {activeCheck.items.filter(i => i.status !== "pending").length} / {activeCheck.items.length} gecontroleerd
+            </h3>
+            <p className="text-sm text-muted-foreground mt-2">
               Gestart op {format(new Date(activeCheck.createdAt), "d MMMM yyyy 'om' HH:mm", { locale: nl })}
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={cancelCheck} size="sm">
-              <X className="w-4 h-4 mr-2" />
+              <X className="w-4 h-4 mr-1.5" />
               Annuleren
             </Button>
             <Button onClick={completeCheck} disabled={!allItemsChecked} size="sm">
-              <Check className="w-4 h-4 mr-2" />
+              <Check className="w-4 h-4 mr-1.5" />
               Afronden
             </Button>
           </div>
         </div>
 
-        <div className="text-sm text-muted-foreground">
-          {activeCheck.items.filter(i => i.status !== "pending").length} van {activeCheck.items.length} gecontroleerd
-        </div>
-
-        <div className="divide-y divide-border/50">
-          {activeCheck.items.map((item) => (
-            <div key={item.id} className="py-3 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-foreground min-w-0 truncate">{item.ingredientName}</span>
-                <span className="text-sm tabular-nums font-medium shrink-0">
-                  {formatQuantity(item.requiredQuantity, item.unit)}
-                </span>
+        <div className="paper-card overflow-hidden">
+          <div className="divide-y divide-border/50">
+            {activeCheck.items.map((item) => (
+              <div key={item.id} className="py-4 px-6 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-foreground min-w-0 truncate">{item.ingredientName}</span>
+                  <span className="text-sm tabular-nums font-medium text-foreground shrink-0">
+                    {formatQuantity(item.requiredQuantity, item.unit)}
+                  </span>
+                </div>
+                <RadioGroup
+                  value={item.status}
+                  onValueChange={(val) => updateItemStatus(item.id, val as StockCheckItem["status"])}
+                  className="flex flex-wrap gap-3"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem value="sufficient" id={`${item.id}-suf`} className="h-3.5 w-3.5" />
+                    <Label htmlFor={`${item.id}-suf`} className="text-xs cursor-pointer">Voldoende</Label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem value="insufficient" id={`${item.id}-insuf`} className="h-3.5 w-3.5" />
+                    <Label htmlFor={`${item.id}-insuf`} className="text-xs cursor-pointer text-destructive">Onvoldoende</Label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem value="order_extra" id={`${item.id}-extra`} className="h-3.5 w-3.5" />
+                    <Label htmlFor={`${item.id}-extra`} className="text-xs cursor-pointer text-[hsl(var(--ember))]">Extra</Label>
+                  </div>
+                </RadioGroup>
               </div>
-              <RadioGroup
-                value={item.status}
-                onValueChange={(val) => updateItemStatus(item.id, val as StockCheckItem["status"])}
-                className="flex flex-wrap gap-3"
-              >
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="sufficient" id={`${item.id}-suf`} className="h-3.5 w-3.5" />
-                  <Label htmlFor={`${item.id}-suf`} className="text-xs cursor-pointer">Voldoende</Label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="insufficient" id={`${item.id}-insuf`} className="h-3.5 w-3.5" />
-                  <Label htmlFor={`${item.id}-insuf`} className="text-xs cursor-pointer text-destructive">Onvoldoende</Label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="order_extra" id={`${item.id}-extra`} className="h-3.5 w-3.5" />
-                  <Label htmlFor={`${item.id}-extra`} className="text-xs cursor-pointer text-yellow-600">Extra</Label>
-                </div>
-              </RadioGroup>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -495,58 +515,72 @@ const StockCheck = () => {
   // Render stock check list/history
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <p className="text-sm text-muted-foreground">
-            Controleer voorraad voor bevestigde bestellingen
+          <p className="bakery-eyebrow mb-2">Voorraad</p>
+          <h2
+            className="font-serif text-3xl md:text-4xl font-medium text-foreground leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Voorraadcheck
+          </h2>
+          <p className="text-sm text-muted-foreground mt-2">
+            Controleer wat er in huis is voor alle bevestigde bestellingen.
           </p>
         </div>
         <Button onClick={startNewCheck} disabled={creatingCheck} size="sm">
           {creatingCheck ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            <div className="w-4 h-4 mr-1.5 animate-spin rounded-full border border-current/30 border-t-current" />
           ) : (
-            <Play className="w-4 h-4 mr-2" />
+            <Play className="w-4 h-4 mr-1.5" />
           )}
           Start voorraadcheck
         </Button>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : stockChecks.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <ClipboardCheck className="w-6 h-6 mx-auto mb-2 opacity-50" />
-          <p>Nog geen voorraadchecks uitgevoerd</p>
-        </div>
-      ) : (
-        <div className="divide-y divide-border/50">
-          {stockChecks.filter(c => c.status === "completed").map((check) => {
-            const itemsToOrder = check.items.filter(i => i.status === "insufficient" || i.status === "order_extra");
-            return (
-              <div
-                key={check.id}
-                className="py-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-muted/30 transition-colors"
-                onClick={() => setSelectedCheck(check)}
-              >
-                <div className="min-w-0">
-                  <span className="text-sm text-foreground">
-                    {format(new Date(check.createdAt), "d MMM yyyy", { locale: nl })}
-                  </span>
-                  <span className="text-xs text-muted-foreground ml-2">
-                    {check.items.length} ingr. · {itemsToOrder.length} te bestellen
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {getCheckStatusIcon(check)}
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div className="paper-card overflow-hidden">
+        {loading ? (
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+            <p className="text-sm text-muted-foreground">Laden…</p>
+          </div>
+        ) : stockChecks.filter(c => c.status === "completed").length === 0 ? (
+          <div className="text-center py-16">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+              <ClipboardCheck className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <p className="font-serif text-lg text-foreground">Nog geen voorraadchecks</p>
+            <p className="text-sm text-muted-foreground mt-1">Start er een om te beginnen.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/50">
+            {stockChecks.filter(c => c.status === "completed").map((check) => {
+              const itemsToOrder = check.items.filter(i => i.status === "insufficient" || i.status === "order_extra");
+              return (
+                <button
+                  type="button"
+                  key={check.id}
+                  className="w-full text-left py-3 px-6 flex items-center justify-between gap-2 hover:bg-muted/40 transition-colors"
+                  onClick={() => setSelectedCheck(check)}
+                >
+                  <div className="min-w-0">
+                    <span className="text-sm text-foreground">
+                      {format(new Date(check.createdAt), "d MMM yyyy", { locale: nl })}
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {check.items.length} ingr. · {itemsToOrder.length} te bestellen
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {getCheckStatusIcon(check)}
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

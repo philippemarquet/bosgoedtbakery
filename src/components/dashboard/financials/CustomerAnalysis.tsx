@@ -3,8 +3,6 @@ import { User, ShoppingCart, Package } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -39,6 +37,63 @@ interface ProductStats {
   total_quantity: number;
   total_revenue: number;
 }
+
+const StatusChip = ({ status }: { status: string }) => {
+  const configs: Record<string, { label: string; cls: string }> = {
+    confirmed: {
+      label: "Bevestigd",
+      cls: "bg-muted/60 text-foreground ring-border/70",
+    },
+    in_production: {
+      label: "In productie",
+      cls: "bg-[hsl(var(--ember))]/10 text-[hsl(var(--ember))] ring-[hsl(var(--ember))]/30",
+    },
+    ready: {
+      label: "Gereed",
+      cls: "bg-accent/10 text-foreground ring-accent/40",
+    },
+    paid: {
+      label: "Betaald",
+      cls: "bg-foreground text-background ring-foreground",
+    },
+  };
+  const config = configs[status] || {
+    label: status,
+    cls: "bg-muted/60 text-muted-foreground ring-border/60",
+  };
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium tracking-[0.08em] uppercase rounded-[calc(var(--radius)-4px)] ring-1 ring-inset ${config.cls}`}
+    >
+      {config.label}
+    </span>
+  );
+};
+
+const MetricCard = ({
+  label,
+  value,
+  hint,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  valueClass?: string;
+}) => (
+  <div className="paper-card px-5 py-4">
+    <p className="bakery-eyebrow mb-2">{label}</p>
+    <p
+      className={`font-serif text-2xl md:text-3xl font-medium tabular-nums leading-tight ${
+        valueClass ?? "text-foreground"
+      }`}
+      style={{ letterSpacing: "-0.02em" }}
+    >
+      {value}
+    </p>
+    {hint && <p className="text-xs text-muted-foreground mt-1.5">{hint}</p>}
+  </div>
+);
 
 const CustomerAnalysis = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -152,201 +207,205 @@ const CustomerAnalysis = () => {
 
   const formatCurrency = (value: number) => `€${value.toFixed(2)}`;
 
-  const getStatusBadge = (status: string) => {
-    const configs: Record<
-      string,
-      { label: string; variant: "default" | "secondary" | "destructive"; className: string }
-    > = {
-      confirmed: { label: "Bevestigd", variant: "default", className: "bg-blue-500" },
-      ready: { label: "Gereed", variant: "default", className: "bg-purple-500" },
-      paid: { label: "Betaald", variant: "default", className: "bg-emerald-600" },
-    };
-    const config = configs[status] || { label: status, variant: "secondary", className: "" };
-    return (
-      <Badge variant={config.variant} className={config.className}>
-        {config.label}
-      </Badge>
-    );
-  };
-
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
 
   return (
     <div className="space-y-6">
       {/* Customer Selector */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="w-5 h-5" />
-            Selecteer klant
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-            <SelectTrigger className="w-full max-w-md">
-              <SelectValue placeholder="Kies een klant om te analyseren" />
-            </SelectTrigger>
-            <SelectContent>
-              {customers.map((customer) => (
-                <SelectItem key={customer.id} value={customer.id}>
-                  {customer.full_name || "Naamloos"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
+      <div className="paper-card p-5 md:p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-9 h-9 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
+            <User className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="bakery-eyebrow mb-1">Analyse</p>
+            <h3
+              className="font-serif text-xl font-medium text-foreground leading-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              Selecteer klant
+            </h3>
+          </div>
+        </div>
+        <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+          <SelectTrigger className="w-full max-w-md">
+            <SelectValue placeholder="Kies een klant om te analyseren" />
+          </SelectTrigger>
+          <SelectContent>
+            {customers.map((customer) => (
+              <SelectItem key={customer.id} value={customer.id}>
+                {customer.full_name || "Naamloos"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {selectedCustomerId && !loading && (
         <>
-          {/* Stats Overview - Clean minimal layout */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Bestellingen
-              </p>
-              <p className="text-2xl font-light tabular-nums">{stats.totalOrders}</p>
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Totale omzet
-              </p>
-              <p className="text-2xl font-light tabular-nums">
-                {formatCurrency(stats.totalRevenue)}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Betaald
-              </p>
-              <p className="text-2xl font-light tabular-nums text-emerald-600">
-                {formatCurrency(stats.paidRevenue)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">{stats.paidOrders} bestellingen</p>
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Openstaand
-              </p>
-              <p
-                className={`text-2xl font-light tabular-nums ${
-                  stats.openRevenue > 0 ? "text-orange-600" : ""
-                }`}
-              >
-                {formatCurrency(stats.openRevenue)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">{stats.openOrders} bestellingen</p>
-            </div>
+          {/* Stats overview */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MetricCard
+              label="Bestellingen"
+              value={String(stats.totalOrders)}
+            />
+            <MetricCard
+              label="Totale omzet"
+              value={formatCurrency(stats.totalRevenue)}
+            />
+            <MetricCard
+              label="Betaald"
+              value={formatCurrency(stats.paidRevenue)}
+              hint={`${stats.paidOrders} bestellingen`}
+            />
+            <MetricCard
+              label="Openstaand"
+              value={formatCurrency(stats.openRevenue)}
+              valueClass={stats.openRevenue > 0 ? "text-[hsl(var(--ember))]" : "text-foreground"}
+              hint={`${stats.openOrders} bestellingen`}
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Order History */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5" />
-                  Bestelgeschiedenis
-                </CardTitle>
-                <CardDescription>
-                  Alle bestellingen van {selectedCustomer?.full_name || "deze klant"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {orders.length === 0 ? (
-                  <p className="text-center py-8 text-muted-foreground">Nog geen bestellingen</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Datum</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Totaal</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {orders.slice(0, 10).map((order) => (
-                        <TableRow key={order.id}>
-                          <TableCell className="text-sm">
-                            {format(parseISO(order.created_at), "d MMM yyyy", { locale: nl })}
-                          </TableCell>
-                          <TableCell>{getStatusBadge(order.status)}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(Number(order.total || 0))}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-                {orders.length > 10 && (
-                  <p className="text-center text-sm text-muted-foreground mt-4">
-                    +{orders.length - 10} meer bestellingen
+            <div className="paper-card overflow-hidden">
+              <div className="flex items-start gap-3 px-5 md:px-6 pt-5 pb-4 border-b border-border/50">
+                <div className="w-9 h-9 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
+                  <ShoppingCart className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="bakery-eyebrow mb-1">Geschiedenis</p>
+                  <h3
+                    className="font-serif text-xl font-medium text-foreground leading-tight"
+                    style={{ letterSpacing: "-0.02em" }}
+                  >
+                    Bestellingen
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Van {selectedCustomer?.full_name || "deze klant"}.
                   </p>
-                )}
-              </CardContent>
-            </Card>
+                </div>
+              </div>
+              {orders.length === 0 ? (
+                <p className="text-center py-12 text-muted-foreground text-sm">
+                  Nog geen bestellingen
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/60 bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Datum
+                      </TableHead>
+                      <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Status
+                      </TableHead>
+                      <TableHead className="text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Totaal
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orders.slice(0, 10).map((order) => (
+                      <TableRow key={order.id} className="border-b border-border/40 hover:bg-muted/40">
+                        <TableCell className="py-3 pl-6 text-sm text-foreground">
+                          {format(parseISO(order.created_at), "d MMM yyyy", { locale: nl })}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <StatusChip status={order.status} />
+                        </TableCell>
+                        <TableCell className="py-3 pr-6 text-right text-sm text-foreground tabular-nums font-medium">
+                          {formatCurrency(Number(order.total || 0))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+              {orders.length > 10 && (
+                <p className="text-center text-xs text-muted-foreground py-3 border-t border-border/40">
+                  +{orders.length - 10} meer bestellingen
+                </p>
+              )}
+            </div>
 
             {/* Favorite Products */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="w-5 h-5" />
-                  Favoriete producten
-                </CardTitle>
-                <CardDescription>
-                  Meest bestelde producten door {selectedCustomer?.full_name || "deze klant"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {productStats.length === 0 ? (
-                  <p className="text-center py-8 text-muted-foreground">
-                    Nog geen producten besteld
+            <div className="paper-card overflow-hidden">
+              <div className="flex items-start gap-3 px-5 md:px-6 pt-5 pb-4 border-b border-border/50">
+                <div className="w-9 h-9 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
+                  <Package className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="bakery-eyebrow mb-1">Favorieten</p>
+                  <h3
+                    className="font-serif text-xl font-medium text-foreground leading-tight"
+                    style={{ letterSpacing: "-0.02em" }}
+                  >
+                    Producten
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Meest besteld door {selectedCustomer?.full_name || "deze klant"}.
                   </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead className="text-right">Aantal</TableHead>
-                        <TableHead className="text-right">Omzet</TableHead>
+                </div>
+              </div>
+              {productStats.length === 0 ? (
+                <p className="text-center py-12 text-muted-foreground text-sm">
+                  Nog geen producten besteld
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/60 bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Product
+                      </TableHead>
+                      <TableHead className="text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Aantal
+                      </TableHead>
+                      <TableHead className="text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Omzet
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {productStats.slice(0, 10).map((stat, idx) => (
+                      <TableRow key={stat.product_id} className="border-b border-border/40 hover:bg-muted/40">
+                        <TableCell className="py-3 pl-6 text-sm text-foreground">
+                          <div className="flex items-center gap-2">
+                            {idx < 3 && (
+                              <span
+                                className={`inline-flex items-center justify-center w-5 h-5 text-[10px] font-medium tabular-nums rounded-full ${
+                                  idx === 0
+                                    ? "bg-foreground text-background"
+                                    : "bg-muted/60 text-foreground ring-1 ring-inset ring-border/60"
+                                }`}
+                              >
+                                {idx + 1}
+                              </span>
+                            )}
+                            {stat.product_name}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3 text-right text-sm text-foreground tabular-nums font-medium">
+                          {stat.total_quantity}×
+                        </TableCell>
+                        <TableCell className="py-3 pr-6 text-right text-sm text-foreground tabular-nums font-medium">
+                          {formatCurrency(stat.total_revenue)}
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {productStats.slice(0, 10).map((stat, idx) => (
-                        <TableRow key={stat.product_id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {idx < 3 && (
-                                <Badge variant="outline" className="text-xs">
-                                  #{idx + 1}
-                                </Badge>
-                              )}
-                              {stat.product_name}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant="secondary">{stat.total_quantity}x</Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(stat.total_revenue)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
           </div>
         </>
       )}
 
       {loading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="paper-card py-16 text-center">
+          <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+          <p className="text-sm text-muted-foreground">Laden…</p>
         </div>
       )}
     </div>

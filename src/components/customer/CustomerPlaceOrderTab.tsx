@@ -3,7 +3,6 @@ import {
   addWeeks,
   format,
   isSameDay,
-  parseISO,
   startOfWeek,
   subWeeks,
 } from "date-fns";
@@ -24,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -42,17 +40,15 @@ import {
   type ProductPriceTier,
   type WeeklyOfferingForPricing,
 } from "@/lib/pricing";
+import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 
 /**
- * Customer-facing ordering flow.
+ * Japandi-herontwerp van de klant-bestelflow.
  *
- * Shows, per week, the products the baker has put on offer. The customer picks
- * quantities directly in the list, the totals block at the bottom adds up using
- * the single `computeOrderTotals` helper (which handles weekly price overrides,
- * volume tiers, discount groups, and the customer's personal discount), and
- * "Bestelling plaatsen" writes an order + line-items in one go. No dialog — the
- * whole flow lives on one quiet scroll.
+ * Flow: week kiezen → producten picken met plus/min → afronden onderaan. Alle
+ * berekeningen via `computeOrderTotals`. Layout is rustig en voelt aan als
+ * papier — geen luide kleuraccenten, wel voldoende contrast waar het telt.
  */
 
 type Product = Pick<
@@ -81,12 +77,6 @@ type PriceTierRow = Pick<
   Database["public"]["Tables"]["product_price_tiers"]["Row"],
   "product_id" | "min_quantity" | "price"
 >;
-
-interface DiscountGroupRow {
-  id: string;
-  tiers: { min_quantity: number; discount_percentage: number }[];
-  product_ids: string[];
-}
 
 const mondayOf = (date: Date) => startOfWeek(date, { weekStartsOn: 1 });
 const toISODate = (date: Date) => format(date, "yyyy-MM-dd");
@@ -129,7 +119,6 @@ const CustomerPlaceOrderTab = ({
   const [selectedMonday, setSelectedMonday] = useState<Date>(() => mondayOf(new Date()));
   const selectedIso = toISODate(selectedMonday);
 
-  // Data from Supabase.
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [offerings, setOfferings] = useState<Offering[]>([]);
@@ -142,7 +131,6 @@ const CustomerPlaceOrderTab = ({
     { id: string; discount_percentage: number } | null
   >(null);
 
-  // Cart state — simply a map of product_id to units ordered.
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
   const [customPickupLocation, setCustomPickupLocation] = useState("");
@@ -151,7 +139,7 @@ const CustomerPlaceOrderTab = ({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  /** One-shot fetch of all reference data that's the same across weeks. */
+  /** Eenmalige fetch van referentiedata die tussen weken niet verandert. */
   const fetchReferenceData = useCallback(async () => {
     const [
       productsRes,
@@ -201,7 +189,6 @@ const CustomerPlaceOrderTab = ({
     }
     setPriceTiersByProductId(tiersByProduct);
 
-    // Assemble discount groups from the three sub-queries.
     const tiersByGroup: Record<
       string,
       { min_quantity: number; discount_percentage: number }[]
@@ -230,7 +217,6 @@ const CustomerPlaceOrderTab = ({
     setPickupLocations(locationsRes.data ?? []);
   }, [toast]);
 
-  /** Offerings change per week, so this one re-runs on week change. */
   const fetchOfferings = useCallback(
     async (weekStart: string) => {
       const { data, error } = await supabase
@@ -250,7 +236,6 @@ const CustomerPlaceOrderTab = ({
     [toast],
   );
 
-  /** The customer's own profile row — used for the personal discount. */
   const fetchProfile = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase
@@ -273,8 +258,7 @@ const CustomerPlaceOrderTab = ({
 
   useEffect(() => {
     fetchOfferings(selectedIso);
-    // Reset cart state when switching weeks — avoids accidentally placing an
-    // order for week X with items you picked while viewing week Y.
+    // Reset cart state wanneer een andere week wordt gekozen.
     setQuantities({});
   }, [fetchOfferings, selectedIso]);
 
@@ -285,13 +269,11 @@ const CustomerPlaceOrderTab = ({
   }, [fetchReferenceData, fetchOfferings, fetchProfile, selectedIso]);
   useVisibilityRefresh(refresh);
 
-  /** Five-week strip starting at this week's Monday. */
   const weekStrip = useMemo(() => {
     const today = mondayOf(new Date());
     return Array.from({ length: 5 }, (_, i) => addWeeks(today, i));
   }, []);
 
-  /** Offerings reshaped into a product-keyed map for quick lookup. */
   const offeringsByProductId = useMemo(() => {
     const map: Record<string, WeeklyOfferingForPricing> = {};
     for (const o of offerings) {
@@ -303,7 +285,6 @@ const CustomerPlaceOrderTab = ({
     return map;
   }, [offerings]);
 
-  /** Products that are on offer this week, joined with category name. */
   const offeredProducts = useMemo(() => {
     const byId = new Map(products.map((p) => [p.id, p]));
     const catName = new Map(categories.map((c) => [c.id, c.name]));
@@ -323,7 +304,6 @@ const CustomerPlaceOrderTab = ({
       .sort((a, b) => a.product.name.localeCompare(b.product.name));
   }, [offerings, products, categories]);
 
-  /** Group offered products by category, for visual grouping in the UI. */
   const productsByCategory = useMemo(() => {
     const groups = new Map<string, typeof offeredProducts>();
     for (const entry of offeredProducts) {
@@ -338,7 +318,6 @@ const CustomerPlaceOrderTab = ({
     });
   }, [offeredProducts]);
 
-  /** Cart → OrderLine[]. */
   const lines: OrderLine[] = useMemo(
     () =>
       Object.entries(quantities)
@@ -347,7 +326,6 @@ const CustomerPlaceOrderTab = ({
     [quantities],
   );
 
-  /** Map cart products to the shape `pricing.ts` needs. */
   const productsForPricing: ProductForPricing[] = useMemo(
     () =>
       products.map((p) => ({
@@ -361,7 +339,6 @@ const CustomerPlaceOrderTab = ({
     [products],
   );
 
-  /** Full breakdown — single source of truth for what the customer pays. */
   const breakdown = useMemo(
     () =>
       computeOrderTotals({
@@ -440,8 +417,6 @@ const CustomerPlaceOrderTab = ({
       discount_amount: Number(breakdown.discount_amount.toFixed(2)),
       total: Number(breakdown.total.toFixed(2)),
       created_by: user.id,
-      // invoice_date = chosen week's Monday. Baker decides the actual delivery
-      // day within that week. Keeping it this simple for now.
       invoice_date: selectedIso,
       status: "confirmed" as const,
     };
@@ -504,21 +479,32 @@ const CustomerPlaceOrderTab = ({
   const lineCount = lines.reduce((acc, l) => acc + l.quantity, 0);
 
   return (
-    <div className="space-y-8">
-      {/* Header — week picker */}
-      <div className="space-y-3">
+    <div className="mx-auto max-w-3xl space-y-10">
+      {/* Kop — eyebrow + serif-titel + week-picker */}
+      <header className="space-y-6">
+        <div>
+          <p className="bakery-eyebrow mb-3">Weekaanbod</p>
+          <h3 className="section-heading text-foreground">
+            {selectedLabel.week}
+            <span className="text-muted-foreground font-normal"> · {selectedLabel.range}</span>
+          </h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Kies de producten die je deze week wilt afhalen.
+          </p>
+        </div>
+
+        {/* Week-strip */}
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+            size="icon-sm"
             onClick={() => setSelectedMonday((d) => subWeeks(d, 1))}
             aria-label="Vorige week"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
 
-          <div className="flex items-center gap-1 overflow-x-auto">
+          <div className="flex flex-1 items-center gap-2 overflow-x-auto scroll-soft -mx-1 px-1">
             {weekStrip.map((monday) => {
               const active = isSameDay(monday, selectedMonday);
               const { week, range } = formatWeekLabel(monday);
@@ -526,19 +512,19 @@ const CustomerPlaceOrderTab = ({
                 <button
                   key={toISODate(monday)}
                   onClick={() => setSelectedMonday(monday)}
-                  className={`rounded-md border px-3 py-2 text-left transition-colors ${
+                  className={cn(
+                    "shrink-0 rounded-[var(--radius)] border px-3.5 py-2 text-left transition-colors",
                     active
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background hover:bg-accent"
-                  }`}
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border/70 bg-card/60 text-foreground hover:border-border hover:bg-card",
+                  )}
                 >
-                  <div className="text-xs font-medium leading-tight">{week}</div>
+                  <div className="text-[0.8125rem] font-medium leading-tight">{week}</div>
                   <div
-                    className={`text-[11px] leading-tight ${
-                      active
-                        ? "text-primary-foreground/80"
-                        : "text-muted-foreground"
-                    }`}
+                    className={cn(
+                      "text-[0.7rem] leading-tight mt-0.5",
+                      active ? "text-background/75" : "text-muted-foreground",
+                    )}
                   >
                     {range}
                   </div>
@@ -549,82 +535,86 @@ const CustomerPlaceOrderTab = ({
 
           <Button
             variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+            size="icon-sm"
             onClick={() => setSelectedMonday((d) => addWeeks(d, 1))}
             aria-label="Volgende week"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
+      </header>
 
-        <div>
-          <h3 className="font-serif text-2xl text-foreground">Bestelling plaatsen</h3>
-          <p className="text-sm text-muted-foreground">
-            {selectedLabel.week} · {selectedLabel.range}
-          </p>
-        </div>
-      </div>
-
-      {/* Offered products, grouped by category */}
+      {/* Productenlijst */}
       {loading ? (
-        <div className="py-12 text-center text-sm text-muted-foreground">Laden…</div>
+        <div className="py-16 text-center text-sm text-muted-foreground tracking-wide">
+          Laden…
+        </div>
       ) : offeredProducts.length === 0 ? (
-        <div className="rounded-lg border border-dashed py-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            Er is deze week nog niks op aanbod.
+        <div className="rounded-[var(--radius)] border border-dashed border-border/70 bg-card/40 px-6 py-14 text-center">
+          <p className="font-serif text-xl text-foreground" style={{ letterSpacing: "-0.01em" }}>
+            Deze week nog geen aanbod
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             Probeer een andere week of kom later terug.
           </p>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-10">
           {productsByCategory.map(([categoryName, entries]) => (
-            <section key={categoryName} className="space-y-3">
-              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                {categoryName}
-              </h4>
-              <div className="divide-y divide-border rounded-lg border">
+            <section key={categoryName} className="space-y-4">
+              <div className="flex items-center gap-3">
+                <h4 className="bakery-eyebrow">{categoryName}</h4>
+                <span className="h-px flex-1 bg-border/70" />
+                <span className="text-[0.7rem] tabular-nums text-muted-foreground">
+                  {entries.length}
+                </span>
+              </div>
+              <ul className="paper-card divide-y divide-border/60 overflow-hidden">
                 {entries.map(({ product, offering }) => {
                   const qty = quantities[product.id] ?? 0;
                   const override =
                     offering.price_override != null ? Number(offering.price_override) : null;
                   const displayPrice = override ?? Number(product.selling_price);
                   return (
-                    <div
+                    <li
                       key={product.id}
-                      className="flex items-center gap-4 px-4 py-3"
+                      className={cn(
+                        "flex items-center gap-4 px-5 py-4 transition-colors",
+                        qty > 0 ? "bg-muted/30" : "bg-transparent hover:bg-muted/20",
+                      )}
                     >
                       {product.image_url ? (
                         <img
                           src={product.image_url}
                           alt=""
-                          className="h-12 w-12 flex-shrink-0 rounded-md object-cover"
+                          className="h-14 w-14 flex-shrink-0 rounded-[calc(var(--radius)-2px)] object-cover"
                         />
                       ) : (
-                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-md bg-muted/40">
-                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[calc(var(--radius)-2px)] bg-muted/60 text-muted-foreground">
+                          <ImageIcon className="h-5 w-5" />
                         </div>
                       )}
 
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{product.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {euro(displayPrice)} {sellUnitLabel(product)}
+                        <div className="truncate text-[0.9375rem] font-medium text-foreground">
+                          {product.name}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="tabular-nums">
+                            {euro(displayPrice)} {sellUnitLabel(product)}
+                          </span>
                           {override != null && (
-                            <span className="ml-2 text-[11px] uppercase tracking-wider text-primary">
+                            <span className="inline-flex items-center rounded-[calc(var(--radius)-4px)] bg-accent/10 px-1.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-[0.08em] text-foreground ring-1 ring-inset ring-accent/40">
                               Weekprijs
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
+                          size="icon-sm"
                           onClick={() => setQty(product.id, qty - 1)}
                           disabled={qty <= 0}
                           aria-label={`Minder ${product.name}`}
@@ -643,35 +633,42 @@ const CustomerPlaceOrderTab = ({
                             setQty(product.id, Number.isFinite(n) ? n : 0);
                           }}
                           placeholder="0"
-                          className="h-8 w-14 text-center tabular-nums"
+                          className="h-9 w-14 px-1 text-center tabular-nums"
                         />
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
+                          variant={qty > 0 ? "default" : "outline"}
+                          size="icon-sm"
                           onClick={() => setQty(product.id, qty + 1)}
                           aria-label={`Meer ${product.name}`}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
                       </div>
-                    </div>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             </section>
           ))}
         </div>
       )}
 
-      {/* Pickup + notes + totals + submit */}
+      {/* Afronden */}
       {offeredProducts.length > 0 && (
-        <div className="space-y-6 rounded-lg border bg-card p-6">
-          <h4 className="text-sm font-medium">Afronden</h4>
+        <section className="paper-card space-y-7 px-6 py-7">
+          <div>
+            <p className="bakery-eyebrow mb-1.5">Afronden</p>
+            <h4
+              className="font-serif text-xl text-foreground"
+              style={{ letterSpacing: "-0.015em" }}
+            >
+              Bestelling controleren
+            </h4>
+          </div>
 
           <div className="space-y-2">
-            <Label className="flex items-center gap-2 text-sm">
-              <MapPin className="h-4 w-4" />
+            <Label className="flex items-center gap-2">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
               Afhaallocatie
             </Label>
             <Select
@@ -707,9 +704,7 @@ const CustomerPlaceOrderTab = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="order-notes" className="text-sm">
-              Opmerkingen (optioneel)
-            </Label>
+            <Label htmlFor="order-notes">Opmerkingen (optioneel)</Label>
             <Textarea
               id="order-notes"
               value={notes}
@@ -719,10 +714,10 @@ const CustomerPlaceOrderTab = ({
             />
           </div>
 
-          <Separator />
+          <div className="h-px bg-border/70" />
 
-          {/* Running totals block. */}
-          <div className="space-y-2 text-sm">
+          {/* Totalen */}
+          <div className="space-y-2.5 text-sm">
             {breakdown.lines.map((l) => {
               const product = products.find((p) => p.id === l.product_id);
               if (!product) return null;
@@ -731,20 +726,21 @@ const CustomerPlaceOrderTab = ({
                   key={l.product_id}
                   className="flex items-center justify-between text-muted-foreground"
                 >
-                  <span>
-                    {l.quantity}× {product.name}
+                  <span className="truncate pr-4">
+                    <span className="text-foreground tabular-nums">{l.quantity}×</span>{" "}
+                    {product.name}
                   </span>
-                  <span className="tabular-nums">{euro(l.line_subtotal)}</span>
+                  <span className="tabular-nums shrink-0">{euro(l.line_subtotal)}</span>
                 </div>
               );
             })}
-            {breakdown.lines.length > 0 && <Separator />}
-            <div className="flex items-center justify-between">
+            {breakdown.lines.length > 0 && <div className="h-px bg-border/60" />}
+            <div className="flex items-center justify-between text-foreground">
               <span>Subtotaal</span>
               <span className="tabular-nums">{euro(breakdown.subtotal)}</span>
             </div>
             {breakdown.group_discount_amount > 0 && (
-              <div className="flex items-center justify-between text-primary">
+              <div className="flex items-center justify-between text-[hsl(var(--ember))]">
                 <span>Groepskorting</span>
                 <span className="tabular-nums">
                   −{euro(breakdown.group_discount_amount)}
@@ -752,7 +748,7 @@ const CustomerPlaceOrderTab = ({
               </div>
             )}
             {breakdown.customer_discount_amount > 0 && (
-              <div className="flex items-center justify-between text-primary">
+              <div className="flex items-center justify-between text-[hsl(var(--ember))]">
                 <span>
                   Persoonlijke korting ({customerProfile?.discount_percentage ?? 0}%)
                 </span>
@@ -761,10 +757,17 @@ const CustomerPlaceOrderTab = ({
                 </span>
               </div>
             )}
-            <Separator />
-            <div className="flex items-center justify-between text-base font-medium">
-              <span>Totaal</span>
-              <span className="tabular-nums">{euro(breakdown.total)}</span>
+            <div className="h-px bg-border/70" />
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-sm text-muted-foreground uppercase tracking-[0.12em]">
+                Totaal
+              </span>
+              <span
+                className="font-serif text-2xl text-foreground tabular-nums"
+                style={{ letterSpacing: "-0.015em" }}
+              >
+                {euro(breakdown.total)}
+              </span>
             </div>
           </div>
 
@@ -783,7 +786,7 @@ const CustomerPlaceOrderTab = ({
                     lineCount === 1 ? "product" : "producten"
                   })`}
           </Button>
-        </div>
+        </section>
       )}
     </div>
   );

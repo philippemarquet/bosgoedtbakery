@@ -7,15 +7,25 @@ export default {
   theme: {
     container: {
       center: true,
-      padding: "2rem",
+      padding: "1.5rem",
       screens: {
         "2xl": "1400px",
       },
     },
     extend: {
       fontFamily: {
-        serif: ["Cormorant Garamond", "Georgia", "serif"],
-        sans: ["Inter", "system-ui", "sans-serif"],
+        // Cormorant voor sfeer: hero, grote secties, merknaam
+        display: ["'Cormorant Garamond'", "Georgia", "serif"],
+        serif: ["'Cormorant Garamond'", "Georgia", "serif"],
+        // Manrope als werk-UI-font, rustig en modern
+        sans: ["Manrope", "system-ui", "sans-serif"],
+      },
+      fontSize: {
+        // Iets soepeler leading dan Tailwind's default, past beter bij Manrope
+        xs: ["0.75rem", { lineHeight: "1.1rem", letterSpacing: "0.01em" }],
+        sm: ["0.875rem", { lineHeight: "1.35rem" }],
+        base: ["0.9375rem", { lineHeight: "1.55rem" }],
+        lg: ["1.0625rem", { lineHeight: "1.65rem" }],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -61,16 +71,25 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        // Custom bakery colors
-        wheat: "hsl(var(--wheat))",
-        crust: "hsl(var(--crust))",
-        flour: "hsl(var(--flour))",
-        wood: "hsl(var(--wood))",
+        // Japandi tokens — warme aarde-tonen, niet fel
+        paper: "hsl(var(--paper))",
+        ink: "hsl(var(--ink))",
+        stone: "hsl(var(--stone))",
+        clay: "hsl(var(--clay))",
+        sage: "hsl(var(--sage))",
+        ember: "hsl(var(--ember))",
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "calc(var(--radius) + 4px)",
+      },
+      boxShadow: {
+        // Zacht, papier-achtig. Geen zware diepte.
+        paper: "0 1px 2px 0 hsl(28 14% 20% / 0.04), 0 1px 0 0 hsl(28 14% 20% / 0.02)",
+        soft: "0 4px 24px -12px hsl(28 14% 20% / 0.10)",
+        lift: "0 12px 40px -16px hsl(28 14% 20% / 0.18)",
       },
       keyframes: {
         "accordion-down": {
@@ -82,19 +101,24 @@ export default {
           to: { height: "0" },
         },
         "fade-in": {
-          from: { opacity: "0", transform: "translateY(10px)" },
+          from: { opacity: "0", transform: "translateY(6px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        "fade-in-slow": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
         "slide-in-right": {
-          from: { opacity: "0", transform: "translateX(20px)" },
+          from: { opacity: "0", transform: "translateX(12px)" },
           to: { opacity: "1", transform: "translateX(0)" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "fade-in": "fade-in 0.6s ease-out forwards",
-        "slide-in-right": "slide-in-right 0.5s ease-out forwards",
+        "fade-in": "fade-in 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) forwards",
+        "fade-in-slow": "fade-in-slow 0.8s ease-out forwards",
+        "slide-in-right": "slide-in-right 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) forwards",
       },
     },
   },

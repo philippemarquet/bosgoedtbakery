@@ -211,16 +211,22 @@ const ProfileDialog = ({ user, onProfileUpdate }: ProfileDialogProps) => {
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-serif">Mijn Account</DialogTitle>
-          <DialogDescription>
-            Beheer je profiel en wachtwoord
+        <DialogHeader className="space-y-1">
+          <p className="bakery-eyebrow">Account</p>
+          <DialogTitle
+            className="font-serif text-2xl font-medium leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Mijn account
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Beheer je profiel en wachtwoord.
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
-          <div className="py-8 text-center">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <div className="py-10 text-center">
+            <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
             <p className="text-sm text-muted-foreground">Laden...</p>
           </div>
         ) : (
@@ -273,8 +279,8 @@ const ProfileDialog = ({ user, onProfileUpdate }: ProfileDialogProps) => {
                 />
               </div>
 
-              <div className="pt-2 border-t border-border">
-                <p className="text-sm font-medium text-foreground mb-3">Adresgegevens</p>
+              <div className="pt-3 border-t border-border/60">
+                <p className="bakery-eyebrow mb-3">Adresgegevens</p>
                 
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-2 space-y-2">

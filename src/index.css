@@ -2,113 +2,122 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Bosgoedt Bakery Design System
-   Clean, professional, minimalist aesthetic
-   Inspired by premium artisanal bakeries
-*/
+/* =========================================================================
+   Bosgoedt Bakery — Japandi Design System
+   --------------------------------------------------------------------------
+   Warme, rustige aarde-tonen. Papier als metafoor: zacht wit, inkt-zwart,
+   natuurlijke schaduwen. Manrope als werk-font, Cormorant Garamond voor
+   sfeer en titels. Geen felle kleuren, geen zware schaduwen — alles mag
+   ruimte en licht krijgen.
+   ========================================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    /* Warm cream background */
-    --background: 40 33% 98%;
-    --foreground: 25 15% 15%;
+    /* Paper — crèmewit met een zweem warmte */
+    --background: 36 30% 97%;
+    --foreground: 28 14% 16%;
 
-    /* Card surfaces - minimal, clean */
-    --card: 0 0% 100%;
-    --card-foreground: 25 15% 15%;
+    /* Kaarten — strak papier, net iets lichter dan background */
+    --card: 40 30% 99%;
+    --card-foreground: 28 14% 16%;
 
-    /* Popover */
-    --popover: 0 0% 100%;
-    --popover-foreground: 25 15% 15%;
+    /* Popover — zelfde als card */
+    --popover: 40 30% 99%;
+    --popover-foreground: 28 14% 16%;
 
-    /* Primary - Warm brown (bread crust color) */
-    --primary: 28 45% 32%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary — donkere inkt (sumi-e), warm genoeg om niet klinisch te ogen */
+    --primary: 28 18% 20%;
+    --primary-foreground: 36 30% 97%;
 
-    /* Secondary - Very light warm */
-    --secondary: 40 20% 96%;
-    --secondary-foreground: 25 15% 25%;
+    /* Secondary — zachte steen */
+    --secondary: 34 14% 92%;
+    --secondary-foreground: 28 14% 22%;
 
-    /* Muted - Subtle warm gray */
-    --muted: 40 10% 94%;
-    --muted-foreground: 25 8% 50%;
+    /* Muted — klei, voor rustige achtergronden */
+    --muted: 34 12% 94%;
+    --muted-foreground: 28 8% 42%;
 
-    /* Accent - Golden wheat */
-    --accent: 42 65% 55%;
-    --accent-foreground: 25 15% 15%;
+    /* Accent — matcha / wabi sage. Rustige groen-grijs voor CTAs & highlights. */
+    --accent: 96 14% 48%;
+    --accent-foreground: 36 30% 97%;
 
-    /* Destructive */
-    --destructive: 0 65% 50%;
-    --destructive-foreground: 0 0% 100%;
+    /* Destructive — terracotta, niet kerst-rood */
+    --destructive: 10 48% 46%;
+    --destructive-foreground: 36 30% 97%;
 
-    /* Borders - very subtle */
-    --border: 40 15% 90%;
-    --input: 40 15% 90%;
-    --ring: 28 45% 32%;
+    /* Borders — onnadrukkelijk */
+    --border: 32 14% 88%;
+    --input: 32 14% 88%;
+    --ring: 96 14% 48%;
 
-    --radius: 0.5rem;
+    --radius: 0.625rem;
 
-    /* Sidebar */
-    --sidebar-background: 40 15% 97%;
-    --sidebar-foreground: 25 15% 25%;
-    --sidebar-primary: 28 45% 32%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 40 20% 94%;
-    --sidebar-accent-foreground: 25 15% 25%;
-    --sidebar-border: 40 15% 92%;
-    --sidebar-ring: 28 45% 32%;
+    /* Sidebar — iets warmer dan de main background voor subtiel contrast */
+    --sidebar-background: 34 22% 95%;
+    --sidebar-foreground: 28 14% 22%;
+    --sidebar-primary: 28 18% 20%;
+    --sidebar-primary-foreground: 36 30% 97%;
+    --sidebar-accent: 34 18% 90%;
+    --sidebar-accent-foreground: 28 14% 20%;
+    --sidebar-border: 32 14% 86%;
+    --sidebar-ring: 96 14% 48%;
 
-    /* Custom bakery tokens */
-    --wheat: 42 65% 55%;
-    --crust: 28 50% 30%;
-    --flour: 40 33% 98%;
-    --wood: 25 35% 25%;
+    /* Japandi-specifieke tokens */
+    --paper: 36 30% 97%;
+    --ink: 28 18% 20%;
+    --stone: 34 14% 92%;
+    --clay: 28 16% 82%;
+    --sage: 96 14% 48%;
+    --ember: 20 42% 52%;
   }
 
   .dark {
-    --background: 25 15% 8%;
-    --foreground: 40 15% 95%;
+    /* Avond-modus — nachtelijke inkt met warme lampen */
+    --background: 28 12% 10%;
+    --foreground: 36 20% 92%;
 
-    --card: 25 15% 10%;
-    --card-foreground: 40 15% 95%;
+    --card: 28 12% 13%;
+    --card-foreground: 36 20% 92%;
 
-    --popover: 25 15% 10%;
-    --popover-foreground: 40 15% 95%;
+    --popover: 28 12% 13%;
+    --popover-foreground: 36 20% 92%;
 
-    --primary: 42 55% 60%;
-    --primary-foreground: 25 15% 8%;
+    --primary: 36 24% 86%;
+    --primary-foreground: 28 14% 14%;
 
-    --secondary: 25 12% 15%;
-    --secondary-foreground: 40 15% 90%;
+    --secondary: 28 10% 18%;
+    --secondary-foreground: 36 20% 90%;
 
-    --muted: 25 10% 18%;
-    --muted-foreground: 40 8% 55%;
+    --muted: 28 10% 16%;
+    --muted-foreground: 34 10% 62%;
 
-    --accent: 42 55% 50%;
-    --accent-foreground: 40 15% 95%;
+    --accent: 96 18% 58%;
+    --accent-foreground: 28 14% 12%;
 
-    --destructive: 0 62% 45%;
-    --destructive-foreground: 40 15% 95%;
+    --destructive: 10 50% 52%;
+    --destructive-foreground: 36 20% 92%;
 
-    --border: 25 10% 18%;
-    --input: 25 10% 18%;
-    --ring: 42 55% 60%;
+    --border: 28 10% 20%;
+    --input: 28 10% 20%;
+    --ring: 96 18% 58%;
 
-    --sidebar-background: 25 15% 6%;
-    --sidebar-foreground: 40 15% 90%;
-    --sidebar-primary: 42 55% 60%;
-    --sidebar-primary-foreground: 25 15% 8%;
-    --sidebar-accent: 25 10% 14%;
-    --sidebar-accent-foreground: 40 15% 90%;
-    --sidebar-border: 25 10% 16%;
-    --sidebar-ring: 42 55% 60%;
+    --sidebar-background: 28 12% 8%;
+    --sidebar-foreground: 36 20% 88%;
+    --sidebar-primary: 36 24% 86%;
+    --sidebar-primary-foreground: 28 14% 12%;
+    --sidebar-accent: 28 10% 14%;
+    --sidebar-accent-foreground: 36 20% 90%;
+    --sidebar-border: 28 10% 16%;
+    --sidebar-ring: 96 18% 58%;
 
-    --wheat: 42 55% 50%;
-    --crust: 28 40% 45%;
-    --flour: 40 12% 85%;
-    --wood: 25 25% 40%;
+    --paper: 28 12% 10%;
+    --ink: 36 20% 92%;
+    --stone: 28 10% 18%;
+    --clay: 28 8% 28%;
+    --sage: 96 18% 58%;
+    --ember: 20 42% 58%;
   }
 }
 
@@ -117,81 +126,192 @@
     @apply border-border;
   }
 
+  html {
+    font-feature-settings: "ss01" on, "cv11" on, "calt" on;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Manrope', system-ui, sans-serif;
     font-weight: 400;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.008em;
+    /* Zachte papier-textuur — bijna niet zichtbaar, geeft diepte */
+    background-image:
+      radial-gradient(
+        1200px 600px at 100% -10%,
+        hsl(var(--clay) / 0.18),
+        transparent 60%
+      ),
+      radial-gradient(
+        900px 500px at -10% 110%,
+        hsl(var(--sage) / 0.08),
+        transparent 60%
+      );
+    background-attachment: fixed;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    @apply font-medium tracking-tight;
+    @apply font-medium tracking-tight text-foreground;
+    letter-spacing: -0.015em;
   }
 
-  /* Clean table styling */
-  table {
-    @apply w-full;
-  }
-
+  /* Default-typografie voor tabellen */
   th {
-    @apply text-xs font-medium text-muted-foreground uppercase tracking-wider;
+    @apply text-[0.7rem] font-medium text-muted-foreground uppercase tracking-[0.08em];
   }
 
   td {
     @apply text-sm;
   }
+
+  /* Inputs krijgen een rustigere cursor-vibe */
+  input, textarea, select {
+    font-family: inherit;
+  }
+
+  /* Selection — warme sage-tint */
+  ::selection {
+    background: hsl(var(--accent) / 0.25);
+    color: hsl(var(--foreground));
+  }
+
+  /* Focus ring — zacht, kleine offset */
+  :focus-visible {
+    outline: none;
+  }
 }
 
 @layer components {
+  /* ---- Typografie-helpers ---- */
   .bakery-title {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    @apply text-4xl md:text-5xl lg:text-6xl font-medium tracking-tight;
+    @apply text-4xl md:text-5xl lg:text-6xl font-medium tracking-tight text-foreground;
+    letter-spacing: -0.02em;
+  }
+
+  .bakery-eyebrow {
+    font-family: 'Manrope', sans-serif;
+    @apply text-[0.68rem] font-medium tracking-[0.22em] uppercase text-muted-foreground;
   }
 
   .bakery-subtitle {
-    font-family: 'Inter', sans-serif;
-    @apply text-sm md:text-base font-light tracking-[0.15em] uppercase text-muted-foreground;
+    font-family: 'Manrope', sans-serif;
+    @apply text-sm font-light tracking-[0.18em] uppercase text-muted-foreground;
   }
 
-  /* Clean card - minimal borders */
-  .bakery-card {
-    @apply bg-card rounded-lg;
+  .section-heading {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    @apply text-2xl md:text-3xl font-medium tracking-tight;
+    letter-spacing: -0.015em;
   }
 
+  /* ---- Kaart-varianten ---- */
+  .paper-card {
+    @apply bg-card rounded-[var(--radius)] border border-border/70;
+    box-shadow: 0 1px 2px 0 hsl(28 14% 20% / 0.04);
+  }
+
+  .paper-card-flat {
+    @apply bg-card rounded-[var(--radius)];
+  }
+
+  /* ---- Inputs ---- */
   .bakery-input {
-    @apply bg-background border-0 border-b border-border rounded-none px-0 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors duration-200;
+    @apply bg-transparent border-0 border-b border-border rounded-none px-0 py-2 text-foreground
+           placeholder:text-muted-foreground focus:outline-none focus:border-foreground/60
+           transition-colors duration-200;
   }
 
+  /* ---- Knoppen ---- */
   .bakery-button-primary {
-    @apply bg-primary text-primary-foreground px-6 py-2.5 rounded-md font-medium tracking-wide text-sm transition-all duration-200 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+    @apply inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground
+           px-6 py-2.5 rounded-[var(--radius)] font-medium tracking-wide text-sm
+           transition-all duration-200 hover:bg-primary/90
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
+           focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .bakery-button-secondary {
-    @apply bg-secondary text-secondary-foreground px-6 py-2.5 rounded-md font-medium tracking-wide text-sm transition-all duration-200 hover:bg-secondary/80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+    @apply inline-flex items-center justify-center gap-2 bg-secondary text-secondary-foreground
+           px-6 py-2.5 rounded-[var(--radius)] font-medium tracking-wide text-sm
+           transition-all duration-200 hover:bg-secondary/70
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
+           focus-visible:ring-offset-background;
   }
 
-  /* Clean data display */
+  .bakery-button-ghost {
+    @apply inline-flex items-center justify-center gap-2 text-foreground
+           px-4 py-2 rounded-[var(--radius)] font-medium text-sm
+           transition-colors duration-200 hover:bg-muted/60;
+  }
+
+  /* ---- Stats & data display ---- */
   .stat-value {
-    @apply text-2xl font-light tabular-nums tracking-tight;
+    @apply text-3xl font-light tabular-nums tracking-tight text-foreground;
+    letter-spacing: -0.025em;
   }
 
   .stat-label {
-    @apply text-xs font-medium text-muted-foreground uppercase tracking-wider;
+    @apply text-[0.7rem] font-medium text-muted-foreground uppercase tracking-[0.14em];
   }
 
-  /* Clean table rows */
+  /* ---- Tabel-rows met rustige hover ---- */
   .clean-row {
-    @apply border-b border-border/50 last:border-0;
+    @apply border-b border-border/60 last:border-0 transition-colors;
   }
 
   .clean-row:hover {
-    @apply bg-muted/30;
+    @apply bg-muted/40;
+  }
+
+  /* ---- Scheidingslijn met label ("—  LABEL  —") ---- */
+  .rule-label {
+    @apply relative flex items-center gap-4 py-4 text-muted-foreground;
+  }
+  .rule-label::before,
+  .rule-label::after {
+    content: "";
+    @apply flex-1 h-px bg-border;
+  }
+
+  /* ---- Zachte sectie-wrapper met binnen-padding ---- */
+  .section-block {
+    @apply space-y-6;
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  /* Focus ring variant voor custom elementen */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
+           focus-visible:ring-offset-background;
+  }
+
+  /* Subtiele scrollbar in dezelfde toon */
+  .scroll-soft {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--clay)) transparent;
+  }
+  .scroll-soft::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scroll-soft::-webkit-scrollbar-thumb {
+    background: hsl(var(--clay) / 0.6);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  .scroll-soft::-webkit-scrollbar-track {
+    background: transparent;
   }
 }

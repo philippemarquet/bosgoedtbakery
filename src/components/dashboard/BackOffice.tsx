@@ -15,18 +15,18 @@ import CategoriesTab from "@/components/backoffice/CategoriesTab";
 import WeeklyOfferingsTab from "@/components/backoffice/WeeklyOfferingsTab";
 import DiscountGroupsTab from "@/components/backoffice/DiscountGroupsTab";
 
-type TabValue = 
-  | "products" 
-  | "ingredients" 
-  | "fixed-costs" 
-  | "categories" 
+type TabValue =
+  | "products"
+  | "ingredients"
+  | "fixed-costs"
+  | "categories"
   | "discount-groups"
   | "weekly-offerings";
 
 const productSubItems = [
-  { value: "products" as const, label: "Producten", icon: Package, description: "Beheer je producten en recepten" },
-  { value: "ingredients" as const, label: "Ingrediënten", icon: Wheat, description: "Grondstoffen en hun prijzen" },
-  { value: "categories" as const, label: "Categorieën", icon: Tag, description: "Productcategorieën beheren" },
+  { value: "products" as const, label: "Producten", icon: Package, description: "Recepten & verkoopeenheden" },
+  { value: "ingredients" as const, label: "Ingrediënten", icon: Wheat, description: "Grondstoffen en inkoopprijzen" },
+  { value: "categories" as const, label: "Categorieën", icon: Tag, description: "Groepen voor je producten" },
   { value: "fixed-costs" as const, label: "Vaste kosten", icon: Receipt, description: "Verpakking, energie, arbeid" },
 ];
 
@@ -54,38 +54,53 @@ const BackOffice = () => {
 
   const isProductSection = ["products", "ingredients", "fixed-costs", "categories"].includes(activeTab);
 
+  const directBtn = (isActive: boolean) =>
+    cn(
+      "group inline-flex h-10 w-max items-center justify-center rounded-[calc(var(--radius)-4px)] px-3.5 py-2 text-sm transition-colors",
+      "border border-transparent",
+      "hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground focus:outline-none",
+      "disabled:pointer-events-none disabled:opacity-50",
+      isActive
+        ? "bg-foreground text-background hover:bg-foreground hover:text-background focus:bg-foreground focus:text-background"
+        : "text-muted-foreground"
+    );
+
   return (
     <div className="space-y-6">
       <NavigationMenu className="max-w-none w-full justify-start">
-        <NavigationMenuList className="gap-2">
-          {/* Producten dropdown */}
+        <NavigationMenuList className="gap-1.5">
           <NavigationMenuItem>
-            <NavigationMenuTrigger 
+            <NavigationMenuTrigger
               className={cn(
-                "gap-2 h-10",
-                isProductSection && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                "gap-2 h-10 rounded-[calc(var(--radius)-4px)] text-sm border border-transparent",
+                "hover:bg-muted/60 focus:bg-muted/60",
+                isProductSection
+                  ? "bg-foreground text-background hover:bg-foreground hover:text-background focus:bg-foreground focus:text-background data-[state=open]:bg-foreground data-[state=open]:text-background"
+                  : "text-muted-foreground"
               )}
             >
               <Package className="w-4 h-4" />
               Producten
             </NavigationMenuTrigger>
             <NavigationMenuContent>
-              <ul className="grid w-[400px] gap-1 p-2">
+              <ul className="grid w-[420px] gap-1 p-2">
                 {productSubItems.map((item) => (
                   <li key={item.value}>
                     <button
                       onClick={() => setActiveTab(item.value)}
                       className={cn(
-                        "block w-full select-none rounded-md p-3 leading-none no-underline outline-none transition-colors text-left",
-                        "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                        activeTab === item.value && "bg-accent"
+                        "block w-full select-none rounded-[calc(var(--radius)-4px)] p-3 leading-none outline-none transition-colors text-left",
+                        "hover:bg-muted/60 focus:bg-muted/60",
+                        activeTab === item.value && "bg-muted/70"
                       )}
                     >
-                      <div className="flex items-center gap-3">
-                        <item.icon className="w-5 h-5 text-muted-foreground" />
-                        <div>
-                          <div className="text-sm font-medium leading-none">{item.label}</div>
-                          <p className="line-clamp-1 text-sm leading-snug text-muted-foreground mt-1">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 h-9 w-9 rounded-[calc(var(--radius)-4px)] bg-muted/60 flex items-center justify-center">
+                          <item.icon className="w-4 h-4 text-foreground/80" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-foreground leading-none">{item.label}</div>
+                          <p className="line-clamp-1 text-xs leading-snug text-muted-foreground mt-1.5">
                             {item.description}
                           </p>
                         </div>
@@ -97,32 +112,20 @@ const BackOffice = () => {
             </NavigationMenuContent>
           </NavigationMenuItem>
 
-          {/* Kortingen - direct button */}
           <NavigationMenuItem>
             <button
               onClick={() => setActiveTab("discount-groups")}
-              className={cn(
-                "group inline-flex h-10 w-max items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors",
-                "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none",
-                "disabled:pointer-events-none disabled:opacity-50",
-                activeTab === "discount-groups" && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-              )}
+              className={directBtn(activeTab === "discount-groups")}
             >
               <Percent className="w-4 h-4 mr-2" />
               Kortingen
             </button>
           </NavigationMenuItem>
 
-          {/* Weekaanbod - direct button */}
           <NavigationMenuItem>
             <button
               onClick={() => setActiveTab("weekly-offerings")}
-              className={cn(
-                "group inline-flex h-10 w-max items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors",
-                "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none",
-                "disabled:pointer-events-none disabled:opacity-50",
-                activeTab === "weekly-offerings" && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-              )}
+              className={directBtn(activeTab === "weekly-offerings")}
             >
               <Calendar className="w-4 h-4 mr-2" />
               Weekaanbod
@@ -131,9 +134,7 @@ const BackOffice = () => {
         </NavigationMenuList>
       </NavigationMenu>
 
-      <div className="mt-6">
-        {renderContent()}
-      </div>
+      <div className="mt-2">{renderContent()}</div>
     </div>
   );
 };

@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -232,15 +231,21 @@ const DiscountGroupDialog = ({ open, onOpenChange, editingGroup, onSave }: Disco
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {editingGroup ? "Kortingsgroep bewerken" : "Nieuwe kortingsgroep"}
+        <DialogHeader className="space-y-1">
+          <p className="bakery-eyebrow">Kortingsgroep</p>
+          <DialogTitle
+            className="font-serif text-2xl font-medium leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            {editingGroup ? "Bewerken" : "Nieuwe groep"}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-5 py-2">
           <div className="space-y-2">
-            <Label htmlFor="name">Naam *</Label>
+            <Label htmlFor="name" className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              Naam *
+            </Label>
             <Input
               id="name"
               value={formData.name}
@@ -250,7 +255,9 @@ const DiscountGroupDialog = ({ open, onOpenChange, editingGroup, onSave }: Disco
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Beschrijving</Label>
+            <Label htmlFor="description" className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              Beschrijving
+            </Label>
             <Textarea
               id="description"
               value={formData.description}
@@ -261,33 +268,43 @@ const DiscountGroupDialog = ({ open, onOpenChange, editingGroup, onSave }: Disco
           </div>
 
           {/* Tiers Section */}
-          <div className="border-t pt-4 mt-4">
-            <div className="flex justify-between items-center mb-4">
-              <Label>Staffelkorting</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addTier}>
-                <Plus className="w-4 h-4 mr-1" />
+          <div className="pt-4 border-t border-border/60 space-y-3">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="bakery-eyebrow">Staffelkorting</p>
+                <h3 className="font-serif text-base font-medium text-foreground leading-tight mt-0.5">
+                  Korting per aantal
+                </h3>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={addTier} className="gap-1">
+                <Plus className="h-4 w-4" />
                 Staffel toevoegen
               </Button>
             </div>
 
             {tiers.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                Nog geen staffels. Voeg een staffel toe om korting te geven vanaf een bepaald aantal.
-              </p>
+              <div className="rounded-[calc(var(--radius)-2px)] border border-dashed border-border/70 bg-muted/20 px-4 py-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Nog geen staffels. Voeg er een toe om korting te geven vanaf een bepaald aantal.
+                </p>
+              </div>
             ) : (
               <div className="space-y-2">
                 {tiers.map((tier, index) => (
-                  <div key={index} className="flex gap-2 items-center">
-                    <span className="text-sm text-muted-foreground">Vanaf</span>
+                  <div
+                    key={index}
+                    className="flex gap-2 items-center rounded-[calc(var(--radius)-2px)] border border-border/60 bg-muted/20 px-3 py-2"
+                  >
+                    <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Vanaf</span>
                     <Input
                       type="number"
                       min="1"
                       value={tier.min_quantity}
                       onChange={(e) => updateTier(index, "min_quantity", e.target.value)}
-                      className="w-20"
+                      className="w-20 tabular-nums"
                       placeholder="4"
                     />
-                    <span className="text-sm text-muted-foreground">stuks:</span>
+                    <span className="text-xs text-muted-foreground">stuks</span>
                     <Input
                       type="number"
                       min="0"
@@ -295,17 +312,18 @@ const DiscountGroupDialog = ({ open, onOpenChange, editingGroup, onSave }: Disco
                       step="0.5"
                       value={tier.discount_percentage}
                       onChange={(e) => updateTier(index, "discount_percentage", e.target.value)}
-                      className="w-20"
+                      className="w-20 tabular-nums"
                       placeholder="10"
                     />
-                    <span className="text-sm text-muted-foreground">% korting</span>
+                    <span className="text-xs text-muted-foreground">% korting</span>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       onClick={() => removeTier(index)}
+                      className="ml-auto h-8 w-8 text-muted-foreground hover:text-destructive"
                     >
-                      <Trash2 className="w-4 h-4 text-destructive" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
@@ -314,27 +332,34 @@ const DiscountGroupDialog = ({ open, onOpenChange, editingGroup, onSave }: Disco
           </div>
 
           {/* Products Section */}
-          <div className="border-t pt-4 mt-4">
-            <div className="flex justify-between items-center mb-4">
-              <Label>Producten in deze groep</Label>
-              <Badge variant="secondary">{selectedProductIds.size} geselecteerd</Badge>
+          <div className="pt-4 border-t border-border/60 space-y-3">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="bakery-eyebrow">Producten</p>
+                <h3 className="font-serif text-base font-medium text-foreground leading-tight mt-0.5">
+                  In deze groep
+                </h3>
+              </div>
+              <span className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-1 text-[11px] font-medium tabular-nums text-foreground ring-1 ring-inset ring-border/60">
+                {selectedProductIds.size} geselecteerd
+              </span>
             </div>
 
-            <ScrollArea className="h-[200px] border rounded-md p-4">
+            <ScrollArea className="h-[220px] rounded-[calc(var(--radius)-2px)] border border-border/60 bg-muted/10 p-4">
               {Object.entries(groupedProducts).map(([categoryName, categoryProducts]) => (
-                <div key={categoryName} className="mb-4">
-                  <p className="text-sm font-semibold text-muted-foreground mb-2">{categoryName}</p>
-                  <div className="space-y-1">
+                <div key={categoryName} className="mb-4 last:mb-0">
+                  <p className="bakery-eyebrow mb-2">{categoryName}</p>
+                  <div className="space-y-0.5">
                     {categoryProducts.map((product) => (
                       <label
                         key={product.id}
-                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded"
+                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 px-2 py-1 rounded-[calc(var(--radius)-4px)] transition-colors"
                       >
                         <Checkbox
                           checked={selectedProductIds.has(product.id)}
                           onCheckedChange={() => toggleProduct(product.id)}
                         />
-                        <span className="text-sm">{product.name}</span>
+                        <span className="text-sm text-foreground">{product.name}</span>
                       </label>
                     ))}
                   </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { CheckSquare, Package, Users, Loader2, Calendar } from "lucide-react";
+import { CheckSquare, Package, Users, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -213,12 +213,6 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
     }
   };
 
-  const getOrdersForCustomer = (customerId: string) => {
-    const customerItems = items.filter((i) => i.customerId === customerId);
-    const orderIds = [...new Set(customerItems.map((i) => i.orderId))];
-    return orderIds;
-  };
-
   const isOrderFullyChecked = (orderId: string) => {
     const orderItems = items.filter((i) => i.orderId === orderId);
     return orderItems.length > 0 && orderItems.every((i) => checkedItems.has(i.orderItemId));
@@ -256,17 +250,21 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      <div className="paper-card py-16 text-center">
+        <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+        <p className="text-sm text-muted-foreground">Laden…</p>
       </div>
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <Calendar className="w-6 h-6 mx-auto mb-2 opacity-50" />
-        <p>Geen openstaande orderregels</p>
+      <div className="paper-card py-16 text-center">
+        <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+          <Calendar className="w-5 h-5 text-muted-foreground" />
+        </div>
+        <p className="font-serif text-lg text-foreground">Geen openstaande orderregels</p>
+        <p className="text-sm text-muted-foreground mt-1">Alles is in de oven of onderweg.</p>
       </div>
     );
   }
@@ -320,8 +318,8 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
             </SelectItem>
           </SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground ml-auto">
-          {checkedItems.size}/{items.length} afgevinkt
+        <span className="text-xs text-muted-foreground ml-auto tabular-nums">
+          {checkedItems.size} / {items.length} afgevinkt
         </span>
       </div>
 
@@ -334,10 +332,11 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
           const orderFullyChecked = orderId ? isOrderFullyChecked(orderId) : false;
 
           return (
-            <div key={key} className="rounded-lg border border-border bg-card">
+            <div key={key} className="paper-card overflow-hidden">
               {/* Group header */}
-              <div
-                className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
+              <button
+                type="button"
+                className="w-full flex items-center gap-3 px-5 py-3 hover:bg-muted/40 transition-colors border-b border-border/50 bg-muted/20"
                 onClick={() => toggleAllForGroup(group.items)}
               >
                 <Checkbox
@@ -345,7 +344,7 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
                   onCheckedChange={() => toggleAllForGroup(group.items)}
                   onClick={(e) => e.stopPropagation()}
                 />
-                <span className={`text-sm font-medium flex-1 ${allChecked ? "line-through text-muted-foreground" : ""}`}>
+                <span className={`text-sm font-medium flex-1 text-left ${allChecked ? "line-through text-muted-foreground" : "text-foreground"}`}>
                   {group.label}
                 </span>
                 {isCustomerGroup && (
@@ -358,21 +357,22 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
                   const checkedQty = group.items.filter((i) => checkedItems.has(i.orderItemId)).reduce((sum, i) => sum + i.quantity, 0);
                   return (
                     <span className="text-sm font-medium tabular-nums">
-                      <span className={checkedQty > 0 ? "text-green-600" : ""}>{checkedQty}</span>
+                      <span className={checkedQty > 0 ? "text-foreground" : "text-muted-foreground"}>{checkedQty}</span>
                       <span className="text-muted-foreground">/{totalQty}</span>
                     </span>
                   );
                 })()}
-              </div>
+              </button>
 
               {/* Items */}
-              <div className="border-t border-border/50 divide-y divide-border/30">
+              <div className="divide-y divide-border/30">
                 {group.items.map((item) => {
                   const checked = checkedItems.has(item.orderItemId);
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={item.orderItemId}
-                      className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/20 transition-colors"
+                      className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-muted/30 transition-colors text-left"
                       onClick={() => toggleItem(item.orderItemId)}
                     >
                       <Checkbox
@@ -380,20 +380,20 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
                         onCheckedChange={() => toggleItem(item.orderItemId)}
                         onClick={(e) => e.stopPropagation()}
                       />
-                      <span className={`text-sm flex-1 min-w-0 truncate ${checked ? "line-through text-muted-foreground" : ""}`}>
+                      <span className={`text-sm flex-1 min-w-0 truncate ${checked ? "line-through text-muted-foreground" : "text-foreground"}`}>
                         {isCustomerGroup ? item.productName : `${item.customerName} — #${item.orderNumber}`}
                       </span>
-                      <span className={`text-sm tabular-nums shrink-0 ${checked ? "text-muted-foreground" : "font-medium"}`}>
+                      <span className={`text-sm tabular-nums shrink-0 ${checked ? "text-muted-foreground" : "font-medium text-foreground"}`}>
                         {item.quantity}×
                       </span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
 
               {/* Ready button for fully checked orders */}
               {isCustomerGroup && orderFullyChecked && orderId && (
-                <div className="border-t border-border/50 px-4 py-3">
+                <div className="border-t border-border/50 px-5 py-3 bg-muted/10">
                   <Button
                     size="sm"
                     className="w-full gap-2"
@@ -401,7 +401,7 @@ const ProductionChecklist = ({ statusFilter }: Props) => {
                     disabled={updatingOrder === orderId}
                   >
                     {updatingOrder === orderId ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <div className="w-4 h-4 animate-spin rounded-full border border-current/30 border-t-current" />
                     ) : (
                       <CheckSquare className="w-4 h-4" />
                     )}

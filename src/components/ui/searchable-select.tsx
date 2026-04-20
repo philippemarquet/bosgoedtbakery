@@ -43,15 +43,15 @@ export function SearchableSelect({
           role="combobox"
           disabled={disabled}
           className={cn(
-            "w-full justify-between bg-transparent border-0 border-b border-border rounded-none px-0 h-9 font-normal",
-            "focus-visible:ring-0 focus-visible:border-primary",
+            "w-full justify-between bg-card/60 border border-border/70 rounded-[calc(var(--radius)-2px)] px-3 h-10 font-normal text-sm text-foreground hover:bg-card hover:border-border",
+            "focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-foreground/30 focus-visible:bg-card",
             className
           )}
         >
           <span className={cn("truncate", !selectedLabel && "text-muted-foreground")}>
             {selectedLabel || placeholder}
           </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
 

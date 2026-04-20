@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { UserPlus, Edit, Mail, KeyRound, User } from "lucide-react";
+import { Mail, KeyRound, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -224,30 +224,35 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {isEditing ? <Edit className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-            {isEditing ? "Klant bewerken" : "Nieuwe klant toevoegen"}
+        <DialogHeader className="space-y-1">
+          <p className="bakery-eyebrow">Klant</p>
+          <DialogTitle
+            className="font-serif text-2xl font-medium leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            {isEditing ? "Bewerken" : "Nieuwe klant"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm text-muted-foreground">
             {isEditing
               ? "Pas de gegevens van deze klant aan."
               : "Voeg een nieuwe klant toe aan het systeem."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-2">
           {/* Login toggle - only show if not already having a login */}
           {!hasExistingLogin && (
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+            <div className="flex items-center justify-between rounded-[calc(var(--radius)-2px)] border border-border/60 bg-muted/30 px-4 py-3">
               <div className="flex items-center gap-3">
-                {withLogin ? (
-                  <KeyRound className="w-5 h-5 text-primary" />
-                ) : (
-                  <User className="w-5 h-5 text-muted-foreground" />
-                )}
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted/70 text-foreground/70">
+                  {withLogin ? (
+                    <KeyRound className="h-4 w-4" />
+                  ) : (
+                    <User className="h-4 w-4" />
+                  )}
+                </div>
                 <div>
-                  <p className="text-sm font-medium">
+                  <p className="text-sm font-medium text-foreground">
                     {withLogin ? "Met inlog" : "Zonder inlog"}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -263,10 +268,12 @@ const CustomerDialog = ({ open, onOpenChange, onCustomerSaved, customer }: Custo
 
           {/* Show existing login status */}
           {hasExistingLogin && (
-            <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-lg border border-primary/20">
-              <Mail className="w-5 h-5 text-primary" />
+            <div className="flex items-center gap-3 rounded-[calc(var(--radius)-2px)] border border-border/60 bg-muted/30 px-4 py-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--sage))]/15 text-[hsl(var(--sage))]">
+                <Mail className="h-4 w-4" />
+              </div>
               <div>
-                <p className="text-sm font-medium text-primary">Heeft inlog</p>
+                <p className="text-sm font-medium text-foreground">Heeft inlog</p>
                 <p className="text-xs text-muted-foreground">
                   Deze klant kan zelf inloggen
                 </p>

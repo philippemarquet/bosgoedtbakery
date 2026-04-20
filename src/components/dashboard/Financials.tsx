@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Euro, Users, Package, TrendingUp } from "lucide-react";
+import { Users, Package, TrendingUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CustomerAnalysis from "./financials/CustomerAnalysis";
 import ProductAnalysis from "./financials/ProductAnalysis";
@@ -10,6 +10,19 @@ const Financials = () => {
 
   return (
     <div className="space-y-6">
+      <div>
+        <p className="bakery-eyebrow mb-2">Financieel</p>
+        <h2
+          className="font-serif text-3xl md:text-4xl font-medium text-foreground leading-tight"
+          style={{ letterSpacing: "-0.02em" }}
+        >
+          Boekhouding
+        </h2>
+        <p className="text-sm text-muted-foreground mt-2">
+          Omzet, klanten en producten — in één oogopslag.
+        </p>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-flex">
           <TabsTrigger value="overview" className="gap-2">

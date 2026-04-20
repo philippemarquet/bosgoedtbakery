@@ -4,7 +4,6 @@ import {
   Wheat,
   ChevronRight,
   ArrowLeft,
-  Loader2,
   Calendar,
   ClipboardCheck,
   ListChecks,
@@ -363,18 +362,44 @@ const Production = () => {
       case "in_production":
         return "In productie";
       case "all_production":
-        return "Bevestigd + In productie";
+        return "Bevestigd + in productie";
       default:
         return "Status";
     }
   };
 
+  const EmptyState = ({
+    icon: Icon,
+    title,
+    hint,
+  }: {
+    icon: typeof Calendar;
+    title: string;
+    hint?: string;
+  }) => (
+    <div className="text-center py-16">
+      <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+        <Icon className="w-5 h-5 text-muted-foreground" />
+      </div>
+      <p className="font-serif text-lg text-foreground">{title}</p>
+      {hint && <p className="text-sm text-muted-foreground mt-1">{hint}</p>}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h2 className="text-lg font-serif font-medium">Productie</h2>
-          <p className="text-sm text-muted-foreground">{getStatusFilterLabel()}</p>
+          <p className="bakery-eyebrow mb-2">Productie</p>
+          <h2
+            className="font-serif text-3xl md:text-4xl font-medium text-foreground leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Wat gaat er vandaag de oven in?
+          </h2>
+          <p className="text-sm text-muted-foreground mt-2">
+            Filter — {getStatusFilterLabel().toLowerCase()}.
+          </p>
         </div>
         <Select
           value={statusFilter}
@@ -384,20 +409,21 @@ const Production = () => {
             localStorage.setItem("production_statusFilter", v);
           }}
         >
-          <SelectTrigger className="w-full sm:w-[180px] h-9 text-sm">
+          <SelectTrigger className="w-full md:w-[220px] h-9 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="confirmed">Bevestigd</SelectItem>
             <SelectItem value="in_production">In productie</SelectItem>
-            <SelectItem value="all_production">Bevestigd + In productie</SelectItem>
+            <SelectItem value="all_production">Bevestigd + in productie</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        <div className="paper-card py-16 text-center">
+          <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+          <p className="text-sm text-muted-foreground">Laden…</p>
         </div>
       ) : (
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
@@ -422,16 +448,25 @@ const Production = () => {
 
           <TabsContent value="products" className="mt-6">
             {selectedProduct ? (
-              <div>
-                <div className="flex items-center gap-3 mb-6">
-                  <Button variant="ghost" size="icon" onClick={goBackToProductList}>
+              <div className="paper-card">
+                <div className="flex items-center gap-3 px-6 pt-5 pb-4 border-b border-border/50">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={goBackToProductList}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <ArrowLeft className="w-4 h-4" />
                   </Button>
                   <div>
-                    <h3 className="text-lg font-serif font-medium">
+                    <p className="bakery-eyebrow mb-0.5">Product</p>
+                    <h3
+                      className="font-serif text-xl md:text-2xl font-medium text-foreground leading-tight"
+                      style={{ letterSpacing: "-0.02em" }}
+                    >
                       {selectedProduct.productName}
                     </h3>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground mt-1 tabular-nums">
                       {selectedProduct.totalQuantity}× {selectedProduct.sellUnitLabel}
                       {selectedProduct.batches > 0 && (
                         <> · {formatBatches(selectedProduct.batches)} batch(es)</>
@@ -441,20 +476,20 @@ const Production = () => {
                 </div>
 
                 {loadingProductDetail ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <div className="py-12 text-center">
+                    <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+                    <p className="text-sm text-muted-foreground">Laden…</p>
                   </div>
                 ) : productIngredients.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Wheat className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                    <p>Geen ingrediënten gekoppeld</p>
+                  <div className="py-12">
+                    <EmptyState icon={Wheat} title="Geen ingrediënten gekoppeld" />
                   </div>
                 ) : (
                   <div className="divide-y divide-border/50">
                     {productIngredients.map((ing) => (
                       <div
                         key={ing.ingredientId}
-                        className="py-3 flex items-center justify-between gap-2"
+                        className="py-3 px-6 flex items-center justify-between gap-2"
                       >
                         <span className="text-foreground text-sm min-w-0 truncate">
                           {ing.ingredientName}
@@ -463,7 +498,7 @@ const Production = () => {
                           <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">
                             {formatQuantity(ing.quantityPerSellUnit, ing.unit)}/{selectedProduct.sellUnitLabel}
                           </span>
-                          <span className="text-sm tabular-nums font-medium">
+                          <span className="text-sm tabular-nums font-medium text-foreground">
                             {formatQuantity(ing.totalNeeded, ing.unit)}
                           </span>
                         </div>
@@ -473,25 +508,23 @@ const Production = () => {
                 )}
               </div>
             ) : (
-              <div>
+              <div className="paper-card overflow-hidden">
                 {productionItems.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Calendar className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                    <p>Geen openstaande bestellingen</p>
-                  </div>
+                  <EmptyState icon={Calendar} title="Geen openstaande bestellingen" hint="Niets te bakken op dit moment." />
                 ) : (
                   <div className="divide-y divide-border/50">
                     {productionItems.map((item) => (
-                      <div
+                      <button
                         key={item.productId}
-                        className="py-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-muted/30 transition-colors"
+                        type="button"
+                        className="w-full text-left py-3 px-6 flex items-center justify-between gap-2 hover:bg-muted/40 transition-colors"
                         onClick={() => openProductDetail(item)}
                       >
                         <span className="text-foreground text-sm min-w-0 truncate">
                           {item.productName}
                         </span>
                         <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm tabular-nums font-medium">
+                          <span className="text-sm tabular-nums font-medium text-foreground">
                             {item.totalQuantity}× {item.sellUnitLabel}
                           </span>
                           <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">
@@ -499,7 +532,7 @@ const Production = () => {
                           </span>
                           <ChevronRight className="w-4 h-4 text-muted-foreground" />
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -508,28 +541,27 @@ const Production = () => {
           </TabsContent>
 
           <TabsContent value="ingredients" className="mt-6">
-            {allIngredientNeeds.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Wheat className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                <p>Geen ingrediënten</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border/50">
-                {allIngredientNeeds.map((item) => (
-                  <div
-                    key={item.ingredientId}
-                    className="py-3 flex items-center justify-between gap-2"
-                  >
-                    <span className="text-foreground text-sm min-w-0 truncate">
-                      {item.ingredientName}
-                    </span>
-                    <span className="text-sm tabular-nums font-medium shrink-0">
-                      {formatQuantity(item.totalNeeded, item.unit)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="paper-card overflow-hidden">
+              {allIngredientNeeds.length === 0 ? (
+                <EmptyState icon={Wheat} title="Geen ingrediënten" hint="Staat niets in de productielijst." />
+              ) : (
+                <div className="divide-y divide-border/50">
+                  {allIngredientNeeds.map((item) => (
+                    <div
+                      key={item.ingredientId}
+                      className="py-3 px-6 flex items-center justify-between gap-2"
+                    >
+                      <span className="text-foreground text-sm min-w-0 truncate">
+                        {item.ingredientName}
+                      </span>
+                      <span className="text-sm tabular-nums font-medium text-foreground shrink-0">
+                        {formatQuantity(item.totalNeeded, item.unit)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="checklist" className="mt-6">

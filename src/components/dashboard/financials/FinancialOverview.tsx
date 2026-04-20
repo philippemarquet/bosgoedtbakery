@@ -15,7 +15,6 @@ import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -59,6 +58,37 @@ interface PeriodStats {
   orders: number;
   avgOrderValue: number;
 }
+
+const marginColorClass = (pct: number): string => {
+  if (pct >= 60) return "text-foreground";
+  if (pct >= 30) return "text-[hsl(var(--ember))]";
+  return "text-destructive";
+};
+
+const MetricCard = ({
+  label,
+  value,
+  hint,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  valueClass?: string;
+}) => (
+  <div className="paper-card px-5 py-4">
+    <p className="bakery-eyebrow mb-2">{label}</p>
+    <p
+      className={`font-serif text-2xl md:text-3xl font-medium tabular-nums leading-tight ${
+        valueClass ?? "text-foreground"
+      }`}
+      style={{ letterSpacing: "-0.02em" }}
+    >
+      {value}
+    </p>
+    {hint && <p className="text-xs text-muted-foreground mt-1.5">{hint}</p>}
+  </div>
+);
 
 const FinancialOverview = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -243,9 +273,9 @@ const FinancialOverview = () => {
 
         return {
           period: format(start, "yyyy-'W'ww"),
-          periodLabel: `Week ${format(start, "w")} (${format(start, "d MMM", {
+          periodLabel: `W${format(start, "w")} · ${format(start, "d MMM", {
             locale: nl,
-          })})`,
+          })}`,
           startDate: start,
           endDate: end,
           revenue,
@@ -272,94 +302,56 @@ const FinancialOverview = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="paper-card py-16 text-center">
+        <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+        <p className="text-sm text-muted-foreground">Laden…</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      {/* Key Metrics - Clean minimal cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            Totale omzet
-          </p>
-          <p className="text-2xl font-light tabular-nums tracking-tight">
-            {formatCurrency(overallStats.totalRevenue)}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {overallStats.totalOrders} bestellingen
-          </p>
-        </div>
-
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            Marge
-          </p>
-          <p
-            className={`text-2xl font-light tabular-nums tracking-tight ${
-              overallStats.marginPercentage >= 60
-                ? "text-emerald-600"
-                : overallStats.marginPercentage >= 30
-                  ? "text-orange-600"
-                  : "text-red-600"
-            }`}
-          >
-            {formatCurrency(overallStats.totalMargin)}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {overallStats.marginPercentage.toFixed(1)}%
-          </p>
-        </div>
-
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            Ontvangen
-          </p>
-          <p className="text-2xl font-light tabular-nums tracking-tight text-emerald-600">
-            {formatCurrency(overallStats.paidRevenue)}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {overallStats.paidOrders} betaald
-          </p>
-        </div>
-
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            Openstaand
-          </p>
-          <p
-            className={`text-2xl font-light tabular-nums tracking-tight ${
-              overallStats.openRevenue > 0 ? "text-orange-600" : ""
-            }`}
-          >
-            {formatCurrency(overallStats.openRevenue)}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {overallStats.totalOrders - overallStats.paidOrders} open
-          </p>
-        </div>
-
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            Gem. bestelling
-          </p>
-          <p className="text-2xl font-light tabular-nums tracking-tight">
-            {formatCurrency(overallStats.avgOrderValue)}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {formatCurrency(overallStats.totalDiscounts)} korting
-          </p>
-        </div>
+      {/* Key Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <MetricCard
+          label="Totale omzet"
+          value={formatCurrency(overallStats.totalRevenue)}
+          hint={`${overallStats.totalOrders} bestellingen`}
+        />
+        <MetricCard
+          label="Marge"
+          value={formatCurrency(overallStats.totalMargin)}
+          valueClass={marginColorClass(overallStats.marginPercentage)}
+          hint={`${overallStats.marginPercentage.toFixed(1)}%`}
+        />
+        <MetricCard
+          label="Ontvangen"
+          value={formatCurrency(overallStats.paidRevenue)}
+          hint={`${overallStats.paidOrders} betaald`}
+        />
+        <MetricCard
+          label="Openstaand"
+          value={formatCurrency(overallStats.openRevenue)}
+          valueClass={overallStats.openRevenue > 0 ? "text-[hsl(var(--ember))]" : "text-foreground"}
+          hint={`${overallStats.totalOrders - overallStats.paidOrders} open`}
+        />
+        <MetricCard
+          label="Gem. bestelling"
+          value={formatCurrency(overallStats.avgOrderValue)}
+          hint={`${formatCurrency(overallStats.totalDiscounts)} korting`}
+        />
       </div>
 
       {/* Revenue & Margin Chart */}
-      <div className="border-t border-border pt-8">
-        <div className="mb-6">
-          <h3 className="text-lg font-serif font-medium">Omzet & Marge</h3>
-          <p className="text-sm text-muted-foreground">Per periode</p>
+      <div className="paper-card p-5 md:p-6">
+        <div className="mb-5">
+          <p className="bakery-eyebrow mb-1.5">Grafiek</p>
+          <h3
+            className="font-serif text-xl md:text-2xl font-medium text-foreground leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Omzet &amp; marge
+          </h3>
         </div>
         {chartData.some((m) => m.revenue > 0) ? (
           <ResponsiveContainer width="100%" height={280}>
@@ -371,57 +363,61 @@ const FinancialOverview = () => {
               />
               <XAxis
                 dataKey="periodLabel"
-                tick={{ fontSize: 11 }}
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                 angle={-20}
                 textAnchor="end"
                 height={60}
-                stroke="hsl(var(--muted-foreground))"
+                stroke="hsl(var(--border))"
               />
               <YAxis
                 tickFormatter={(value) => `€${value}`}
-                tick={{ fontSize: 11 }}
-                stroke="hsl(var(--muted-foreground))"
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                stroke="hsl(var(--border))"
               />
               <Tooltip
                 formatter={(value: number, name: string) => [formatCurrency(value), name]}
                 contentStyle={{
                   backgroundColor: "hsl(var(--popover))",
                   border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                  fontSize: "13px",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  boxShadow: "0 4px 16px -2px hsl(var(--ink) / 0.12)",
                 }}
               />
-              <Bar dataKey="Omzet" fill="hsl(var(--primary))" opacity={0.8} radius={[2, 2, 0, 0]} />
+              <Bar dataKey="Omzet" fill="hsl(var(--foreground))" opacity={0.85} radius={[2, 2, 0, 0]} />
               <Bar
                 dataKey="Kosten"
                 fill="hsl(var(--muted-foreground))"
-                opacity={0.4}
+                opacity={0.35}
                 radius={[2, 2, 0, 0]}
               />
               <Line
                 type="monotone"
                 dataKey="Marge"
-                stroke="hsl(142, 76%, 36%)"
+                stroke="hsl(var(--ember))"
                 strokeWidth={2}
-                dot={{ fill: "hsl(142, 76%, 36%)", r: 3 }}
+                dot={{ fill: "hsl(var(--ember))", r: 3, strokeWidth: 0 }}
               />
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
-          <p className="text-center py-12 text-muted-foreground">
+          <p className="text-center py-12 text-muted-foreground text-sm">
             Nog geen historische data
           </p>
         )}
       </div>
 
       {/* Period-based Results */}
-      <div className="border-t border-border pt-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="paper-card p-5 md:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
           <div>
-            <h3 className="text-lg font-serif font-medium">Resultaten per periode</h3>
-            <p className="text-sm text-muted-foreground">
-              Per {periodView === "week" ? "week" : "maand"}
-            </p>
+            <p className="bakery-eyebrow mb-1.5">Overzicht</p>
+            <h3
+              className="font-serif text-xl md:text-2xl font-medium text-foreground leading-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              Resultaten per {periodView === "week" ? "week" : "maand"}
+            </h3>
           </div>
           <Tabs value={periodView} onValueChange={(v) => setPeriodView(v as "week" | "month")}>
             <TabsList>
@@ -434,23 +430,23 @@ const FinancialOverview = () => {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              <tr className="border-b border-border/60">
+                <th className="text-left py-3 px-0 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
                   Periode
                 </th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
                   #
                 </th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
                   Omzet
                 </th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
                   Kosten
                 </th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
                   Marge
                 </th>
-                <th className="text-right py-3 px-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="text-right py-3 px-0 text-[11px] font-medium text-muted-foreground uppercase tracking-[0.08em]">
                   Gem.
                 </th>
               </tr>
@@ -460,26 +456,20 @@ const FinancialOverview = () => {
                 .slice()
                 .reverse()
                 .map((period) => (
-                  <tr key={period.period} className="border-b border-border/50 last:border-0">
-                    <td className="py-3 px-0 text-foreground">{period.periodLabel}</td>
-                    <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">
+                  <tr key={period.period} className="border-b border-border/40 last:border-0">
+                    <td className="py-3 px-0 text-sm text-foreground">{period.periodLabel}</td>
+                    <td className="py-3 px-4 text-right tabular-nums text-muted-foreground text-sm">
                       {period.orders}
                     </td>
-                    <td className="py-3 px-4 text-right tabular-nums font-medium">
+                    <td className="py-3 px-4 text-right tabular-nums font-medium text-foreground text-sm">
                       {formatCurrency(period.revenue)}
                     </td>
-                    <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">
+                    <td className="py-3 px-4 text-right tabular-nums text-muted-foreground text-sm">
                       {formatCurrency(period.cost)}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <span
-                        className={`tabular-nums font-medium ${
-                          period.marginPercentage >= 60
-                            ? "text-emerald-600"
-                            : period.marginPercentage >= 30
-                              ? "text-orange-600"
-                              : "text-red-600"
-                        }`}
+                        className={`tabular-nums font-medium text-sm ${marginColorClass(period.marginPercentage)}`}
                       >
                         {formatCurrency(period.margin)}
                       </span>
@@ -487,7 +477,7 @@ const FinancialOverview = () => {
                         ({period.marginPercentage.toFixed(0)}%)
                       </span>
                     </td>
-                    <td className="py-3 px-0 text-right tabular-nums text-muted-foreground">
+                    <td className="py-3 px-0 text-right tabular-nums text-muted-foreground text-sm">
                       {formatCurrency(period.avgOrderValue)}
                     </td>
                   </tr>
@@ -496,7 +486,7 @@ const FinancialOverview = () => {
           </table>
         </div>
         {periodStats.length === 0 && (
-          <p className="text-center py-8 text-muted-foreground">Nog geen bestellingen</p>
+          <p className="text-center py-8 text-muted-foreground text-sm">Nog geen bestellingen</p>
         )}
       </div>
     </div>

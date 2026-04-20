@@ -3,7 +3,6 @@ import {
   addWeeks,
   format,
   isSameDay,
-  parseISO,
   startOfWeek,
   subWeeks,
 } from "date-fns";
@@ -31,11 +30,6 @@ type Product = Pick<
 
 type Offering = Database["public"]["Tables"]["weekly_product_offerings"]["Row"];
 
-/**
- * Monday of the week that `date` falls in. We use Monday to match the
- * Postgres `date_trunc('week', ...)` RLS on `weekly_product_offerings` and
- * the way weekly menus were modeled.
- */
 const mondayOf = (date: Date) => startOfWeek(date, { weekStartsOn: 1 });
 
 const toISODate = (date: Date) => format(date, "yyyy-MM-dd");
@@ -54,7 +48,7 @@ const formatWeekLabel = (date: Date) => {
 };
 
 const euro = (value: number | null | undefined) =>
-  `€${Number(value ?? 0).toLocaleString("nl-NL", {
+  `€ ${Number(value ?? 0).toLocaleString("nl-NL", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -75,7 +69,6 @@ const WeeklyOfferingsTab = () => {
 
   const selectedIso = toISODate(selectedMonday);
 
-  /** Fetch every orderable product — the list of candidates for the week. */
   const fetchProducts = useCallback(async () => {
     const { data, error } = await supabase
       .from("products")
@@ -95,7 +88,6 @@ const WeeklyOfferingsTab = () => {
     setProducts(data ?? []);
   }, [toast]);
 
-  /** Fetch existing offerings for the currently-selected week. */
   const fetchOfferings = useCallback(
     async (weekStart: string) => {
       setLoading(true);
@@ -115,8 +107,6 @@ const WeeklyOfferingsTab = () => {
       const byId: Record<string, Offering> = {};
       for (const row of data ?? []) byId[row.product_id] = row;
       setOfferingsByProductId(byId);
-      // Seed the override-input drafts from the stored values so the inputs
-      // reflect the DB state but don't fight the user's in-progress typing.
       setOverrideDrafts(
         Object.fromEntries(
           Object.entries(byId).map(([pid, off]) => [
@@ -138,15 +128,12 @@ const WeeklyOfferingsTab = () => {
     fetchOfferings(selectedIso);
   }, [fetchOfferings, selectedIso]);
 
-  // Refresh when the tab becomes visible again — so switching between
-  // tabs / apps picks up changes made elsewhere.
   const refresh = useCallback(() => {
     fetchProducts();
     fetchOfferings(selectedIso);
   }, [fetchProducts, fetchOfferings, selectedIso]);
   useVisibilityRefresh(refresh);
 
-  /** Five-week strip: this week + four upcoming weeks. */
   const weekStrip = useMemo(() => {
     const today = mondayOf(new Date());
     return Array.from({ length: 5 }, (_, i) => addWeeks(today, i));
@@ -201,7 +188,7 @@ const WeeklyOfferingsTab = () => {
 
   const saveOverride = async (product: Product) => {
     const existing = offeringsByProductId[product.id];
-    if (!existing) return; // Only saveable once the product is on offer.
+    if (!existing) return;
 
     const raw = overrideDrafts[product.id] ?? "";
     const parsed = raw.trim() === "" ? null : Number(raw.replace(",", "."));
@@ -211,7 +198,6 @@ const WeeklyOfferingsTab = () => {
         description: `"${raw}" is geen geldig bedrag.`,
         variant: "destructive",
       });
-      // Revert draft to stored value.
       setOverrideDrafts((prev) => ({
         ...prev,
         [product.id]:
@@ -219,7 +205,7 @@ const WeeklyOfferingsTab = () => {
       }));
       return;
     }
-    if (parsed === Number(existing.price_override ?? NaN)) return; // no change
+    if (parsed === Number(existing.price_override ?? NaN)) return;
 
     const { data, error } = await supabase
       .from("weekly_product_offerings")
@@ -243,20 +229,32 @@ const WeeklyOfferingsTab = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header: prev / week-pills / next + friendly subtitle. */}
+      <div>
+        <p className="bakery-eyebrow mb-2">Back-office</p>
+        <h2
+          className="font-serif text-3xl md:text-4xl font-medium text-foreground leading-tight"
+          style={{ letterSpacing: "-0.02em" }}
+        >
+          Weekaanbod
+        </h2>
+        <p className="text-sm text-muted-foreground mt-2">
+          Zet per week producten op het aanbod. Laat de weekprijs leeg om de standaardprijs te gebruiken.
+        </p>
+      </div>
+
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted/60"
             onClick={() => setSelectedMonday((d) => subWeeks(d, 1))}
             aria-label="Vorige week"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
 
-          <div className="flex items-center gap-1 overflow-x-auto">
+          <div className="flex items-center gap-1.5 overflow-x-auto scroll-soft flex-1">
             {weekStrip.map((monday) => {
               const active = isSameDay(monday, selectedMonday);
               const { week, range } = formatWeekLabel(monday);
@@ -264,16 +262,16 @@ const WeeklyOfferingsTab = () => {
                 <button
                   key={toISODate(monday)}
                   onClick={() => setSelectedMonday(monday)}
-                  className={`rounded-md border px-3 py-2 text-left transition-colors ${
+                  className={`rounded-[calc(var(--radius)-4px)] px-3.5 py-2 text-left transition-colors flex-shrink-0 border ${
                     active
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background hover:bg-accent"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-card border-border/60 hover:bg-muted/60"
                   }`}
                 >
                   <div className="text-xs font-medium leading-tight">{week}</div>
                   <div
-                    className={`text-[11px] leading-tight ${
-                      active ? "text-primary-foreground/80" : "text-muted-foreground"
+                    className={`text-[11px] leading-tight mt-0.5 ${
+                      active ? "text-background/75" : "text-muted-foreground"
                     }`}
                   >
                     {range}
@@ -286,7 +284,7 @@ const WeeklyOfferingsTab = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted/60"
             onClick={() => setSelectedMonday((d) => addWeeks(d, 1))}
             aria-label="Volgende week"
           >
@@ -294,99 +292,100 @@ const WeeklyOfferingsTab = () => {
           </Button>
         </div>
 
-        <p className="text-sm text-muted-foreground">
+        <p className="text-[11px] tracking-[0.08em] uppercase text-muted-foreground">
           {selectedLabel.week} ·{" "}
-          {countOnOffer === 0
-            ? "nog niks op aanbod"
-            : countOnOffer === 1
-              ? "1 product op aanbod"
-              : `${countOnOffer} producten op aanbod`}
+          <span className="normal-case tracking-normal">
+            {countOnOffer === 0
+              ? "nog niks op aanbod"
+              : countOnOffer === 1
+                ? "1 product op aanbod"
+                : `${countOnOffer} producten op aanbod`}
+          </span>
         </p>
       </div>
 
-      {/* Body: one row per orderable product. */}
-      <div className="divide-y divide-border rounded-lg border">
+      <div className="paper-card overflow-hidden">
         {loading && products.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">Laden…</div>
+          <div className="py-16 text-center text-sm text-muted-foreground">
+            <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+            Laden…
+          </div>
         ) : products.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">
-            Nog geen bestelbare producten. Zet producten op "Separaat te bestellen door klanten"
-            om ze hier te zien.
+          <div className="py-16 text-center text-sm text-muted-foreground px-6">
+            Nog geen bestelbare producten. Zet producten op “separaat bestelbaar” om ze hier te zien.
           </div>
         ) : (
-          products.map((product) => {
-            const offering = offeringsByProductId[product.id];
-            const isOn = Boolean(offering);
-            return (
-              <div
-                key={product.id}
-                className="flex items-center gap-4 px-4 py-3"
-              >
-                {/* Thumb */}
-                {product.image_url ? (
-                  <img
-                    src={product.image_url}
-                    alt=""
-                    className="h-12 w-12 flex-shrink-0 rounded-md object-cover"
-                  />
-                ) : (
-                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-md bg-muted/40">
-                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                )}
-
-                {/* Name + base price */}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{product.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {euro(product.selling_price)} {sellUnitLabel(product)}
-                  </div>
-                </div>
-
-                {/* Optional week-price override (only when on aanbod) */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Weekprijs</span>
-                  <div className="flex items-center">
-                    <span className="mr-1 text-sm text-muted-foreground">€</span>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      min="0"
-                      disabled={!isOn}
-                      placeholder={Number(product.selling_price).toFixed(2)}
-                      value={overrideDrafts[product.id] ?? ""}
-                      onChange={(e) =>
-                        setOverrideDrafts((prev) => ({
-                          ...prev,
-                          [product.id]: e.target.value,
-                        }))
-                      }
-                      onBlur={() => saveOverride(product)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                      }}
-                      className="h-8 w-24 tabular-nums"
+          <div className="divide-y divide-border/60">
+            {products.map((product) => {
+              const offering = offeringsByProductId[product.id];
+              const isOn = Boolean(offering);
+              return (
+                <div
+                  key={product.id}
+                  className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${
+                    isOn ? "bg-card" : "bg-transparent"
+                  }`}
+                >
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt=""
+                      className="h-12 w-12 flex-shrink-0 rounded-[calc(var(--radius)-4px)] object-cover shadow-paper"
                     />
-                  </div>
-                </div>
+                  ) : (
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[calc(var(--radius)-4px)] bg-muted/60">
+                      <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  )}
 
-                {/* On / off toggle */}
-                <Switch
-                  checked={isOn}
-                  onCheckedChange={(checked) => onToggleOffer(product, checked)}
-                  aria-label={`${product.name} op aanbod`}
-                />
-              </div>
-            );
-          })
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm text-foreground">{product.name}</div>
+                    <div className="text-[11px] tracking-[0.04em] text-muted-foreground mt-0.5 tabular-nums">
+                      {euro(product.selling_price)}{" "}
+                      <span className="text-muted-foreground/80">{sellUnitLabel(product)}</span>
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:flex items-center gap-2">
+                    <span className="text-[11px] tracking-[0.06em] uppercase text-muted-foreground">
+                      Weekprijs
+                    </span>
+                    <div className="flex items-center">
+                      <span className="mr-1 text-sm text-muted-foreground">€</span>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        disabled={!isOn}
+                        placeholder={Number(product.selling_price).toFixed(2)}
+                        value={overrideDrafts[product.id] ?? ""}
+                        onChange={(e) =>
+                          setOverrideDrafts((prev) => ({
+                            ...prev,
+                            [product.id]: e.target.value,
+                          }))
+                        }
+                        onBlur={() => saveOverride(product)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        }}
+                        className="h-8 w-24 tabular-nums"
+                      />
+                    </div>
+                  </div>
+
+                  <Switch
+                    checked={isOn}
+                    onCheckedChange={(checked) => onToggleOffer(product, checked)}
+                    aria-label={`${product.name} op aanbod`}
+                  />
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
-
-      <p className="text-xs text-muted-foreground">
-        Klanten zien alleen producten met een ingeschakeld aanbod voor deze week.
-        Laat de weekprijs leeg om de standaardprijs te gebruiken.
-      </p>
     </div>
   );
 };

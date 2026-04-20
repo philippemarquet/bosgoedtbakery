@@ -500,8 +500,14 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editingProduct ? "Product bewerken" : "Nieuw product"}</DialogTitle>
+        <DialogHeader className="space-y-1">
+          <p className="bakery-eyebrow">Product</p>
+          <DialogTitle
+            className="font-serif text-2xl font-medium leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            {editingProduct ? "Bewerken" : "Nieuw product"}
+          </DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full">

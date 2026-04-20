@@ -151,77 +151,114 @@ const FixedCostsTab = () => {
   };
 
   const formatPrice = (price: number, unit: string) => {
-    return `€${price.toFixed(2)} / ${unit}`;
+    return `€ ${price.toFixed(2)} / ${unit}`;
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Zoek vaste kost..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
-          />
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <p className="bakery-eyebrow mb-2">Back-office</p>
+          <h2
+            className="font-serif text-3xl md:text-4xl font-medium text-foreground leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Vaste kosten
+          </h2>
+          <p className="text-sm text-muted-foreground mt-2">
+            Verpakking, energie en arbeid per eenheid.
+          </p>
         </div>
-        <Button onClick={openCreateDialog} size="sm" className="font-normal">
-          <Plus className="w-4 h-4 mr-2" />
-          Nieuwe vaste kost
-        </Button>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1 md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Zoek vaste kost..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Button onClick={openCreateDialog} size="sm">
+            <Plus className="w-4 h-4 mr-1.5" />
+            Nieuwe vaste kost
+          </Button>
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-b border-border hover:bg-transparent">
-              <TableHead className="w-10"></TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Naam</TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Prijs per eenheid</TableHead>
-              <TableHead className="w-10"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
-                  Laden...
-                </TableCell>
+      <div className="paper-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-border/60 bg-muted/30 hover:bg-muted/30">
+                <TableHead className="w-10"></TableHead>
+                <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Naam
+                </TableHead>
+                <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Prijs per eenheid
+                </TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
-            ) : filteredCosts.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
-                  {searchQuery ? "Geen vaste kosten gevonden" : "Nog geen vaste kosten. Voeg er een toe!"}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredCosts.map((cost) => (
-                <TableRow key={cost.id} className="border-0 hover:bg-muted/30">
-                  <TableCell className="py-2.5 w-10">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(cost)}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                  </TableCell>
-                  <TableCell className="py-2.5 text-sm font-light">{cost.name}</TableCell>
-                  <TableCell className="py-2.5 text-sm text-muted-foreground tabular-nums">{formatPrice(Number(cost.price_per_unit), cost.unit)}</TableCell>
-                  <TableCell className="py-2.5 w-10">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(cost.id)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-16 text-muted-foreground">
+                    <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+                    <p className="text-sm">Laden…</p>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : filteredCosts.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-16 text-muted-foreground text-sm">
+                    {searchQuery ? "Geen vaste kosten gevonden." : "Nog geen vaste kosten. Voeg er een toe."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredCosts.map((cost) => (
+                  <TableRow key={cost.id} className="border-b border-border/40 hover:bg-muted/40">
+                    <TableCell className="py-3 w-10 pl-6">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                        onClick={() => openEditDialog(cost)}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
+                    <TableCell className="py-3 text-sm text-foreground">{cost.name}</TableCell>
+                    <TableCell className="py-3 text-sm text-muted-foreground tabular-nums">
+                      {formatPrice(Number(cost.price_per_unit), cost.unit)}
+                    </TableCell>
+                    <TableCell className="py-3 w-10 pr-6">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                        onClick={() => handleDelete(cost.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingCost ? "Vaste kost bewerken" : "Nieuwe vaste kost"}
+          <DialogHeader className="space-y-2">
+            <p className="bakery-eyebrow">Vaste kost</p>
+            <DialogTitle
+              className="font-serif text-2xl md:text-3xl font-medium text-foreground leading-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              {editingCost ? "Bewerken" : "Nieuwe vaste kost"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -245,6 +282,7 @@ const FixedCostsTab = () => {
                   value={formData.price_per_unit}
                   onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
                   placeholder="0.00"
+                  className="tabular-nums"
                 />
               </div>
               <div className="space-y-2">

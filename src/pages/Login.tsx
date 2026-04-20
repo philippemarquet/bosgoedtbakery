@@ -4,7 +4,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import heroBread from "@/assets/hero-bread.jpg";
-import { ArrowLeft, Mail, KeyRound, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 type LoginStep = "email" | "password" | "set-password";
 
@@ -15,7 +18,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [step, setStep] = useState<LoginStep>("email");
   const [isLoading, setIsLoading] = useState(false);
-  const [needsPasswordSetup, setNeedsPasswordSetup] = useState(false);
+  const [, setNeedsPasswordSetup] = useState(false);
 
   const navigate = useNavigate();
   const { signIn, user, isLoading: authLoading, isBaker, isCustomer, role } = useAuth();
@@ -91,9 +94,7 @@ const Login = () => {
     const { error } = await signIn(email, password);
 
     if (error) {
-      // Check if this might be a first-time login
       if (error.message === "Invalid login credentials") {
-        // Try to check if user exists and needs password setup
         // NB: supabase.functions.invoke kan throwen bij non-2xx; altijd afvangen om blank screen te voorkomen.
         let checkData: any = null;
         try {
@@ -112,8 +113,6 @@ const Login = () => {
           return;
         }
 
-        // If we get a specific error about password already set, show normal error
-        // If we get user not found or needs setup, show setup option
         if (checkData?.error === "Wachtwoord is al ingesteld. Gebruik 'Wachtwoord vergeten' om te resetten.") {
           toast({
             title: "Inloggen mislukt",
@@ -127,12 +126,11 @@ const Login = () => {
             variant: "destructive",
           });
         } else {
-          // User exists but hasn't set password - show setup screen
           setNeedsPasswordSetup(true);
           setStep("set-password");
           setPassword("");
           toast({
-            title: "Welkom!",
+            title: "Welkom",
             description: "Stel je wachtwoord in om je account te activeren.",
           });
         }
@@ -148,7 +146,7 @@ const Login = () => {
     }
 
     toast({
-      title: "Welkom terug!",
+      title: "Welkom terug",
       description: "Je bent succesvol ingelogd.",
     });
   };
@@ -176,7 +174,6 @@ const Login = () => {
 
     setIsLoading(true);
 
-    // Call edge function to set password
     let setData: any = null;
     try {
       const { data } = await supabase.functions.invoke("set-initial-password", {
@@ -204,7 +201,6 @@ const Login = () => {
       return;
     }
 
-    // Now sign in with the new password
     const signInResult = await signIn(email, password);
 
     if (signInResult.error) {
@@ -219,7 +215,7 @@ const Login = () => {
     }
 
     toast({
-      title: "Welkom!",
+      title: "Welkom",
       description: "Je wachtwoord is ingesteld en je bent ingelogd.",
     });
   };
@@ -235,234 +231,289 @@ const Login = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Laden...</p>
+          <div className="w-8 h-8 border border-foreground/20 border-t-foreground/70 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-muted-foreground tracking-wide">Laden…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left side - Hero image */}
-      <div className="hidden lg:flex lg:w-1/2 xl:w-3/5 relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-background/20 to-transparent z-10" />
+    <div className="min-h-screen flex bg-background">
+      {/* Linkerzijde — hero */}
+      <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden">
         <img
           src={heroBread}
-          alt="Artisanal sourdough bread"
-          className="w-full h-full object-cover"
+          alt="Ambachtelijk brood uit de oven van Bosgoedt"
+          className="absolute inset-0 w-full h-full object-cover"
         />
-        <div className="absolute bottom-12 left-12 z-20 animate-fade-in" style={{ animationDelay: "0.3s" }}>
-          <p className="bakery-subtitle text-card mb-3 drop-shadow-lg">
-            Ambachtelijk • Vers • Met Liefde
+        {/* Warme paper-overlay — houdt de Japandi-sfeer over de foto */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to right, hsl(var(--paper) / 0.35), hsl(var(--paper) / 0.05) 40%, hsl(var(--paper) / 0) 70%)",
+          }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to top, hsl(var(--ink) / 0.55), hsl(var(--ink) / 0.1) 45%, transparent 70%)",
+          }}
+        />
+
+        {/* Eyebrow linksboven */}
+        <div className="absolute top-10 left-10 z-10 animate-fade-in">
+          <div className="flex items-center gap-3 text-background/80">
+            <span className="h-px w-8 bg-background/60" />
+            <span className="bakery-eyebrow text-background/80">Est · 2024</span>
+          </div>
+        </div>
+
+        {/* Quote onderaan */}
+        <div
+          className="absolute bottom-12 left-12 right-12 z-10 animate-fade-in"
+          style={{ animationDelay: "0.15s" }}
+        >
+          <p
+            className="font-serif text-background text-[1.75rem] md:text-3xl leading-snug max-w-lg drop-shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
+            style={{ letterSpacing: "-0.01em" }}
+          >
+            Brood dat de tijd krijgt — stil rijzend, op hout gebakken.
           </p>
+          <div className="mt-4 flex items-center gap-3 text-background/75">
+            <span className="h-px w-8 bg-background/55" />
+            <span className="bakery-eyebrow text-background/75">Ambacht · Geduld · Smaak</span>
+          </div>
         </div>
       </div>
 
-      {/* Right side - Login form */}
-      <div className="w-full lg:w-1/2 xl:w-2/5 flex flex-col justify-center px-8 sm:px-12 lg:px-16 xl:px-20 bg-background">
-        <div className="max-w-md w-full mx-auto">
-          {/* Logo / Brand */}
-          <div className="mb-12 animate-fade-in">
-            <h1 className="bakery-title text-foreground mb-3">Bosgoedt</h1>
-            <p className="bakery-subtitle text-muted-foreground">Bakery</p>
+      {/* Rechterzijde — formulier */}
+      <div className="relative w-full lg:w-1/2 xl:w-[45%] flex flex-col justify-center px-6 sm:px-10 lg:px-16 xl:px-24">
+        <div className="w-full max-w-md mx-auto">
+          {/* Merkregel */}
+          <div className="mb-14 animate-fade-in">
+            <p className="bakery-eyebrow mb-4">Bakkerij</p>
+            <h1
+              className="font-serif text-foreground text-[3.25rem] md:text-6xl leading-[0.95] font-medium"
+              style={{ letterSpacing: "-0.025em" }}
+            >
+              Bosgoedt
+            </h1>
+            <div className="mt-6 flex items-center gap-3">
+              <span className="h-px w-10 bg-border" />
+              <span className="text-sm text-muted-foreground tracking-[0.12em] uppercase">
+                {step === "email"
+                  ? "Aanmelden"
+                  : step === "password"
+                    ? "Welkom terug"
+                    : "Account activeren"}
+              </span>
+            </div>
           </div>
 
-          {/* Mobile hero image */}
-          <div className="lg:hidden mb-8 rounded-lg overflow-hidden animate-fade-in" style={{ animationDelay: "0.1s" }}>
-            <img
-              src={heroBread}
-              alt="Artisanal sourdough bread"
-              className="w-full h-48 object-cover"
-            />
+          {/* Mobiele hero */}
+          <div
+            className="lg:hidden -mx-6 mb-10 overflow-hidden animate-fade-in"
+            style={{ animationDelay: "0.1s" }}
+          >
+            <div className="relative h-44">
+              <img
+                src={heroBread}
+                alt="Ambachtelijk brood uit de oven van Bosgoedt"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(to top, hsl(var(--ink) / 0.35), hsl(var(--ink) / 0.05) 60%, transparent)",
+                }}
+              />
+            </div>
           </div>
 
-          {/* Step: Email */}
+          {/* Stap: e-mail */}
           {step === "email" && (
-            <form onSubmit={handleEmailSubmit} className="space-y-6">
-              <div className="animate-fade-in" style={{ animationDelay: "0.2s" }}>
-                <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-                  E-mailadres
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="bakery-input w-full pl-10"
-                    placeholder="naam@email.nl"
-                    autoFocus
-                    required
-                  />
-                </div>
+            <form onSubmit={handleEmailSubmit} className="space-y-8">
+              <div className="space-y-2 animate-fade-in" style={{ animationDelay: "0.2s" }}>
+                <Label htmlFor="email">E-mailadres</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="naam@email.nl"
+                  autoFocus
+                  required
+                  className="h-11"
+                />
               </div>
 
-              <button
+              <Button
                 type="submit"
-                className="bakery-button-primary w-full animate-fade-in"
+                size="lg"
+                className="w-full animate-fade-in"
                 style={{ animationDelay: "0.3s" }}
               >
                 Doorgaan
-              </button>
+              </Button>
             </form>
           )}
 
-          {/* Step: Password */}
+          {/* Stap: wachtwoord */}
           {step === "password" && (
-            <form onSubmit={handlePasswordSubmit} className="space-y-6">
+            <form onSubmit={handlePasswordSubmit} className="space-y-8">
               <div className="animate-fade-in">
                 <button
                   type="button"
                   onClick={handleBackToEmail}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
+                  className="group inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
                   Terug
                 </button>
 
-                <div className="p-3 bg-muted/50 rounded-lg border mb-6">
-                  <p className="text-sm text-muted-foreground">Inloggen als</p>
-                  <p className="font-medium text-foreground">{email}</p>
+                <div className="rounded-[var(--radius)] border border-border/70 bg-muted/40 px-4 py-3">
+                  <p className="text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground mb-1">
+                    Ingelogd als
+                  </p>
+                  <p className="text-sm font-medium text-foreground truncate">{email}</p>
                 </div>
               </div>
 
-              <div className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
-                <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
-                  Wachtwoord
-                </label>
+              <div className="space-y-2 animate-fade-in" style={{ animationDelay: "0.1s" }}>
+                <Label htmlFor="password">Wachtwoord</Label>
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input
+                  <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bakery-input w-full pl-10 pr-10"
                     placeholder="••••••••"
                     autoFocus
                     required
+                    className="h-11 pr-11"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showPassword ? "Verberg wachtwoord" : "Toon wachtwoord"}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-[calc(var(--radius)-4px)] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="bakery-button-primary w-full animate-fade-in disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ animationDelay: "0.2s" }}
-              >
-                {isLoading ? "Bezig met inloggen..." : "Inloggen"}
-              </button>
+              <div className="space-y-3 animate-fade-in" style={{ animationDelay: "0.2s" }}>
+                <Button type="submit" size="lg" disabled={isLoading} className="w-full">
+                  {isLoading ? "Bezig met inloggen…" : "Inloggen"}
+                </Button>
 
-              {/* Nieuw: Wachtwoord vergeten */}
-              <button
-                type="button"
-                onClick={handleForgotPassword}
-                disabled={isLoading}
-                className="w-full text-sm text-primary hover:underline disabled:opacity-50"
-              >
-                Wachtwoord vergeten?
-              </button>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={isLoading}
+                  className="block w-full text-center text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline disabled:opacity-50 transition-colors"
+                >
+                  Wachtwoord vergeten?
+                </button>
+              </div>
 
-              <p className="text-center text-sm text-muted-foreground animate-fade-in" style={{ animationDelay: "0.3s" }}>
+              <p
+                className="text-center text-xs text-muted-foreground leading-relaxed animate-fade-in"
+                style={{ animationDelay: "0.3s" }}
+              >
                 Eerste keer inloggen? Voer je wachtwoord in om je account te activeren.
               </p>
             </form>
           )}
 
-          {/* Step: Set Password (first time) */}
+          {/* Stap: wachtwoord instellen */}
           {step === "set-password" && (
-            <form onSubmit={handleSetPassword} className="space-y-6">
+            <form onSubmit={handleSetPassword} className="space-y-8">
               <div className="animate-fade-in">
                 <button
                   type="button"
                   onClick={handleBackToEmail}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
+                  className="group inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
                   Terug
                 </button>
 
-                <div className="p-3 bg-muted/50 rounded-lg border mb-6">
-                  <p className="text-sm text-muted-foreground">Account activeren voor</p>
-                  <p className="font-medium text-foreground">{email}</p>
+                <div className="rounded-[var(--radius)] border border-accent/40 bg-accent/5 px-4 py-3">
+                  <p className="text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground mb-1">
+                    Account activeren voor
+                  </p>
+                  <p className="text-sm font-medium text-foreground truncate">{email}</p>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
-                  <label htmlFor="new-password" className="block text-sm font-medium text-foreground mb-2">
-                    Kies een wachtwoord
-                  </label>
+              <div className="space-y-5">
+                <div className="space-y-2 animate-fade-in" style={{ animationDelay: "0.1s" }}>
+                  <Label htmlFor="new-password">Kies een wachtwoord</Label>
                   <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <input
+                    <Input
                       id="new-password"
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="bakery-input w-full pl-10 pr-10"
                       placeholder="Minimaal 6 tekens"
                       autoFocus
                       required
                       minLength={6}
+                      className="h-11 pr-11"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? "Verberg wachtwoord" : "Toon wachtwoord"}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-[calc(var(--radius)-4px)] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
-                <div className="animate-fade-in" style={{ animationDelay: "0.2s" }}>
-                  <label htmlFor="confirm-password" className="block text-sm font-medium text-foreground mb-2">
-                    Bevestig wachtwoord
-                  </label>
-                  <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <input
-                      id="confirm-password"
-                      type={showPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="bakery-input w-full pl-10"
-                      placeholder="Herhaal wachtwoord"
-                      required
-                    />
-                  </div>
+                <div className="space-y-2 animate-fade-in" style={{ animationDelay: "0.2s" }}>
+                  <Label htmlFor="confirm-password">Bevestig wachtwoord</Label>
+                  <Input
+                    id="confirm-password"
+                    type={showPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Herhaal wachtwoord"
+                    required
+                    className="h-11"
+                  />
                 </div>
               </div>
 
-              <button
+              <Button
                 type="submit"
+                size="lg"
                 disabled={isLoading}
-                className="bakery-button-primary w-full animate-fade-in disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full animate-fade-in"
                 style={{ animationDelay: "0.3s" }}
               >
-                {isLoading ? "Bezig met activeren..." : "Account activeren"}
-              </button>
+                {isLoading ? "Bezig met activeren…" : "Account activeren"}
+              </Button>
             </form>
           )}
 
-          {/* Footer */}
-          <div className="mt-12 pt-8 border-t border-border animate-fade-in" style={{ animationDelay: "0.6s" }}>
-            <p className="text-center text-sm text-muted-foreground">
+          {/* Voetregel */}
+          <div
+            className="mt-14 pt-8 border-t border-border/70 animate-fade-in"
+            style={{ animationDelay: "0.5s" }}
+          >
+            <p className="text-center text-xs text-muted-foreground leading-relaxed">
               Nog geen account?{" "}
-              <button className="text-primary hover:underline font-medium">
+              <span className="text-foreground underline-offset-4 hover:underline cursor-pointer">
                 Neem contact op
-              </button>
+              </span>
             </p>
           </div>
         </div>

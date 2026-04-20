@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { Plus, Pencil, Trash2, Search, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -33,6 +33,19 @@ interface PickupLocation {
   is_active: boolean;
   created_at: string;
 }
+
+const StatusChip = ({ active }: { active: boolean }) => {
+  const cls = active
+    ? "bg-foreground text-background ring-1 ring-inset ring-foreground"
+    : "bg-muted/60 text-muted-foreground ring-1 ring-inset ring-border/60";
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium tracking-[0.08em] uppercase rounded-[calc(var(--radius)-4px)] ${cls}`}
+    >
+      {active ? "Actief" : "Inactief"}
+    </span>
+  );
+};
 
 const PickupLocationsTab = () => {
   const [locations, setLocations] = useState<PickupLocation[]>([]);
@@ -67,9 +80,15 @@ const PickupLocationsTab = () => {
     setLoading(false);
   };
 
+  const refreshLocations = useCallback(() => {
+    fetchLocations();
+  }, []);
+
   useEffect(() => {
     fetchLocations();
   }, []);
+
+  useVisibilityRefresh(refreshLocations);
 
   useEffect(() => {
     if (dialogOpen) {
@@ -177,87 +196,120 @@ const PickupLocationsTab = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Zoek afhaallocatie..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
-          />
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <p className="bakery-eyebrow mb-2">Back-office</p>
+          <h2
+            className="font-serif text-3xl md:text-4xl font-medium text-foreground leading-tight"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Afhaallocaties
+          </h2>
+          <p className="text-sm text-muted-foreground mt-2">
+            Adressen waar klanten hun bestelling op kunnen halen.
+          </p>
         </div>
-        <Button onClick={openCreateDialog} size="sm" className="font-normal">
-          <Plus className="w-4 h-4 mr-2" />
-          Nieuwe locatie
-        </Button>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1 md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Zoek afhaallocatie..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Button onClick={openCreateDialog} size="sm">
+            <Plus className="w-4 h-4 mr-1.5" />
+            Nieuwe locatie
+          </Button>
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-b border-border hover:bg-transparent">
-              <TableHead className="w-10"></TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Naam</TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Adres</TableHead>
-              <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-center">Status</TableHead>
-              <TableHead className="w-10"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                  Laden...
-                </TableCell>
+      <div className="paper-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-border/60 bg-muted/30 hover:bg-muted/30">
+                <TableHead className="w-10"></TableHead>
+                <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Naam
+                </TableHead>
+                <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Adres
+                </TableHead>
+                <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground text-center">
+                  Status
+                </TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
-            ) : filteredLocations.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                  {searchQuery ? "Geen locaties gevonden" : "Nog geen afhaallocaties. Maak er een aan!"}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredLocations.map((location) => (
-                <TableRow key={location.id} className="border-0 hover:bg-muted/30">
-                  <TableCell className="py-2.5 w-10">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(location)}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                  </TableCell>
-                  <TableCell className="py-2.5">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-sm font-light">{location.title}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-2.5 text-sm text-muted-foreground">
-                    {formatAddress(location)}
-                  </TableCell>
-                  <TableCell className="py-2.5 text-center">
-                    {location.is_active ? (
-                      <Badge className="bg-green-500/10 text-green-600 hover:bg-green-500/10 border-0 text-xs">Actief</Badge>
-                    ) : (
-                      <Badge variant="secondary" className="bg-muted text-muted-foreground border-0 text-xs">Inactief</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="py-2.5 w-10">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(location.id)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
+                    <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
+                    <p className="text-sm">Laden…</p>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : filteredLocations.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-16 text-muted-foreground text-sm">
+                    {searchQuery ? "Geen locaties gevonden." : "Nog geen afhaallocaties. Maak er een aan."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredLocations.map((location) => (
+                  <TableRow key={location.id} className="border-b border-border/40 hover:bg-muted/40">
+                    <TableCell className="py-3 w-10 pl-6">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                        onClick={() => openEditDialog(location)}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-sm text-foreground">{location.title}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-3 text-sm text-muted-foreground">
+                      {formatAddress(location)}
+                    </TableCell>
+                    <TableCell className="py-3 text-center">
+                      <StatusChip active={location.is_active} />
+                    </TableCell>
+                    <TableCell className="py-3 w-10 pr-6">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                        onClick={() => handleDelete(location.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingLocation ? "Afhaallocatie bewerken" : "Nieuwe afhaallocatie"}
+          <DialogHeader className="space-y-2">
+            <p className="bakery-eyebrow">Afhaallocatie</p>
+            <DialogTitle
+              className="font-serif text-2xl md:text-3xl font-medium text-foreground leading-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              {editingLocation ? "Bewerken" : "Nieuwe locatie"}
             </DialogTitle>
           </DialogHeader>
 
@@ -314,13 +366,15 @@ const PickupLocationsTab = () => {
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-3 rounded-[calc(var(--radius)-2px)] border border-border/60 bg-muted/20 px-3 py-2.5">
               <Switch
                 id="is_active"
                 checked={formData.is_active}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
               />
-              <Label htmlFor="is_active">Actief (zichtbaar voor klanten)</Label>
+              <Label htmlFor="is_active" className="text-sm font-normal text-foreground">
+                Actief (zichtbaar voor klanten)
+              </Label>
             </div>
           </div>
 
@@ -329,7 +383,7 @@ const PickupLocationsTab = () => {
               Annuleren
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Opslaan..." : editingLocation ? "Opslaan" : "Toevoegen"}
+              {saving ? "Opslaan…" : editingLocation ? "Opslaan" : "Toevoegen"}
             </Button>
           </DialogFooter>
         </DialogContent>
