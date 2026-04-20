@@ -1,29 +1,34 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  addWeeks,
+  format,
+  isSameDay,
+  parseISO,
+  startOfWeek,
+  subWeeks,
+} from "date-fns";
+import { nl } from "date-fns/locale";
+import {
   AlertTriangle,
-  Calendar,
-  FileText,
+  ChevronLeft,
+  ChevronRight,
   Hash,
   Image as ImageIcon,
   Lock,
   MapPin,
-  Package,
+  Minus,
   Plus,
   RotateCcw,
-  Trash2,
+  ShoppingCart,
   User,
 } from "lucide-react";
-import { format, parseISO, startOfWeek } from "date-fns";
-import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -44,14 +49,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -67,18 +65,19 @@ import {
 import type { Database } from "@/integrations/supabase/types";
 
 /**
- * Baker-side order editor.
+ * Baker-side order editor — reuses the clean customer flow.
  *
- * Unlike the customer flow, the baker can pick *any* orderable product (not
- * just products on the weekly offering), because the baker often places orders
- * on behalf of customers for one-off requests. Weekly-offering overrides still
- * apply automatically though: we look up the `week_start_date` from whichever
- * invoice date the baker has picked, fetch that week's offerings, and feed
- * them into the same `computeOrderTotals` helper used everywhere else.
+ * Layout mirrors `CustomerPlaceOrderTab`: week-strip → products-by-category
+ * with plus/min steppers → pickup + notes → totals. The baker-specific bits
+ * sit on top: a customer selector (picks the profile the order is being
+ * placed for, which also drives customer-discount), a read-only banner for
+ * orders that have moved past "confirmed", and a "Reset to Confirmed" action.
  *
- * Weekly-menu selection is gone. Existing orders with `weekly_menu_id` load
- * fine (we merge all their line-items into the editable list), but saving
- * writes `weekly_menu_id = null` — the legacy link is cleared on first edit.
+ * Pricing runs through the shared `computeOrderTotals` helper. Weekly
+ * offerings for the selected week become price overrides automatically, so
+ * the same product can have a different price depending on which week the
+ * baker is invoicing. Products that aren't on the weekly offering still show
+ * up — the baker can always place a one-off order for anything in the catalog.
  */
 
 interface Order {
@@ -139,8 +138,27 @@ interface OrderDialogProps {
   onSave: () => void;
 }
 
-const mondayOf = (date: Date) =>
-  format(startOfWeek(date, { weekStartsOn: 1 }), "yyyy-MM-dd");
+const mondayOf = (date: Date) => startOfWeek(date, { weekStartsOn: 1 });
+const toISODate = (date: Date) => format(date, "yyyy-MM-dd");
+
+const formatWeekLabel = (date: Date) => {
+  const start = mondayOf(date);
+  const week = format(start, "w", { locale: nl });
+  return {
+    week: `Week ${week}`,
+    range: `${format(start, "d MMM", { locale: nl })} – ${format(
+      addWeeks(start, 1),
+      "d MMM",
+      { locale: nl },
+    )}`,
+  };
+};
+
+const euro = (value: number | null | undefined) =>
+  `€${Number(value ?? 0).toLocaleString("nl-NL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 const sellUnitLabel = (
   product: Pick<Product, "sell_unit_quantity" | "sell_unit_unit">,
@@ -149,12 +167,6 @@ const sellUnitLabel = (
   if (Number(product.sell_unit_quantity) === 1) return `per ${unit}`;
   return `per ${product.sell_unit_quantity} ${unit}`;
 };
-
-const euro = (value: number) =>
-  `€${Number(value ?? 0).toLocaleString("nl-NL", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
 
 const OrderDialog = ({
   open,
@@ -165,36 +177,37 @@ const OrderDialog = ({
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Reference data (static across the dialog lifetime).
+  // Reference data
   const [customers, setCustomers] = useState<Profile[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [priceTiersByProductId, setPriceTiersByProductId] = useState<
     Record<string, ProductPriceTier[]>
   >({});
-  const [discountGroups, setDiscountGroups] = useState<DiscountGroupForPricing[]>([]);
-  const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
-
-  // Offerings for the week of the current invoice date.
-  const [offerings, setOfferings] = useState<OfferingRow[]>([]);
-
-  // Form state.
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
-  const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
-  const [notes, setNotes] = useState("");
-  const [lineItems, setLineItems] = useState<{ product_id: string; quantity: number }[]>(
+  const [discountGroups, setDiscountGroups] = useState<DiscountGroupForPricing[]>(
     [],
   );
-  const [invoiceDate, setInvoiceDate] = useState<Date | undefined>(new Date());
+  const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
+  const [offerings, setOfferings] = useState<OfferingRow[]>([]);
+
+  // Form state
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [selectedMonday, setSelectedMonday] = useState<Date>(() => mondayOf(new Date()));
+  const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
+  const [customPickupLocation, setCustomPickupLocation] = useState("");
+  const [notes, setNotes] = useState("");
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
 
   const [loading, setLoading] = useState(false);
   const [showEditWarning, setShowEditWarning] = useState(false);
-  const [pendingSave, setPendingSave] = useState(false);
+
+  const selectedIso = toISODate(selectedMonday);
 
   // --- Fetches -----------------------------------------------------------
 
   /** Customers: every non-archived profile that isn't a baker. */
   useEffect(() => {
+    if (!open) return;
     const run = async () => {
       const { data: allProfiles } = await supabase
         .from("profiles")
@@ -214,16 +227,27 @@ const OrderDialog = ({
       const bakerUserIds = new Set((bakerRoles ?? []).map((r) => r.user_id));
 
       setCustomers(
-        allProfiles.filter((p) => !p.user_id || !bakerUserIds.has(p.user_id)) as Profile[],
+        allProfiles.filter(
+          (p) => !p.user_id || !bakerUserIds.has(p.user_id),
+        ) as Profile[],
       );
     };
     run();
-  }, []);
+  }, [open]);
 
-  /** Products + categories. */
+  /** Products + categories + tiers + discount groups + pickups. */
   useEffect(() => {
+    if (!open) return;
     const run = async () => {
-      const [productsRes, categoriesRes] = await Promise.all([
+      const [
+        productsRes,
+        categoriesRes,
+        tiersRes,
+        groupsRes,
+        groupTiersRes,
+        groupProductsRes,
+        locationsRes,
+      ] = await Promise.all([
         supabase
           .from("products")
           .select(
@@ -231,59 +255,35 @@ const OrderDialog = ({
           )
           .order("name"),
         supabase.from("categories").select("id, name").order("name"),
-      ]);
-      setProducts(productsRes.data ?? []);
-      setCategories(categoriesRes.data ?? []);
-    };
-    run();
-  }, []);
-
-  /** Pickup locations. */
-  useEffect(() => {
-    const run = async () => {
-      const { data } = await supabase
-        .from("pickup_locations")
-        .select("id, title, street, house_number, postal_code, city")
-        .eq("is_active", true)
-        .order("title");
-      setPickupLocations(data ?? []);
-    };
-    run();
-  }, []);
-
-  /** Price tiers. */
-  useEffect(() => {
-    const run = async () => {
-      const { data } = await supabase
-        .from("product_price_tiers")
-        .select("product_id, min_quantity, price");
-      const byProduct: Record<string, ProductPriceTier[]> = {};
-      for (const row of (data ?? []) as PriceTierRow[]) {
-        const list = byProduct[row.product_id] ?? [];
-        list.push({ min_quantity: row.min_quantity, price: Number(row.price) });
-        byProduct[row.product_id] = list;
-      }
-      setPriceTiersByProductId(byProduct);
-    };
-    run();
-  }, []);
-
-  /** Discount groups — assembled from three sub-queries. */
-  useEffect(() => {
-    const run = async () => {
-      const [groupsRes, tiersRes, linksRes] = await Promise.all([
+        supabase.from("product_price_tiers").select("product_id, min_quantity, price"),
         supabase.from("discount_groups").select("id"),
         supabase
           .from("discount_group_tiers")
           .select("discount_group_id, min_quantity, discount_percentage"),
         supabase.from("product_discount_groups").select("product_id, discount_group_id"),
+        supabase
+          .from("pickup_locations")
+          .select("id, title, street, house_number, postal_code, city")
+          .eq("is_active", true)
+          .order("title"),
       ]);
+
+      setProducts(productsRes.data ?? []);
+      setCategories(categoriesRes.data ?? []);
+
+      const byProduct: Record<string, ProductPriceTier[]> = {};
+      for (const row of (tiersRes.data ?? []) as PriceTierRow[]) {
+        const list = byProduct[row.product_id] ?? [];
+        list.push({ min_quantity: row.min_quantity, price: Number(row.price) });
+        byProduct[row.product_id] = list;
+      }
+      setPriceTiersByProductId(byProduct);
 
       const tiersByGroup: Record<
         string,
         { min_quantity: number; discount_percentage: number }[]
       > = {};
-      for (const row of tiersRes.data ?? []) {
+      for (const row of groupTiersRes.data ?? []) {
         const list = tiersByGroup[row.discount_group_id] ?? [];
         list.push({
           min_quantity: row.min_quantity,
@@ -292,7 +292,7 @@ const OrderDialog = ({
         tiersByGroup[row.discount_group_id] = list;
       }
       const productsByGroup: Record<string, string[]> = {};
-      for (const row of linksRes.data ?? []) {
+      for (const row of groupProductsRes.data ?? []) {
         const list = productsByGroup[row.discount_group_id] ?? [];
         list.push(row.product_id);
         productsByGroup[row.discount_group_id] = list;
@@ -303,21 +303,19 @@ const OrderDialog = ({
         product_ids: productsByGroup[g.id] ?? [],
       }));
       setDiscountGroups(groups);
+
+      setPickupLocations(locationsRes.data ?? []);
     };
     run();
-  }, []);
+  }, [open]);
 
-  /** Offerings for the selected invoice date's week. Re-fetches when the
-   * baker changes the invoice date, so the pricing block always reflects
-   * the right week's overrides. */
-  const fetchOfferingsForWeek = useCallback(async (date: Date) => {
-    const weekStart = mondayOf(date);
+  /** Offerings for the selected week. */
+  const fetchOfferings = useCallback(async (weekStart: string) => {
     const { data, error } = await supabase
       .from("weekly_product_offerings")
       .select("*")
       .eq("week_start_date", weekStart);
     if (error) {
-      // Non-fatal — we just fall back to base prices.
       setOfferings([]);
       return;
     }
@@ -325,71 +323,59 @@ const OrderDialog = ({
   }, []);
 
   useEffect(() => {
-    if (invoiceDate) fetchOfferingsForWeek(invoiceDate);
-  }, [fetchOfferingsForWeek, invoiceDate]);
+    if (open) fetchOfferings(selectedIso);
+  }, [fetchOfferings, open, selectedIso]);
 
-  /** Load an existing order into the form. */
+  /** Load an existing order into the form (or reset for a new one). */
   useEffect(() => {
     if (!open) return;
 
     if (!editingOrder) {
       setSelectedCustomerId("");
+      setSelectedMonday(mondayOf(new Date()));
       setSelectedPickupLocationId("");
+      setCustomPickupLocation("");
       setNotes("");
-      setLineItems([]);
-      setInvoiceDate(new Date());
+      setQuantities({});
       return;
     }
 
     setSelectedCustomerId(editingOrder.customer?.id ?? "");
     setSelectedPickupLocationId(editingOrder.pickup_location_id ?? "");
+    setCustomPickupLocation("");
     setNotes(editingOrder.notes ?? "");
-    setInvoiceDate(
-      editingOrder.invoice_date ? parseISO(editingOrder.invoice_date) : new Date(),
-    );
+    if (editingOrder.invoice_date) {
+      setSelectedMonday(mondayOf(parseISO(editingOrder.invoice_date)));
+    } else {
+      setSelectedMonday(mondayOf(new Date()));
+    }
 
-    // Merge every order_item into the single editable list — weekly-menu
-    // items and extras alike. After save, the order will no longer have a
-    // weekly_menu_id, and all line-items become regular (is_weekly_menu_item
-    // = false). This is the one-way migration for existing weekly-menu orders.
+    // Aggregate existing order_items by product_id (weekmenu items and
+    // extras get merged — the legacy weekly_menu link is cleared on save).
     const loadItems = async () => {
       const { data: items } = await supabase
         .from("order_items")
         .select("product_id, quantity")
         .eq("order_id", editingOrder.id);
-      setLineItems(
-        (items ?? []).map((i) => ({
-          product_id: i.product_id,
-          quantity: i.quantity,
-        })),
-      );
+      const agg: Record<string, number> = {};
+      for (const item of items ?? []) {
+        agg[item.product_id] = (agg[item.product_id] ?? 0) + (item.quantity ?? 0);
+      }
+      setQuantities(agg);
     };
     loadItems();
   }, [editingOrder, open]);
 
   // --- Derived data ------------------------------------------------------
 
-  const productsById = useMemo(
-    () => new Map(products.map((p) => [p.id, p])),
-    [products],
-  );
-
-  /** Category → products, for the product-picker grouping. */
-  const productsByCategory = useMemo(() => {
-    const catName = new Map(categories.map((c) => [c.id, c.name]));
-    const groups = new Map<string, Product[]>();
-    for (const p of products) {
-      const key = p.category_id ? catName.get(p.category_id) ?? "Zonder categorie" : "Zonder categorie";
-      const list = groups.get(key) ?? [];
-      list.push(p);
-      groups.set(key, list);
-    }
-    return Array.from(groups.entries()).sort(([a], [b]) => {
-      if (a === "Zonder categorie") return 1;
-      if (b === "Zonder categorie") return -1;
-      return a.localeCompare(b);
-    });
-  }, [products, categories]);
+  const weekStrip = useMemo(() => {
+    // For new orders, start from this-week. For existing orders, center the
+    // strip a bit earlier so previous weeks remain reachable too.
+    const start = editingOrder
+      ? subWeeks(mondayOf(new Date()), 2)
+      : mondayOf(new Date());
+    return Array.from({ length: 7 }, (_, i) => addWeeks(start, i));
+  }, [editingOrder]);
 
   const offeringsByProductId = useMemo(() => {
     const map: Record<string, WeeklyOfferingForPricing> = {};
@@ -416,25 +402,22 @@ const OrderDialog = ({
   );
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
-  const customerDiscountPercentage = Number(selectedCustomer?.discount_percentage ?? 0);
+  const customerDiscountPercentage = Number(
+    selectedCustomer?.discount_percentage ?? 0,
+  );
 
-  /** Aggregate by product_id so duplicates sum before going to pricing. */
-  const linesForPricing: OrderLine[] = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const item of lineItems) {
-      if (!item.product_id || item.quantity <= 0) continue;
-      map.set(item.product_id, (map.get(item.product_id) ?? 0) + item.quantity);
-    }
-    return Array.from(map.entries()).map(([product_id, quantity]) => ({
-      product_id,
-      quantity,
-    }));
-  }, [lineItems]);
+  const lines: OrderLine[] = useMemo(
+    () =>
+      Object.entries(quantities)
+        .filter(([, q]) => q > 0)
+        .map(([product_id, quantity]) => ({ product_id, quantity })),
+    [quantities],
+  );
 
   const breakdown = useMemo(
     () =>
       computeOrderTotals({
-        lines: linesForPricing,
+        lines,
         products: productsForPricing,
         priceTiersByProductId,
         offeringsByProductId,
@@ -442,7 +425,7 @@ const OrderDialog = ({
         customerDiscountPercentage,
       }),
     [
-      linesForPricing,
+      lines,
       productsForPricing,
       priceTiersByProductId,
       offeringsByProductId,
@@ -451,15 +434,30 @@ const OrderDialog = ({
     ],
   );
 
-  /** Map product_id → unit_price as computed by pricing.ts (accounting for
-   * overrides + tiers). Used when writing out order_items. */
-  const unitPriceByProductId = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const l of breakdown.lines) map[l.product_id] = l.unit_price;
-    return map;
-  }, [breakdown]);
+  /** Products grouped by category — this is "everything in the catalog", not
+   * only the current week's offerings. The baker sometimes places one-offs
+   * for products that aren't on the weekly list. Offering-only products get
+   * a visual nudge (Weekprijs badge + price override) but the catalog shown
+   * stays exhaustive. */
+  const productsByCategory = useMemo(() => {
+    const catName = new Map(categories.map((c) => [c.id, c.name]));
+    const groups = new Map<string, Product[]>();
+    for (const p of products) {
+      const key = p.category_id
+        ? catName.get(p.category_id) ?? "Zonder categorie"
+        : "Zonder categorie";
+      const list = groups.get(key) ?? [];
+      list.push(p);
+      groups.set(key, list);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === "Zonder categorie") return 1;
+      if (b === "Zonder categorie") return -1;
+      return a.localeCompare(b);
+    });
+  }, [products, categories]);
 
-  // --- Actions ----------------------------------------------------------
+  // --- State / actions ---------------------------------------------------
 
   const isReadOnly =
     !!editingOrder &&
@@ -467,37 +465,24 @@ const OrderDialog = ({
       editingOrder.status === "ready" ||
       editingOrder.status === "paid");
 
-  const addLine = () => {
+  const setQty = (productId: string, next: number) => {
     if (isReadOnly) return;
-    setLineItems((prev) => [...prev, { product_id: "", quantity: 1 }]);
-  };
-
-  const removeLine = (index: number) => {
-    if (isReadOnly) return;
-    setLineItems((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const updateLine = (
-    index: number,
-    field: "product_id" | "quantity",
-    value: string | number,
-  ) => {
-    if (isReadOnly) return;
-    setLineItems((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value } as (typeof prev)[number];
-      return next;
+    setQuantities((prev) => {
+      if (next <= 0) {
+        const rest = { ...prev };
+        delete rest[productId];
+        return rest;
+      }
+      return { ...prev, [productId]: next };
     });
   };
 
   const handleResetToConfirmed = async () => {
     if (!editingOrder) return;
-
     const { error } = await supabase
       .from("orders")
       .update({ status: "confirmed", updated_at: new Date().toISOString() })
       .eq("id", editingOrder.id);
-
     if (error) {
       toast({
         title: "Fout",
@@ -506,7 +491,6 @@ const OrderDialog = ({
       });
       return;
     }
-
     toast({
       title: "Status gewijzigd",
       description: "Bestelling is teruggezet naar 'Bevestigd'.",
@@ -517,23 +501,28 @@ const OrderDialog = ({
 
   const handleSave = async () => {
     if (!selectedCustomerId) {
-      toast({ title: "Fout", description: "Selecteer een klant.", variant: "destructive" });
+      toast({
+        title: "Klant ontbreekt",
+        description: "Selecteer eerst een klant.",
+        variant: "destructive",
+      });
       return;
     }
-
-    if (linesForPricing.length === 0) {
+    if (lines.length === 0) {
       toast({
-        title: "Fout",
+        title: "Mandje is leeg",
         description: "Voeg minimaal één product toe.",
         variant: "destructive",
       });
       return;
     }
-
-    if (!invoiceDate) {
+    if (
+      selectedPickupLocationId === "anders" &&
+      !customPickupLocation.trim()
+    ) {
       toast({
-        title: "Fout",
-        description: "Selecteer een factuurdatum.",
+        title: "Afhaallocatie ontbreekt",
+        description: "Vul een afhaallocatie in.",
         variant: "destructive",
       });
       return;
@@ -543,8 +532,7 @@ const OrderDialog = ({
       editingOrder &&
       (editingOrder.status === "in_production" ||
         editingOrder.status === "ready" ||
-        editingOrder.status === "paid") &&
-      !pendingSave
+        editingOrder.status === "paid")
     ) {
       setShowEditWarning(true);
       return;
@@ -554,23 +542,32 @@ const OrderDialog = ({
   };
 
   const performSave = async () => {
-    setPendingSave(false);
+    setShowEditWarning(false);
     setLoading(true);
+
+    const orderNotes =
+      selectedPickupLocationId === "anders"
+        ? `Afhaallocatie: ${customPickupLocation.trim()}${notes ? `\n${notes}` : ""}`
+        : notes.trim() || null;
+
+    const pickup_location_id =
+      selectedPickupLocationId === "anders" ||
+      selectedPickupLocationId === "none" ||
+      !selectedPickupLocationId
+        ? null
+        : selectedPickupLocationId;
 
     const orderPayload = {
       customer_id: selectedCustomerId,
       weekly_menu_id: null,
       weekly_menu_quantity: 1,
-      pickup_location_id:
-        selectedPickupLocationId === "anders" || selectedPickupLocationId === "none"
-          ? null
-          : selectedPickupLocationId || null,
-      notes: notes.trim() || null,
+      pickup_location_id,
+      notes: orderNotes,
       subtotal: Number(breakdown.subtotal.toFixed(2)),
       discount_amount: Number(breakdown.discount_amount.toFixed(2)),
       total: Number(breakdown.total.toFixed(2)),
       created_by: user!.id,
-      invoice_date: format(invoiceDate!, "yyyy-MM-dd"),
+      invoice_date: selectedIso,
     };
 
     let orderId: string;
@@ -637,17 +634,30 @@ const OrderDialog = ({
     setLoading(false);
     toast({
       title: editingOrder ? "Opgeslagen" : "Toegevoegd",
-      description: editingOrder ? "Bestelling bijgewerkt." : "Nieuwe bestelling aangemaakt.",
+      description: editingOrder
+        ? "Bestelling bijgewerkt."
+        : "Nieuwe bestelling aangemaakt.",
     });
     onOpenChange(false);
     onSave();
   };
 
+  const selectedLabel = formatWeekLabel(selectedMonday);
+  const lineCount = lines.reduce((acc, l) => acc + l.quantity, 0);
+  const statusLabel =
+    editingOrder?.status === "in_production"
+      ? "In productie"
+      : editingOrder?.status === "ready"
+        ? "Gereed"
+        : editingOrder?.status === "paid"
+          ? "Betaald"
+          : "Bevestigd";
+
   // --- UI ---------------------------------------------------------------
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto scroll-soft">
         <DialogHeader className="space-y-1">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
@@ -669,19 +679,12 @@ const OrderDialog = ({
         </DialogHeader>
 
         {isReadOnly && (
-          <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/50 p-3">
+          <div className="flex items-center justify-between gap-4 rounded-[calc(var(--radius)-2px)] border border-border/60 bg-muted/40 px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Lock className="h-4 w-4" />
               <span>
-                Deze bestelling is{" "}
-                <strong>
-                  {editingOrder?.status === "in_production"
-                    ? "In productie"
-                    : editingOrder?.status === "ready"
-                      ? "Gereed"
-                      : "Betaald"}
-                </strong>{" "}
-                en kan alleen bekeken worden.
+                Deze bestelling is <strong>{statusLabel}</strong> en kan
+                alleen bekeken worden.
               </span>
             </div>
             <Button
@@ -691,278 +694,316 @@ const OrderDialog = ({
               className="shrink-0"
             >
               <RotateCcw className="mr-1.5 h-4 w-4" />
-              Terugzetten naar Bevestigd
+              Terugzetten
             </Button>
           </div>
         )}
 
-        <div className="space-y-6 py-4">
-          {/* Customer */}
+        <div className="space-y-8 pt-2">
+          {/* Customer selector — baker-specific */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Klant *
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="bakery-eyebrow">Klant</span>
             </Label>
             <Select
               value={selectedCustomerId}
               onValueChange={setSelectedCustomerId}
               disabled={isReadOnly}
             >
-              <SelectTrigger className={isReadOnly ? "opacity-60" : ""}>
+              <SelectTrigger className={cn(isReadOnly && "opacity-60")}>
                 <SelectValue placeholder="Selecteer klant" />
               </SelectTrigger>
               <SelectContent>
                 {customers.map((customer) => (
                   <SelectItem key={customer.id} value={customer.id}>
-                    {customer.full_name || "Naamloos"}
+                    <span className="flex items-center gap-2">
+                      {customer.full_name || "Naamloos"}
+                      {Number(customer.discount_percentage ?? 0) > 0 && (
+                        <span className="text-[11px] tabular-nums text-muted-foreground">
+                          · {Number(customer.discount_percentage)}% korting
+                        </span>
+                      )}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Invoice date */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Factuurdatum *
-            </Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !invoiceDate && "text-muted-foreground",
-                    isReadOnly && "pointer-events-none opacity-60",
-                  )}
-                  disabled={isReadOnly}
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  {invoiceDate
-                    ? format(invoiceDate, "EEEE d MMMM yyyy", { locale: nl })
-                    : "Selecteer datum"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <CalendarComponent
-                  mode="single"
-                  selected={invoiceDate}
-                  onSelect={setInvoiceDate}
-                  initialFocus
-                  locale={nl}
-                />
-              </PopoverContent>
-            </Popover>
-            <p className="text-xs text-muted-foreground">
-              Bepaalt welke week-overrides van toepassing zijn.
-            </p>
-          </div>
+          {/* Week-strip */}
+          <div className="space-y-3">
+            <p className="bakery-eyebrow">Week</p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                onClick={() => setSelectedMonday((d) => subWeeks(d, 1))}
+                disabled={isReadOnly}
+                aria-label="Vorige week"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
 
-          {/* Pickup location */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              Afhaallocatie
-            </Label>
-            <Select
-              value={selectedPickupLocationId || "none"}
-              onValueChange={(val) =>
-                setSelectedPickupLocationId(val === "none" ? "" : val)
-              }
-              disabled={isReadOnly}
-            >
-              <SelectTrigger className={isReadOnly ? "opacity-60" : ""}>
-                <SelectValue placeholder="Selecteer afhaallocatie" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Geen afhaallocatie</SelectItem>
-                {pickupLocations.map((location) => (
-                  <SelectItem key={location.id} value={location.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{location.title}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {location.street} {location.house_number ?? ""},{" "}
-                        {location.postal_code} {location.city}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-                <SelectItem value="anders">
-                  <span className="italic">Anders (zelf invullen in opmerkingen)</span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            {pickupLocations.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Geen afhaallocaties beschikbaar. Maak er eerst een aan in de back-office.
-              </p>
-            )}
-          </div>
-
-          <Separator />
-
-          {/* Line items */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                Producten
-              </Label>
-              {!isReadOnly && (
-                <Button type="button" variant="outline" size="sm" onClick={addLine}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  Product toevoegen
-                </Button>
-              )}
-            </div>
-
-            {lineItems.length === 0 ? (
-              <p className="py-2 text-sm text-muted-foreground">
-                Geen producten. Klik op "Product toevoegen".
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {lineItems.map((item, index) => {
-                  const product = productsById.get(item.product_id);
-                  const unitPrice = product
-                    ? unitPriceByProductId[product.id] ?? Number(product.selling_price)
-                    : 0;
-                  const lineTotal = unitPrice * item.quantity;
-                  const hasOverride =
-                    product && offeringsByProductId[product.id]?.price_override != null;
-
+              <div className="flex flex-1 items-center gap-1.5 overflow-x-auto scroll-soft -mx-1 px-1">
+                {weekStrip.map((monday) => {
+                  const active = isSameDay(monday, selectedMonday);
+                  const { week, range } = formatWeekLabel(monday);
                   return (
-                    <div
-                      key={index}
+                    <button
+                      key={toISODate(monday)}
+                      type="button"
+                      onClick={() => setSelectedMonday(monday)}
+                      disabled={isReadOnly}
                       className={cn(
-                        "flex items-center gap-3 rounded-lg border bg-muted/30 p-2",
-                        isReadOnly && "opacity-60",
+                        "shrink-0 rounded-[calc(var(--radius)-4px)] border px-3.5 py-2 text-left transition-colors",
+                        active
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border/60 bg-card/60 text-foreground hover:border-border hover:bg-card",
+                        isReadOnly && "opacity-60 pointer-events-none",
                       )}
                     >
-                      <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-md bg-muted">
-                        {product?.image_url ? (
-                          <img
-                            src={product.image_url}
-                            alt={product.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center">
-                            <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                          </div>
+                      <div className="text-xs font-medium leading-tight">{week}</div>
+                      <div
+                        className={cn(
+                          "text-[11px] leading-tight mt-0.5",
+                          active ? "text-background/75" : "text-muted-foreground",
                         )}
+                      >
+                        {range}
                       </div>
-
-                      {isReadOnly ? (
-                        <span className="flex-1 text-sm">
-                          {product?.name || "Onbekend product"}
-                        </span>
-                      ) : (
-                        <Select
-                          value={item.product_id}
-                          onValueChange={(value) => updateLine(index, "product_id", value)}
-                        >
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Selecteer product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {productsByCategory.map(([categoryName, categoryProducts]) => (
-                              <div key={categoryName}>
-                                <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-                                  {categoryName}
-                                </div>
-                                {categoryProducts.map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>
-                                    {p.name}
-                                    <span className="ml-2 text-xs text-muted-foreground">
-                                      {sellUnitLabel(p)}
-                                    </span>
-                                  </SelectItem>
-                                ))}
-                              </div>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-
-                      {isReadOnly ? (
-                        <span className="w-20 text-center text-sm">{item.quantity}×</span>
-                      ) : (
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            updateLine(
-                              index,
-                              "quantity",
-                              Math.max(1, parseInt(e.target.value) || 1),
-                            )
-                          }
-                          className="w-20"
-                        />
-                      )}
-
-                      <div className="flex w-28 flex-col items-end">
-                        <span className="text-sm font-medium tabular-nums">
-                          {product ? euro(lineTotal) : "-"}
-                        </span>
-                        {product && (
-                          <span className="text-[11px] text-muted-foreground tabular-nums">
-                            {euro(unitPrice)} {sellUnitLabel(product)}
-                            {hasOverride && (
-                              <span className="ml-1 text-primary">· weekprijs</span>
-                            )}
-                          </span>
-                        )}
-                      </div>
-
-                      {!isReadOnly && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeLine(index)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
-            )}
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                onClick={() => setSelectedMonday((d) => addWeeks(d, 1))}
+                disabled={isReadOnly}
+                aria-label="Volgende week"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-[11px] tracking-[0.06em] uppercase text-muted-foreground">
+              Factuurdatum{" "}
+              <span className="normal-case tracking-normal text-foreground">
+                {format(selectedMonday, "EEEE d MMMM yyyy", { locale: nl })}
+              </span>{" "}
+              · weekprijzen uit {selectedLabel.week.toLowerCase()}
+            </p>
           </div>
 
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="notes">Opmerkingen</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optionele opmerkingen…"
-              rows={2}
-              disabled={isReadOnly}
-              className={isReadOnly ? "opacity-60" : ""}
-            />
-          </div>
+          {/* Product list */}
+          {products.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              Laden…
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {productsByCategory.map(([categoryName, categoryProducts]) => (
+                <section key={categoryName} className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <h4 className="bakery-eyebrow">{categoryName}</h4>
+                    <span className="h-px flex-1 bg-border/60" />
+                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                      {categoryProducts.length}
+                    </span>
+                  </div>
+                  <ul className="paper-card divide-y divide-border/60 overflow-hidden">
+                    {categoryProducts.map((product) => {
+                      const qty = quantities[product.id] ?? 0;
+                      const override = offeringsByProductId[product.id]?.price_override;
+                      const displayPrice =
+                        override != null ? Number(override) : Number(product.selling_price);
+                      return (
+                        <li
+                          key={product.id}
+                          className={cn(
+                            "flex items-center gap-4 px-5 py-4 transition-colors",
+                            qty > 0
+                              ? "bg-muted/30"
+                              : "bg-transparent hover:bg-muted/20",
+                          )}
+                        >
+                          {product.image_url ? (
+                            <img
+                              src={product.image_url}
+                              alt=""
+                              className="h-14 w-14 flex-shrink-0 rounded-[calc(var(--radius)-2px)] object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[calc(var(--radius)-2px)] bg-muted/60 text-muted-foreground">
+                              <ImageIcon className="h-5 w-5" />
+                            </div>
+                          )}
 
-          <Separator />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[0.9375rem] font-medium text-foreground">
+                              {product.name}
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                              <span className="tabular-nums">
+                                {euro(displayPrice)} {sellUnitLabel(product)}
+                              </span>
+                              {override != null && (
+                                <span className="inline-flex items-center rounded-[calc(var(--radius)-4px)] bg-accent/10 px-1.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-[0.08em] text-foreground ring-1 ring-inset ring-accent/40">
+                                  Weekprijs
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
-          {/* Totals */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Overzicht</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex justify-between text-sm">
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9"
+                              onClick={() => setQty(product.id, qty - 1)}
+                              disabled={isReadOnly || qty <= 0}
+                              aria-label={`Minder ${product.name}`}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              value={qty || ""}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (raw === "") return setQty(product.id, 0);
+                                const n = Math.max(0, Math.floor(Number(raw)));
+                                setQty(product.id, Number.isFinite(n) ? n : 0);
+                              }}
+                              placeholder="0"
+                              disabled={isReadOnly}
+                              className="h-9 w-14 px-1 text-center tabular-nums"
+                            />
+                            <Button
+                              type="button"
+                              variant={qty > 0 ? "default" : "outline"}
+                              size="icon"
+                              className="h-9 w-9"
+                              onClick={() => setQty(product.id, qty + 1)}
+                              disabled={isReadOnly}
+                              aria-label={`Meer ${product.name}`}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )}
+
+          {/* Afronden */}
+          <section className="paper-card space-y-7 px-6 py-7">
+            <div>
+              <p className="bakery-eyebrow mb-1.5">Afronden</p>
+              <h4
+                className="font-serif text-xl text-foreground"
+                style={{ letterSpacing: "-0.015em" }}
+              >
+                Bestelling controleren
+              </h4>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                Afhaallocatie
+              </Label>
+              <Select
+                value={selectedPickupLocationId || "none"}
+                onValueChange={(val) =>
+                  setSelectedPickupLocationId(val === "none" ? "" : val)
+                }
+                disabled={isReadOnly}
+              >
+                <SelectTrigger className={cn(isReadOnly && "opacity-60")}>
+                  <SelectValue placeholder="Selecteer afhaallocatie" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Geen afhaallocatie</SelectItem>
+                  {pickupLocations.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{location.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {location.street} {location.house_number ?? ""},{" "}
+                          {location.city}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="anders">
+                    <span className="italic">Anders (zelf invullen)</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {selectedPickupLocationId === "anders" && !isReadOnly && (
+                <Input
+                  placeholder="Vul de afhaallocatie in…"
+                  value={customPickupLocation}
+                  onChange={(e) => setCustomPickupLocation(e.target.value)}
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="order-notes">Opmerkingen (optioneel)</Label>
+              <Textarea
+                id="order-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Iets dat we moeten weten?"
+                rows={2}
+                disabled={isReadOnly}
+                className={cn(isReadOnly && "opacity-60")}
+              />
+            </div>
+
+            <div className="h-px bg-border/70" />
+
+            {/* Totalen */}
+            <div className="space-y-2.5 text-sm">
+              {breakdown.lines.map((l) => {
+                const product = products.find((p) => p.id === l.product_id);
+                if (!product) return null;
+                return (
+                  <div
+                    key={l.product_id}
+                    className="flex items-center justify-between text-muted-foreground"
+                  >
+                    <span className="truncate pr-4">
+                      <span className="text-foreground tabular-nums">
+                        {l.quantity}×
+                      </span>{" "}
+                      {product.name}
+                    </span>
+                    <span className="tabular-nums shrink-0">
+                      {euro(l.line_subtotal)}
+                    </span>
+                  </div>
+                );
+              })}
+              {breakdown.lines.length > 0 && <div className="h-px bg-border/60" />}
+              <div className="flex items-center justify-between text-foreground">
                 <span>Subtotaal</span>
                 <span className="tabular-nums">{euro(breakdown.subtotal)}</span>
               </div>
               {breakdown.group_discount_amount > 0 && (
-                <div className="flex justify-between text-sm text-primary">
+                <div className="flex items-center justify-between text-[hsl(var(--ember))]">
                   <span>Groepskorting</span>
                   <span className="tabular-nums">
                     −{euro(breakdown.group_discount_amount)}
@@ -970,36 +1011,52 @@ const OrderDialog = ({
                 </div>
               )}
               {breakdown.customer_discount_amount > 0 && (
-                <div className="flex justify-between text-sm text-primary">
+                <div className="flex items-center justify-between text-[hsl(var(--ember))]">
                   <span>Klantkorting ({customerDiscountPercentage}%)</span>
                   <span className="tabular-nums">
                     −{euro(breakdown.customer_discount_amount)}
                   </span>
                 </div>
               )}
-              <Separator />
-              <div className="flex justify-between text-lg font-semibold">
-                <span>Totaal</span>
-                <span className="tabular-nums">{euro(breakdown.total)}</span>
+              <div className="h-px bg-border/70" />
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-sm text-muted-foreground uppercase tracking-[0.12em]">
+                  Totaal
+                </span>
+                <span
+                  className="font-serif text-2xl text-foreground tabular-nums"
+                  style={{ letterSpacing: "-0.015em" }}
+                >
+                  {euro(breakdown.total)}
+                </span>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {isReadOnly ? "Sluiten" : "Annuleren"}
-          </Button>
-          {!isReadOnly && (
-            <Button onClick={handleSave} disabled={loading}>
-              {loading
-                ? "Opslaan…"
-                : editingOrder
-                  ? "Opslaan"
-                  : "Bestelling aanmaken"}
-            </Button>
-          )}
-        </DialogFooter>
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+              >
+                {isReadOnly ? "Sluiten" : "Annuleren"}
+              </Button>
+              {!isReadOnly && (
+                <Button onClick={handleSave} disabled={loading} size="lg">
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  {loading
+                    ? "Opslaan…"
+                    : editingOrder
+                      ? "Opslaan"
+                      : lineCount === 0
+                        ? "Kies eerst producten"
+                        : `Bestelling aanmaken (${lineCount} ${
+                            lineCount === 1 ? "product" : "producten"
+                          })`}
+                </Button>
+              )}
+            </div>
+          </section>
+        </div>
       </DialogContent>
 
       <AlertDialog open={showEditWarning} onOpenChange={setShowEditWarning}>
@@ -1016,24 +1073,13 @@ const OrderDialog = ({
               Bestelling bewerken
             </AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-muted-foreground">
-              Deze bestelling heeft de status &ldquo;
-              {editingOrder?.status === "in_production"
-                ? "In productie"
-                : editingOrder?.status === "ready"
-                  ? "Gereed"
-                  : "Betaald"}
-              &rdquo;. Weet je zeker dat je deze bestelling wilt wijzigen?
+              Deze bestelling heeft de status &ldquo;{statusLabel}&rdquo;.
+              Weet je zeker dat je deze bestelling wilt wijzigen?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuleren</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setShowEditWarning(false);
-                setPendingSave(true);
-                setTimeout(() => handleSave(), 0);
-              }}
-            >
+            <AlertDialogAction onClick={() => performSave()}>
               Ja, wijzigen
             </AlertDialogAction>
           </AlertDialogFooter>
