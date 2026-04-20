@@ -1,6 +1,19 @@
-import { useState, useEffect, useMemo } from "react";
-import { Plus, Trash2, Calendar, User, Package, MapPin, Image as ImageIcon, AlertTriangle, FileText, Lock, RotateCcw, Hash } from "lucide-react";
-import { format, parseISO, startOfDay } from "date-fns";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  Calendar,
+  FileText,
+  Hash,
+  Image as ImageIcon,
+  Lock,
+  MapPin,
+  Package,
+  Plus,
+  RotateCcw,
+  Trash2,
+  User,
+} from "lucide-react";
+import { format, parseISO, startOfWeek } from "date-fns";
 import { nl } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,9 +23,9 @@ import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -31,13 +44,42 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { UNIT_LABELS_SHORT, type MeasurementUnit } from "@/lib/units";
+import {
+  computeOrderTotals,
+  type DiscountGroupForPricing,
+  type OrderLine,
+  type ProductForPricing,
+  type ProductPriceTier,
+  type WeeklyOfferingForPricing,
+} from "@/lib/pricing";
+import type { Database } from "@/integrations/supabase/types";
+
+/**
+ * Baker-side order editor.
+ *
+ * Unlike the customer flow, the baker can pick *any* orderable product (not
+ * just products on the weekly offering), because the baker often places orders
+ * on behalf of customers for one-off requests. Weekly-offering overrides still
+ * apply automatically though: we look up the `week_start_date` from whichever
+ * invoice date the baker has picked, fetch that week's offerings, and feed
+ * them into the same `computeOrderTotals` helper used everywhere else.
+ *
+ * Weekly-menu selection is gone. Existing orders with `weekly_menu_id` load
+ * fine (we merge all their line-items into the editable list), but saving
+ * writes `weekly_menu_id = null` — the legacy link is cleared on first edit.
+ */
 
 interface Order {
   id: string;
@@ -55,43 +97,40 @@ interface Order {
   pickup_location_id?: string | null;
 }
 
-interface Profile {
-  id: string;
-  full_name: string | null;
-  user_id: string | null;
-  discount_percentage: number;
-}
+type Profile = Pick<
+  Database["public"]["Tables"]["profiles"]["Row"],
+  "id" | "full_name" | "user_id" | "discount_percentage"
+>;
 
-interface WeeklyMenu {
-  id: string;
-  name: string;
-  delivery_date: string | null;
-  price: number;
-}
+type Product = Pick<
+  Database["public"]["Tables"]["products"]["Row"],
+  | "id"
+  | "name"
+  | "selling_price"
+  | "recipe_yield_quantity"
+  | "recipe_yield_unit"
+  | "sell_unit_quantity"
+  | "sell_unit_unit"
+  | "image_url"
+  | "category_id"
+>;
 
-interface Product {
-  id: string;
-  name: string;
-  selling_price: number;
-  category_name?: string;
-  image_url?: string | null;
-}
+type Category = Pick<
+  Database["public"]["Tables"]["categories"]["Row"],
+  "id" | "name"
+>;
 
-interface PickupLocation {
-  id: string;
-  title: string;
-  street: string;
-  house_number: string | null;
-  postal_code: string;
-  city: string;
-}
+type PickupLocation = Pick<
+  Database["public"]["Tables"]["pickup_locations"]["Row"],
+  "id" | "title" | "street" | "house_number" | "postal_code" | "city"
+>;
 
-interface DiscountGroup {
-  id: string;
-  name: string;
-  product_ids: string[];
-  tiers: { min_quantity: number; discount_percentage: number }[];
-}
+type PriceTierRow = Pick<
+  Database["public"]["Tables"]["product_price_tiers"]["Row"],
+  "product_id" | "min_quantity" | "price"
+>;
+
+type OfferingRow = Database["public"]["Tables"]["weekly_product_offerings"]["Row"];
 
 interface OrderDialogProps {
   open: boolean;
@@ -100,332 +139,414 @@ interface OrderDialogProps {
   onSave: () => void;
 }
 
-const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogProps) => {
+const mondayOf = (date: Date) =>
+  format(startOfWeek(date, { weekStartsOn: 1 }), "yyyy-MM-dd");
+
+const sellUnitLabel = (
+  product: Pick<Product, "sell_unit_quantity" | "sell_unit_unit">,
+) => {
+  const unit = UNIT_LABELS_SHORT[product.sell_unit_unit as MeasurementUnit];
+  if (Number(product.sell_unit_quantity) === 1) return `per ${unit}`;
+  return `per ${product.sell_unit_quantity} ${unit}`;
+};
+
+const euro = (value: number) =>
+  `€${Number(value ?? 0).toLocaleString("nl-NL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+const OrderDialog = ({
+  open,
+  onOpenChange,
+  editingOrder,
+  onSave,
+}: OrderDialogProps) => {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  // Reference data (static across the dialog lifetime).
   const [customers, setCustomers] = useState<Profile[]>([]);
-  const [weeklyMenus, setWeeklyMenus] = useState<WeeklyMenu[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [discountGroups, setDiscountGroups] = useState<DiscountGroup[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [priceTiersByProductId, setPriceTiersByProductId] = useState<
+    Record<string, ProductPriceTier[]>
+  >({});
+  const [discountGroups, setDiscountGroups] = useState<DiscountGroupForPricing[]>([]);
   const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
 
+  // Offerings for the week of the current invoice date.
+  const [offerings, setOfferings] = useState<OfferingRow[]>([]);
+
+  // Form state.
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
-  const [selectedMenuId, setSelectedMenuId] = useState<string>("");
-  const [menuQuantity, setMenuQuantity] = useState<number>(1);
   const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>("");
   const [notes, setNotes] = useState("");
-  const [extraItems, setExtraItems] = useState<{ product_id: string; quantity: number }[]>([]);
+  const [lineItems, setLineItems] = useState<{ product_id: string; quantity: number }[]>(
+    [],
+  );
   const [invoiceDate, setInvoiceDate] = useState<Date | undefined>(new Date());
+
+  const [loading, setLoading] = useState(false);
   const [showEditWarning, setShowEditWarning] = useState(false);
   const [pendingSave, setPendingSave] = useState(false);
 
-  const { toast } = useToast();
+  // --- Fetches -----------------------------------------------------------
 
-  // Fetch all active customers (both with and without login)
+  /** Customers: every non-archived profile that isn't a baker. */
   useEffect(() => {
-    const fetchCustomers = async () => {
-      // Get all non-archived profiles
+    const run = async () => {
       const { data: allProfiles } = await supabase
         .from("profiles")
         .select("id, full_name, user_id, discount_percentage")
         .eq("is_archived", false)
         .order("full_name");
 
-      if (!allProfiles || allProfiles.length === 0) {
+      if (!allProfiles) {
         setCustomers([]);
         return;
       }
 
-      // Get user_ids with 'baker' role to exclude them
       const { data: bakerRoles } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("role", "baker");
-      
-      const bakerUserIds = new Set(bakerRoles?.map(r => r.user_id) || []);
+      const bakerUserIds = new Set((bakerRoles ?? []).map((r) => r.user_id));
 
-      // Filter out bakers - customers are:
-      // 1. Profiles without user_id (no login customers)
-      // 2. Profiles with user_id that's NOT a baker
-      const customers = allProfiles.filter(profile => 
-        !profile.user_id || !bakerUserIds.has(profile.user_id)
+      setCustomers(
+        allProfiles.filter((p) => !p.user_id || !bakerUserIds.has(p.user_id)) as Profile[],
       );
-      
-      setCustomers(customers);
     };
-    fetchCustomers();
+    run();
   }, []);
 
-  // Fetch weekly menus - all for editing, only active for new orders
+  /** Products + categories. */
   useEffect(() => {
-    const fetchMenus = async () => {
-      const today = format(startOfDay(new Date()), "yyyy-MM-dd");
-      
-      // If editing an order, fetch all menus to show historical data
-      // If creating new order, only show menus with future delivery date
-      let query = supabase
-        .from("weekly_menus")
-        .select("id, name, delivery_date, price")
-        .order("delivery_date", { ascending: false });
-      
-      if (!editingOrder) {
-        query = query.gte("delivery_date", today);
-      }
-      
-      const { data } = await query;
-      if (data) setWeeklyMenus(data);
+    const run = async () => {
+      const [productsRes, categoriesRes] = await Promise.all([
+        supabase
+          .from("products")
+          .select(
+            "id, name, selling_price, recipe_yield_quantity, recipe_yield_unit, sell_unit_quantity, sell_unit_unit, image_url, category_id",
+          )
+          .eq("is_orderable", true)
+          .order("name"),
+        supabase.from("categories").select("id, name").order("name"),
+      ]);
+      setProducts(productsRes.data ?? []);
+      setCategories(categoriesRes.data ?? []);
     };
-    fetchMenus();
-  }, [editingOrder]);
-
-  // Fetch orderable products with images
-  useEffect(() => {
-    const fetchProducts = async () => {
-      const { data } = await supabase
-        .from("products")
-        .select("id, name, selling_price, image_url, category:categories(name)")
-        .eq("is_orderable", true)
-        .order("name");
-      if (data) {
-        setProducts(data.map(p => ({
-          id: p.id,
-          name: p.name,
-          selling_price: Number(p.selling_price),
-          category_name: p.category?.name || "Zonder categorie",
-          image_url: p.image_url,
-        })));
-      }
-    };
-    fetchProducts();
+    run();
   }, []);
 
-  // Fetch pickup locations
+  /** Pickup locations. */
   useEffect(() => {
-    const fetchPickupLocations = async () => {
+    const run = async () => {
       const { data } = await supabase
         .from("pickup_locations")
-        .select("*")
+        .select("id, title, street, house_number, postal_code, city")
         .eq("is_active", true)
         .order("title");
-      if (data) setPickupLocations(data);
+      setPickupLocations(data ?? []);
     };
-    fetchPickupLocations();
+    run();
   }, []);
 
-  // Fetch discount groups with tiers and products
+  /** Price tiers. */
   useEffect(() => {
-    const fetchDiscountGroups = async () => {
-      const { data: groups } = await supabase
-        .from("discount_groups")
-        .select("id, name");
-
-      if (!groups) return;
-
-      const groupsWithDetails = await Promise.all(
-        groups.map(async (group) => {
-          const { data: tiers } = await supabase
-            .from("discount_group_tiers")
-            .select("min_quantity, discount_percentage")
-            .eq("discount_group_id", group.id)
-            .order("min_quantity", { ascending: false });
-
-          const { data: productLinks } = await supabase
-            .from("product_discount_groups")
-            .select("product_id")
-            .eq("discount_group_id", group.id);
-
-          return {
-            ...group,
-            product_ids: productLinks?.map(p => p.product_id) || [],
-            tiers: tiers || [],
-          };
-        })
-      );
-
-      setDiscountGroups(groupsWithDetails);
+    const run = async () => {
+      const { data } = await supabase
+        .from("product_price_tiers")
+        .select("product_id, min_quantity, price");
+      const byProduct: Record<string, ProductPriceTier[]> = {};
+      for (const row of (data ?? []) as PriceTierRow[]) {
+        const list = byProduct[row.product_id] ?? [];
+        list.push({ min_quantity: row.min_quantity, price: Number(row.price) });
+        byProduct[row.product_id] = list;
+      }
+      setPriceTiersByProductId(byProduct);
     };
-    fetchDiscountGroups();
+    run();
   }, []);
 
-  // Load existing order data
+  /** Discount groups — assembled from three sub-queries. */
   useEffect(() => {
-    const loadOrderData = async () => {
-      if (!editingOrder) {
+    const run = async () => {
+      const [groupsRes, tiersRes, linksRes] = await Promise.all([
+        supabase.from("discount_groups").select("id"),
+        supabase
+          .from("discount_group_tiers")
+          .select("discount_group_id, min_quantity, discount_percentage"),
+        supabase.from("product_discount_groups").select("product_id, discount_group_id"),
+      ]);
+
+      const tiersByGroup: Record<
+        string,
+        { min_quantity: number; discount_percentage: number }[]
+      > = {};
+      for (const row of tiersRes.data ?? []) {
+        const list = tiersByGroup[row.discount_group_id] ?? [];
+        list.push({
+          min_quantity: row.min_quantity,
+          discount_percentage: Number(row.discount_percentage),
+        });
+        tiersByGroup[row.discount_group_id] = list;
+      }
+      const productsByGroup: Record<string, string[]> = {};
+      for (const row of linksRes.data ?? []) {
+        const list = productsByGroup[row.discount_group_id] ?? [];
+        list.push(row.product_id);
+        productsByGroup[row.discount_group_id] = list;
+      }
+      const groups: DiscountGroupForPricing[] = (groupsRes.data ?? []).map((g) => ({
+        id: g.id,
+        tiers: tiersByGroup[g.id] ?? [],
+        product_ids: productsByGroup[g.id] ?? [],
+      }));
+      setDiscountGroups(groups);
+    };
+    run();
+  }, []);
+
+  /** Offerings for the selected invoice date's week. Re-fetches when the
+   * baker changes the invoice date, so the pricing block always reflects
+   * the right week's overrides. */
+  const fetchOfferingsForWeek = useCallback(async (date: Date) => {
+    const weekStart = mondayOf(date);
+    const { data, error } = await supabase
+      .from("weekly_product_offerings")
+      .select("*")
+      .eq("week_start_date", weekStart);
+    if (error) {
+      // Non-fatal — we just fall back to base prices.
+      setOfferings([]);
+      return;
+    }
+    setOfferings(data ?? []);
+  }, []);
+
+  useEffect(() => {
+    if (invoiceDate) fetchOfferingsForWeek(invoiceDate);
+  }, [fetchOfferingsForWeek, invoiceDate]);
+
+  /** Load an existing order into the form. */
+  useEffect(() => {
+    if (!open) return;
+
+    if (!editingOrder) {
       setSelectedCustomerId("");
-        setSelectedMenuId("");
-        setMenuQuantity(1);
-        setSelectedPickupLocationId("");
-        setNotes("");
-        setExtraItems([]);
-        setInvoiceDate(new Date());
-        return;
-      }
+      setSelectedPickupLocationId("");
+      setNotes("");
+      setLineItems([]);
+      setInvoiceDate(new Date());
+      return;
+    }
 
-      setSelectedCustomerId(editingOrder.customer?.id || "");
-      setSelectedMenuId(editingOrder.weekly_menu?.id || "");
-      setMenuQuantity(editingOrder.weekly_menu_quantity || 1);
-      setSelectedPickupLocationId(editingOrder.pickup_location_id || "");
-      setNotes(editingOrder.notes || "");
-      
-      // Load invoice date from order
-      if (editingOrder.invoice_date) {
-        setInvoiceDate(parseISO(editingOrder.invoice_date));
-      } else {
-        setInvoiceDate(new Date());
-      }
+    setSelectedCustomerId(editingOrder.customer?.id ?? "");
+    setSelectedPickupLocationId(editingOrder.pickup_location_id ?? "");
+    setNotes(editingOrder.notes ?? "");
+    setInvoiceDate(
+      editingOrder.invoice_date ? parseISO(editingOrder.invoice_date) : new Date(),
+    );
 
-      // Load order items
+    // Merge every order_item into the single editable list — weekly-menu
+    // items and extras alike. After save, the order will no longer have a
+    // weekly_menu_id, and all line-items become regular (is_weekly_menu_item
+    // = false). This is the one-way migration for existing weekly-menu orders.
+    const loadItems = async () => {
       const { data: items } = await supabase
         .from("order_items")
-        .select("product_id, quantity, is_weekly_menu_item")
+        .select("product_id, quantity")
         .eq("order_id", editingOrder.id);
-
-      if (items) {
-        setExtraItems(
-          items
-            .filter(i => !i.is_weekly_menu_item)
-            .map(i => ({ product_id: i.product_id, quantity: i.quantity }))
-        );
-      }
+      setLineItems(
+        (items ?? []).map((i) => ({
+          product_id: i.product_id,
+          quantity: i.quantity,
+        })),
+      );
     };
-
-    if (open) {
-      loadOrderData();
-    }
+    loadItems();
   }, [editingOrder, open]);
 
-  // Get selected menu price
-  const selectedMenu = weeklyMenus.find(m => m.id === selectedMenuId);
+  // --- Derived data ------------------------------------------------------
 
-  // Group products by category for the extra items selector
-  const groupedProducts = useMemo(() => {
-    const groups: Record<string, Product[]> = {};
-    products.forEach((product) => {
-      const cat = product.category_name || "Zonder categorie";
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(product);
-    });
-    return Object.entries(groups).sort(([a], [b]) => {
+  const productsById = useMemo(
+    () => new Map(products.map((p) => [p.id, p])),
+    [products],
+  );
+
+  /** Category → products, for the product-picker grouping. */
+  const productsByCategory = useMemo(() => {
+    const catName = new Map(categories.map((c) => [c.id, c.name]));
+    const groups = new Map<string, Product[]>();
+    for (const p of products) {
+      const key = p.category_id ? catName.get(p.category_id) ?? "Zonder categorie" : "Zonder categorie";
+      const list = groups.get(key) ?? [];
+      list.push(p);
+      groups.set(key, list);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => {
       if (a === "Zonder categorie") return 1;
       if (b === "Zonder categorie") return -1;
       return a.localeCompare(b);
     });
-  }, [products]);
+  }, [products, categories]);
 
-  // Get selected customer for discount percentage
-  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
-  const customerDiscountPercentage = selectedCustomer?.discount_percentage || 0;
-
-  // Calculate totals with discount groups and customer discount
-  const { subtotal, discountAmount, total } = useMemo(() => {
-    let subtotal = 0;
-
-    // Add weekly menu price × quantity
-    if (selectedMenu) {
-      subtotal += selectedMenu.price * menuQuantity;
+  const offeringsByProductId = useMemo(() => {
+    const map: Record<string, WeeklyOfferingForPricing> = {};
+    for (const o of offerings) {
+      map[o.product_id] = {
+        product_id: o.product_id,
+        price_override: o.price_override != null ? Number(o.price_override) : null,
+      };
     }
+    return map;
+  }, [offerings]);
 
-    // Add extra items
-    extraItems.forEach(item => {
-      const product = products.find(p => p.id === item.product_id);
-      if (product) {
-        subtotal += product.selling_price * item.quantity;
-      }
-    });
+  const productsForPricing: ProductForPricing[] = useMemo(
+    () =>
+      products.map((p) => ({
+        id: p.id,
+        selling_price: Number(p.selling_price),
+        recipe_yield_quantity: Number(p.recipe_yield_quantity),
+        recipe_yield_unit: p.recipe_yield_unit as MeasurementUnit,
+        sell_unit_quantity: Number(p.sell_unit_quantity),
+        sell_unit_unit: p.sell_unit_unit as MeasurementUnit,
+      })),
+    [products],
+  );
 
-    // Calculate discount based on discount groups
-    let groupDiscountAmount = 0;
+  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
+  const customerDiscountPercentage = Number(selectedCustomer?.discount_percentage ?? 0);
 
-    discountGroups.forEach(group => {
-      // Count total quantity of products in this group
-      let totalQty = 0;
-      let groupItemsValue = 0;
+  /** Aggregate by product_id so duplicates sum before going to pricing. */
+  const linesForPricing: OrderLine[] = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of lineItems) {
+      if (!item.product_id || item.quantity <= 0) continue;
+      map.set(item.product_id, (map.get(item.product_id) ?? 0) + item.quantity);
+    }
+    return Array.from(map.entries()).map(([product_id, quantity]) => ({
+      product_id,
+      quantity,
+    }));
+  }, [lineItems]);
 
-      extraItems.forEach(item => {
-        if (group.product_ids.includes(item.product_id)) {
-          totalQty += item.quantity;
-          const product = products.find(p => p.id === item.product_id);
-          if (product) {
-            groupItemsValue += product.selling_price * item.quantity;
-          }
-        }
-      });
+  const breakdown = useMemo(
+    () =>
+      computeOrderTotals({
+        lines: linesForPricing,
+        products: productsForPricing,
+        priceTiersByProductId,
+        offeringsByProductId,
+        discountGroups,
+        customerDiscountPercentage,
+      }),
+    [
+      linesForPricing,
+      productsForPricing,
+      priceTiersByProductId,
+      offeringsByProductId,
+      discountGroups,
+      customerDiscountPercentage,
+    ],
+  );
 
-      // Find applicable tier (highest min_quantity that's <= totalQty)
-      const applicableTier = group.tiers.find(t => totalQty >= t.min_quantity);
-      if (applicableTier) {
-        groupDiscountAmount += groupItemsValue * (applicableTier.discount_percentage / 100);
-      }
-    });
+  /** Map product_id → unit_price as computed by pricing.ts (accounting for
+   * overrides + tiers). Used when writing out order_items. */
+  const unitPriceByProductId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const l of breakdown.lines) map[l.product_id] = l.unit_price;
+    return map;
+  }, [breakdown]);
 
-    // Apply customer discount to the remaining amount after group discounts
-    const afterGroupDiscount = subtotal - groupDiscountAmount;
-    const customerDiscountAmount = afterGroupDiscount * (customerDiscountPercentage / 100);
-    const totalDiscountAmount = groupDiscountAmount + customerDiscountAmount;
+  // --- Actions ----------------------------------------------------------
 
-    return {
-      subtotal,
-      discountAmount: totalDiscountAmount,
-      total: subtotal - totalDiscountAmount,
-    };
-  }, [selectedMenu, menuQuantity, extraItems, products, discountGroups, customerDiscountPercentage]);
+  const isReadOnly =
+    !!editingOrder &&
+    (editingOrder.status === "in_production" ||
+      editingOrder.status === "ready" ||
+      editingOrder.status === "paid");
 
-  // Check if order is read-only (status is in_production, ready or paid)
-  const isReadOnly = editingOrder && (editingOrder.status === "in_production" || editingOrder.status === "ready" || editingOrder.status === "paid");
-
-  const addExtraItem = () => {
+  const addLine = () => {
     if (isReadOnly) return;
-    setExtraItems([...extraItems, { product_id: "", quantity: 1 }]);
+    setLineItems((prev) => [...prev, { product_id: "", quantity: 1 }]);
   };
 
-  const removeExtraItem = (index: number) => {
+  const removeLine = (index: number) => {
     if (isReadOnly) return;
-    setExtraItems(extraItems.filter((_, i) => i !== index));
+    setLineItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const updateExtraItem = (index: number, field: "product_id" | "quantity", value: string | number) => {
+  const updateLine = (
+    index: number,
+    field: "product_id" | "quantity",
+    value: string | number,
+  ) => {
     if (isReadOnly) return;
-    const updated = [...extraItems];
-    updated[index] = { ...updated[index], [field]: value };
-    setExtraItems(updated);
+    setLineItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value } as (typeof prev)[number];
+      return next;
+    });
   };
 
   const handleResetToConfirmed = async () => {
     if (!editingOrder) return;
-    
+
     const { error } = await supabase
       .from("orders")
       .update({ status: "confirmed", updated_at: new Date().toISOString() })
       .eq("id", editingOrder.id);
-    
+
     if (error) {
-      toast({ title: "Fout", description: "Kon status niet wijzigen", variant: "destructive" });
+      toast({
+        title: "Fout",
+        description: "Kon status niet wijzigen",
+        variant: "destructive",
+      });
       return;
     }
-    
-    toast({ title: "Status gewijzigd", description: "Bestelling is teruggezet naar 'Bevestigd'" });
+
+    toast({
+      title: "Status gewijzigd",
+      description: "Bestelling is teruggezet naar 'Bevestigd'.",
+    });
     onOpenChange(false);
     onSave();
   };
 
   const handleSave = async () => {
     if (!selectedCustomerId) {
-      toast({ title: "Fout", description: "Selecteer een klant", variant: "destructive" });
+      toast({ title: "Fout", description: "Selecteer een klant.", variant: "destructive" });
       return;
     }
 
-    if (!selectedMenuId && extraItems.length === 0) {
-      toast({ title: "Fout", description: "Selecteer een weekmenu of voeg producten toe", variant: "destructive" });
+    if (linesForPricing.length === 0) {
+      toast({
+        title: "Fout",
+        description: "Voeg minimaal één product toe.",
+        variant: "destructive",
+      });
       return;
     }
 
     if (!invoiceDate) {
-      toast({ title: "Fout", description: "Selecteer een factuurdatum", variant: "destructive" });
+      toast({
+        title: "Fout",
+        description: "Selecteer een factuurdatum.",
+        variant: "destructive",
+      });
       return;
     }
 
-    // Show warning when editing in_production, ready or paid orders
-    if (editingOrder && (editingOrder.status === "in_production" || editingOrder.status === "ready" || editingOrder.status === "paid") && !pendingSave) {
+    if (
+      editingOrder &&
+      (editingOrder.status === "in_production" ||
+        editingOrder.status === "ready" ||
+        editingOrder.status === "paid") &&
+      !pendingSave
+    ) {
       setShowEditWarning(true);
       return;
     }
@@ -439,13 +560,16 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
 
     const orderPayload = {
       customer_id: selectedCustomerId,
-      weekly_menu_id: selectedMenuId || null,
-      weekly_menu_quantity: selectedMenuId ? menuQuantity : 1,
-      pickup_location_id: selectedPickupLocationId === "anders" || selectedPickupLocationId === "none" ? null : selectedPickupLocationId || null,
+      weekly_menu_id: null,
+      weekly_menu_quantity: 1,
+      pickup_location_id:
+        selectedPickupLocationId === "anders" || selectedPickupLocationId === "none"
+          ? null
+          : selectedPickupLocationId || null,
       notes: notes.trim() || null,
-      subtotal,
-      discount_amount: discountAmount,
-      total,
+      subtotal: Number(breakdown.subtotal.toFixed(2)),
+      discount_amount: Number(breakdown.discount_amount.toFixed(2)),
+      total: Number(breakdown.total.toFixed(2)),
       created_by: user!.id,
       invoice_date: format(invoiceDate!, "yyyy-MM-dd"),
     };
@@ -457,15 +581,16 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
         .from("orders")
         .update(orderPayload)
         .eq("id", editingOrder.id);
-
       if (error) {
-        toast({ title: "Fout", description: "Kon bestelling niet bijwerken", variant: "destructive" });
+        toast({
+          title: "Fout",
+          description: "Kon bestelling niet bijwerken.",
+          variant: "destructive",
+        });
         setLoading(false);
         return;
       }
       orderId = editingOrder.id;
-
-      // Remove old items
       await supabase.from("order_items").delete().eq("order_id", orderId);
     } else {
       const { data, error } = await supabase
@@ -473,80 +598,53 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
         .insert(orderPayload)
         .select("id")
         .single();
-
       if (error || !data) {
-        toast({ title: "Fout", description: "Kon bestelling niet aanmaken", variant: "destructive" });
+        toast({
+          title: "Fout",
+          description: "Kon bestelling niet aanmaken.",
+          variant: "destructive",
+        });
         setLoading(false);
         return;
       }
       orderId = data.id;
     }
 
-    // Insert order items
-    const orderItems: {
-      order_id: string;
-      product_id: string;
-      quantity: number;
-      unit_price: number;
-      discount_amount: number;
-      total: number;
-      is_weekly_menu_item: boolean;
-    }[] = [];
-
-    // For edited orders, manually re-insert weekly menu items (trigger only fires on INSERT)
-    if (editingOrder && selectedMenuId) {
-      const { data: menuProducts } = await supabase
-        .from("weekly_menu_products")
-        .select("product_id, quantity")
-        .eq("weekly_menu_id", selectedMenuId);
-
-      if (menuProducts) {
-        menuProducts.forEach(mp => {
-          orderItems.push({
-            order_id: orderId,
-            product_id: mp.product_id,
-            quantity: mp.quantity * menuQuantity,
-            unit_price: 0,
-            discount_amount: 0,
-            total: 0,
-            is_weekly_menu_item: true,
-          });
-        });
-      }
-    }
-
-    // Add extra items
-    extraItems.forEach(item => {
-      if (!item.product_id || item.quantity <= 0) return;
-      const product = products.find(p => p.id === item.product_id);
-      if (!product) return;
-
-      const itemTotal = product.selling_price * item.quantity;
-      orderItems.push({
-        order_id: orderId,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_price: product.selling_price,
-        discount_amount: 0,
-        total: itemTotal,
-        is_weekly_menu_item: false,
-      });
-    });
+    const orderItems = breakdown.lines.map((l) => ({
+      order_id: orderId,
+      product_id: l.product_id,
+      quantity: l.quantity,
+      unit_price: Number(l.unit_price.toFixed(2)),
+      discount_amount: Number(
+        (l.group_discount_amount + l.customer_discount_amount).toFixed(2),
+      ),
+      total: Number(l.line_total.toFixed(2)),
+      is_weekly_menu_item: false,
+    }));
 
     if (orderItems.length > 0) {
-      await supabase.from("order_items").insert(orderItems);
+      const { error: itemsErr } = await supabase.from("order_items").insert(orderItems);
+      if (itemsErr) {
+        toast({
+          title: "Bestelling opgeslagen, maar regels misten",
+          description: itemsErr.message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
     }
 
     setLoading(false);
     toast({
       title: editingOrder ? "Opgeslagen" : "Toegevoegd",
-      description: editingOrder ? "Bestelling bijgewerkt" : "Nieuwe bestelling aangemaakt",
+      description: editingOrder ? "Bestelling bijgewerkt." : "Nieuwe bestelling aangemaakt.",
     });
     onOpenChange(false);
     onSave();
   };
 
-  const formatCurrency = (value: number) => `€${value.toFixed(2)}`;
+  // --- UI ---------------------------------------------------------------
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -557,21 +655,28 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
               {editingOrder ? "Bestelling bewerken" : "Nieuwe bestelling"}
             </DialogTitle>
             {editingOrder?.order_number && (
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground font-normal">
-                <Hash className="w-3.5 h-3.5" />
+              <span className="flex items-center gap-1.5 text-sm font-normal text-muted-foreground">
+                <Hash className="h-3.5 w-3.5" />
                 {editingOrder.order_number}
               </span>
             )}
           </div>
         </DialogHeader>
 
-        {/* Read-only notice for ready/paid orders */}
         {isReadOnly && (
-          <div className="flex items-center justify-between gap-4 p-3 bg-muted/50 border rounded-lg">
+          <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/50 p-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Lock className="w-4 h-4" />
+              <Lock className="h-4 w-4" />
               <span>
-                Deze bestelling is <strong>{editingOrder?.status === "in_production" ? "In productie" : editingOrder?.status === "ready" ? "Gereed" : "Betaald"}</strong> en kan alleen bekeken worden.
+                Deze bestelling is{" "}
+                <strong>
+                  {editingOrder?.status === "in_production"
+                    ? "In productie"
+                    : editingOrder?.status === "ready"
+                      ? "Gereed"
+                      : "Betaald"}
+                </strong>{" "}
+                en kan alleen bekeken worden.
               </span>
             </div>
             <Button
@@ -580,20 +685,24 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
               onClick={handleResetToConfirmed}
               className="shrink-0"
             >
-              <RotateCcw className="w-4 h-4 mr-1.5" />
+              <RotateCcw className="mr-1.5 h-4 w-4" />
               Terugzetten naar Bevestigd
             </Button>
           </div>
         )}
 
         <div className="space-y-6 py-4">
-          {/* Customer Selection */}
+          {/* Customer */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
-              <User className="w-4 h-4" />
+              <User className="h-4 w-4" />
               Klant *
             </Label>
-            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId} disabled={isReadOnly}>
+            <Select
+              value={selectedCustomerId}
+              onValueChange={setSelectedCustomerId}
+              disabled={isReadOnly}
+            >
               <SelectTrigger className={isReadOnly ? "opacity-60" : ""}>
                 <SelectValue placeholder="Selecteer klant" />
               </SelectTrigger>
@@ -607,10 +716,10 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
             </Select>
           </div>
 
-          {/* Invoice Date */}
+          {/* Invoice date */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
-              <FileText className="w-4 h-4" />
+              <FileText className="h-4 w-4" />
               Factuurdatum *
             </Label>
             <Popover>
@@ -620,12 +729,14 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                   className={cn(
                     "w-full justify-start text-left font-normal",
                     !invoiceDate && "text-muted-foreground",
-                    isReadOnly && "opacity-60 pointer-events-none"
+                    isReadOnly && "pointer-events-none opacity-60",
                   )}
                   disabled={isReadOnly}
                 >
                   <Calendar className="mr-2 h-4 w-4" />
-                  {invoiceDate ? format(invoiceDate, "EEEE d MMMM yyyy", { locale: nl }) : "Selecteer datum"}
+                  {invoiceDate
+                    ? format(invoiceDate, "EEEE d MMMM yyyy", { locale: nl })
+                    : "Selecteer datum"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -638,71 +749,24 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                 />
               </PopoverContent>
             </Popover>
+            <p className="text-xs text-muted-foreground">
+              Bepaalt welke week-overrides van toepassing zijn.
+            </p>
           </div>
 
-          {/* Weekly Menu Selection */}
+          {/* Pickup location */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Weekmenu (optioneel)
-            </Label>
-            <Select 
-              value={selectedMenuId || "none"} 
-              onValueChange={(val) => setSelectedMenuId(val === "none" ? "" : val)}
-              disabled={isReadOnly}
-            >
-              <SelectTrigger className={isReadOnly ? "opacity-60" : ""}>
-                <SelectValue placeholder="Selecteer weekmenu" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Geen weekmenu</SelectItem>
-                {weeklyMenus.map((menu) => (
-                  <SelectItem key={menu.id} value={menu.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{menu.name}</span>
-                      {menu.delivery_date && (
-                        <span className="text-muted-foreground text-sm">
-                          ({format(parseISO(menu.delivery_date), "EEEE d MMM", { locale: nl })})
-                        </span>
-                      )}
-                      <span className="font-medium">{formatCurrency(menu.price)}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedMenuId && (
-              <div className="flex items-center gap-3 mt-2">
-                <Label className="text-sm whitespace-nowrap">Aantal menu's:</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={menuQuantity}
-                  onChange={(e) => setMenuQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-20"
-                  disabled={isReadOnly}
-                />
-                {selectedMenu && (
-                  <span className="text-sm text-muted-foreground">
-                    = {formatCurrency(selectedMenu.price * menuQuantity)}
-                  </span>
-                )}
-              </div>
-            )}
-            {weeklyMenus.length === 0 && !editingOrder && (
-              <p className="text-sm text-muted-foreground">
-                Geen weekmenu's beschikbaar. Maak er eerst een aan met een toekomstige leverdag.
-              </p>
-            )}
-          </div>
-
-          {/* Pickup Location Selection */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <MapPin className="w-4 h-4" />
+              <MapPin className="h-4 w-4" />
               Afhaallocatie
             </Label>
-            <Select value={selectedPickupLocationId || "none"} onValueChange={(val) => setSelectedPickupLocationId(val === "none" ? "" : val)} disabled={isReadOnly}>
+            <Select
+              value={selectedPickupLocationId || "none"}
+              onValueChange={(val) =>
+                setSelectedPickupLocationId(val === "none" ? "" : val)
+              }
+              disabled={isReadOnly}
+            >
               <SelectTrigger className={isReadOnly ? "opacity-60" : ""}>
                 <SelectValue placeholder="Selecteer afhaallocatie" />
               </SelectTrigger>
@@ -713,7 +777,8 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                     <div className="flex flex-col">
                       <span className="font-medium">{location.title}</span>
                       <span className="text-xs text-muted-foreground">
-                        {location.street} {location.house_number}, {location.postal_code} {location.city}
+                        {location.street} {location.house_number ?? ""},{" "}
+                        {location.postal_code} {location.city}
                       </span>
                     </div>
                   </SelectItem>
@@ -732,61 +797,72 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
 
           <Separator />
 
-          {/* Extra Products */}
+          {/* Line items */}
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex items-center justify-between">
               <Label className="flex items-center gap-2">
-                <Package className="w-4 h-4" />
-                Extra producten
+                <Package className="h-4 w-4" />
+                Producten
               </Label>
               {!isReadOnly && (
-                <Button type="button" variant="outline" size="sm" onClick={addExtraItem}>
-                  <Plus className="w-4 h-4 mr-1" />
+                <Button type="button" variant="outline" size="sm" onClick={addLine}>
+                  <Plus className="mr-1 h-4 w-4" />
                   Product toevoegen
                 </Button>
               )}
             </div>
 
-            {extraItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                Geen extra producten. Klik op "Product toevoegen" om losse producten toe te voegen.
+            {lineItems.length === 0 ? (
+              <p className="py-2 text-sm text-muted-foreground">
+                Geen producten. Klik op "Product toevoegen".
               </p>
             ) : (
               <div className="space-y-3">
-                {extraItems.map((item, index) => {
-                  const product = products.find(p => p.id === item.product_id);
+                {lineItems.map((item, index) => {
+                  const product = productsById.get(item.product_id);
+                  const unitPrice = product
+                    ? unitPriceByProductId[product.id] ?? Number(product.selling_price)
+                    : 0;
+                  const lineTotal = unitPrice * item.quantity;
+                  const hasOverride =
+                    product && offeringsByProductId[product.id]?.price_override != null;
+
                   return (
-                    <div key={index} className={cn(
-                      "flex gap-3 items-center p-2 border rounded-lg bg-muted/30",
-                      isReadOnly && "opacity-60"
-                    )}>
-                      {/* Product image */}
-                      <div className="w-12 h-12 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                    <div
+                      key={index}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg border bg-muted/30 p-2",
+                        isReadOnly && "opacity-60",
+                      )}
+                    >
+                      <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-md bg-muted">
                         {product?.image_url ? (
                           <img
                             src={product.image_url}
                             alt={product.name}
-                            className="w-full h-full object-cover"
+                            className="h-full w-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                          <div className="flex h-full w-full items-center justify-center">
+                            <ImageIcon className="h-5 w-5 text-muted-foreground" />
                           </div>
                         )}
                       </div>
-                      
+
                       {isReadOnly ? (
-                        <span className="flex-1 text-sm">{product?.name || "Onbekend product"}</span>
+                        <span className="flex-1 text-sm">
+                          {product?.name || "Onbekend product"}
+                        </span>
                       ) : (
                         <Select
                           value={item.product_id}
-                          onValueChange={(value) => updateExtraItem(index, "product_id", value)}
+                          onValueChange={(value) => updateLine(index, "product_id", value)}
                         >
                           <SelectTrigger className="flex-1">
                             <SelectValue placeholder="Selecteer product" />
                           </SelectTrigger>
                           <SelectContent>
-                            {groupedProducts.map(([categoryName, categoryProducts]) => (
+                            {productsByCategory.map(([categoryName, categoryProducts]) => (
                               <div key={categoryName}>
                                 <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
                                   {categoryName}
@@ -794,6 +870,9 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                                 {categoryProducts.map((p) => (
                                   <SelectItem key={p.id} value={p.id}>
                                     {p.name}
+                                    <span className="ml-2 text-xs text-muted-foreground">
+                                      {sellUnitLabel(p)}
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </div>
@@ -801,28 +880,47 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
                           </SelectContent>
                         </Select>
                       )}
+
                       {isReadOnly ? (
-                        <span className="w-20 text-sm text-center">{item.quantity}x</span>
+                        <span className="w-20 text-center text-sm">{item.quantity}×</span>
                       ) : (
                         <Input
                           type="number"
                           min="1"
                           value={item.quantity}
-                          onChange={(e) => updateExtraItem(index, "quantity", parseInt(e.target.value) || 1)}
+                          onChange={(e) =>
+                            updateLine(
+                              index,
+                              "quantity",
+                              Math.max(1, parseInt(e.target.value) || 1),
+                            )
+                          }
                           className="w-20"
                         />
                       )}
-                      <span className="text-sm font-medium w-20 text-right">
-                        {product ? formatCurrency(product.selling_price * item.quantity) : "-"}
-                      </span>
+
+                      <div className="flex w-28 flex-col items-end">
+                        <span className="text-sm font-medium tabular-nums">
+                          {product ? euro(lineTotal) : "-"}
+                        </span>
+                        {product && (
+                          <span className="text-[11px] text-muted-foreground tabular-nums">
+                            {euro(unitPrice)} {sellUnitLabel(product)}
+                            {hasOverride && (
+                              <span className="ml-1 text-primary">· weekprijs</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
+
                       {!isReadOnly && (
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeExtraItem(index)}
+                          onClick={() => removeLine(index)}
                         >
-                          <Trash2 className="w-4 h-4 text-destructive" />
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       )}
                     </div>
@@ -839,7 +937,7 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optionele opmerkingen..."
+              placeholder="Optionele opmerkingen…"
               rows={2}
               disabled={isReadOnly}
               className={isReadOnly ? "opacity-60" : ""}
@@ -856,18 +954,28 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
             <CardContent className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Subtotaal</span>
-                <span>{formatCurrency(subtotal)}</span>
+                <span className="tabular-nums">{euro(breakdown.subtotal)}</span>
               </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-sm text-green-600">
-                  <span>Staffelkorting</span>
-                  <span>-{formatCurrency(discountAmount)}</span>
+              {breakdown.group_discount_amount > 0 && (
+                <div className="flex justify-between text-sm text-primary">
+                  <span>Groepskorting</span>
+                  <span className="tabular-nums">
+                    −{euro(breakdown.group_discount_amount)}
+                  </span>
+                </div>
+              )}
+              {breakdown.customer_discount_amount > 0 && (
+                <div className="flex justify-between text-sm text-primary">
+                  <span>Klantkorting ({customerDiscountPercentage}%)</span>
+                  <span className="tabular-nums">
+                    −{euro(breakdown.customer_discount_amount)}
+                  </span>
                 </div>
               )}
               <Separator />
-              <div className="flex justify-between font-semibold text-lg">
+              <div className="flex justify-between text-lg font-semibold">
                 <span>Totaal</span>
-                <span>{formatCurrency(total)}</span>
+                <span className="tabular-nums">{euro(breakdown.total)}</span>
               </div>
             </CardContent>
           </Card>
@@ -879,32 +987,42 @@ const OrderDialog = ({ open, onOpenChange, editingOrder, onSave }: OrderDialogPr
           </Button>
           {!isReadOnly && (
             <Button onClick={handleSave} disabled={loading}>
-              {loading ? "Opslaan..." : editingOrder ? "Opslaan" : "Bestelling aanmaken"}
+              {loading
+                ? "Opslaan…"
+                : editingOrder
+                  ? "Opslaan"
+                  : "Bestelling aanmaken"}
             </Button>
           )}
         </DialogFooter>
       </DialogContent>
 
-      {/* Warning Dialog for editing ready/paid orders */}
       <AlertDialog open={showEditWarning} onOpenChange={setShowEditWarning}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
               Bestelling bewerken
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Deze bestelling heeft de status "{editingOrder?.status === "in_production" ? "In productie" : editingOrder?.status === "ready" ? "Gereed" : "Betaald"}". 
-              Weet je zeker dat je deze bestelling wilt wijzigen?
+              Deze bestelling heeft de status "
+              {editingOrder?.status === "in_production"
+                ? "In productie"
+                : editingOrder?.status === "ready"
+                  ? "Gereed"
+                  : "Betaald"}
+              ". Weet je zeker dat je deze bestelling wilt wijzigen?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuleren</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
-              setShowEditWarning(false);
-              setPendingSave(true);
-              setTimeout(() => handleSave(), 0);
-            }}>
+            <AlertDialogAction
+              onClick={() => {
+                setShowEditWarning(false);
+                setPendingSave(true);
+                setTimeout(() => handleSave(), 0);
+              }}
+            >
               Ja, wijzigen
             </AlertDialogAction>
           </AlertDialogFooter>
