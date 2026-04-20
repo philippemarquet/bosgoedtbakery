@@ -434,15 +434,21 @@ const OrderDialog = ({
     ],
   );
 
-  /** Products grouped by category — this is "everything in the catalog", not
-   * only the current week's offerings. The baker sometimes places one-offs
-   * for products that aren't on the weekly list. Offering-only products get
-   * a visual nudge (Weekprijs badge + price override) but the catalog shown
-   * stays exhaustive. */
+  /** Products grouped by category — identical to the customer flow, only the
+   * products on the selected week's offering are pickable. Existing order
+   * lines for products that are no longer on the offering (e.g. when the
+   * baker switches to a different week while editing) stay visible so the
+   * quantity isn't silently lost; they just won't show up as fresh picks. */
+  const visibleProducts = useMemo(() => {
+    return products.filter(
+      (p) => offeringsByProductId[p.id] || (quantities[p.id] ?? 0) > 0,
+    );
+  }, [products, offeringsByProductId, quantities]);
+
   const productsByCategory = useMemo(() => {
     const catName = new Map(categories.map((c) => [c.id, c.name]));
     const groups = new Map<string, Product[]>();
-    for (const p of products) {
+    for (const p of visibleProducts) {
       const key = p.category_id
         ? catName.get(p.category_id) ?? "Zonder categorie"
         : "Zonder categorie";
@@ -455,7 +461,7 @@ const OrderDialog = ({
       if (b === "Zonder categorie") return -1;
       return a.localeCompare(b);
     });
-  }, [products, categories]);
+  }, [visibleProducts, categories]);
 
   // --- State / actions ---------------------------------------------------
 
@@ -802,6 +808,19 @@ const OrderDialog = ({
           {products.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
               Laden…
+            </div>
+          ) : visibleProducts.length === 0 ? (
+            <div className="rounded-[var(--radius)] border border-dashed border-border/70 bg-card/40 px-6 py-14 text-center">
+              <p
+                className="font-serif text-xl text-foreground"
+                style={{ letterSpacing: "-0.01em" }}
+              >
+                Deze week nog geen aanbod
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Voeg producten toe via Back-office → Weekaanbod of kies een
+                andere week.
+              </p>
             </div>
           ) : (
             <div className="space-y-8">
