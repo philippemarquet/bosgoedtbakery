@@ -7,11 +7,25 @@ import {
   subWeeks,
 } from "date-fns";
 import { nl } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Image as ImageIcon, Search } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Image as ImageIcon,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useVisibilityRefresh } from "@/hooks/useVisibilityRefresh";
 import { UNIT_LABELS_SHORT, type MeasurementUnit } from "@/lib/units";
@@ -64,7 +78,8 @@ const WeeklyOfferingsTab = () => {
   const [offeringsByProductId, setOfferingsByProductId] = useState<Record<string, Offering>>({});
   const [overrideDrafts, setOverrideDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addSearchQuery, setAddSearchQuery] = useState("");
   const { toast } = useToast();
 
   const selectedIso = toISODate(selectedMonday);
@@ -226,11 +241,28 @@ const WeeklyOfferingsTab = () => {
   const selectedLabel = formatWeekLabel(selectedMonday);
   const countOnOffer = Object.keys(offeringsByProductId).length;
 
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-  const visibleProducts = useMemo(() => {
-    if (!normalizedQuery) return products;
-    return products.filter((p) => p.name.toLowerCase().includes(normalizedQuery));
-  }, [products, normalizedQuery]);
+  const offeredProducts = useMemo(
+    () => products.filter((p) => Boolean(offeringsByProductId[p.id])),
+    [products, offeringsByProductId],
+  );
+
+  const normalizedAddQuery = addSearchQuery.trim().toLowerCase();
+  const addableProducts = useMemo(() => {
+    const notYetOffered = products.filter((p) => !offeringsByProductId[p.id]);
+    if (!normalizedAddQuery) return notYetOffered;
+    return notYetOffered.filter((p) =>
+      p.name.toLowerCase().includes(normalizedAddQuery),
+    );
+  }, [products, offeringsByProductId, normalizedAddQuery]);
+
+  const handleAddProduct = async (product: Product) => {
+    await onToggleOffer(product, true);
+  };
+
+  // Reset the dialog's search whenever it closes
+  useEffect(() => {
+    if (!addDialogOpen) setAddSearchQuery("");
+  }, [addDialogOpen]);
 
   return (
     <div className="space-y-8">
@@ -243,8 +275,9 @@ const WeeklyOfferingsTab = () => {
           Weekaanbod
         </h2>
         <p className="text-sm text-muted-foreground mt-2">
-          Kies per week welke producten op de lijst staan. Zoek hieronder en zet
-          ze op aanbod — laat de weekprijs leeg om de standaardprijs te gebruiken.
+          Kies per week welke producten op de lijst staan. Voeg een product toe,
+          pas de weekprijs aan of haal het weer van het aanbod af — laat de
+          weekprijs leeg om de standaardprijs te gebruiken.
         </p>
       </div>
 
@@ -310,16 +343,14 @@ const WeeklyOfferingsTab = () => {
             </span>
           </p>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Zoek product…"
-              className="h-9 pl-9"
-            />
-          </div>
+          <Button
+            onClick={() => setAddDialogOpen(true)}
+            size="sm"
+            className="gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            Product toevoegen
+          </Button>
         </div>
       </div>
 
@@ -333,82 +364,168 @@ const WeeklyOfferingsTab = () => {
           <div className="py-16 text-center text-sm text-muted-foreground px-6">
             Nog geen producten. Voeg er een toe via Back-office → Producten.
           </div>
-        ) : visibleProducts.length === 0 ? (
-          <div className="py-16 text-center text-sm text-muted-foreground px-6">
-            Geen product gevonden voor &ldquo;{searchQuery}&rdquo;.
+        ) : offeredProducts.length === 0 ? (
+          <div className="py-16 text-center text-sm text-muted-foreground px-6 space-y-3">
+            <p>Nog niks op het aanbod deze week.</p>
+            <Button
+              onClick={() => setAddDialogOpen(true)}
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              Product toevoegen
+            </Button>
           </div>
         ) : (
           <div className="divide-y divide-border/60">
-            {visibleProducts.map((product) => {
-              const offering = offeringsByProductId[product.id];
-              const isOn = Boolean(offering);
-              return (
-                <div
-                  key={product.id}
-                  className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${
-                    isOn ? "bg-card" : "bg-transparent"
-                  }`}
-                >
-                  {product.image_url ? (
-                    <img
-                      src={product.image_url}
-                      alt=""
-                      className="h-12 w-12 flex-shrink-0 rounded-[calc(var(--radius)-4px)] object-cover shadow-paper"
-                    />
-                  ) : (
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[calc(var(--radius)-4px)] bg-muted/60">
-                      <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  )}
-
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-foreground">{product.name}</div>
-                    <div className="text-[11px] tracking-[0.04em] text-muted-foreground mt-0.5 tabular-nums">
-                      {euro(product.selling_price)}{" "}
-                      <span className="text-muted-foreground/80">{sellUnitLabel(product)}</span>
-                    </div>
-                  </div>
-
-                  <div className="hidden sm:flex items-center gap-2">
-                    <span className="text-[11px] tracking-[0.06em] uppercase text-muted-foreground">
-                      Weekprijs
-                    </span>
-                    <div className="flex items-center">
-                      <span className="mr-1 text-sm text-muted-foreground">€</span>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        step="0.01"
-                        min="0"
-                        disabled={!isOn}
-                        placeholder={Number(product.selling_price).toFixed(2)}
-                        value={overrideDrafts[product.id] ?? ""}
-                        onChange={(e) =>
-                          setOverrideDrafts((prev) => ({
-                            ...prev,
-                            [product.id]: e.target.value,
-                          }))
-                        }
-                        onBlur={() => saveOverride(product)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                        }}
-                        className="h-8 w-24 tabular-nums"
-                      />
-                    </div>
-                  </div>
-
-                  <Switch
-                    checked={isOn}
-                    onCheckedChange={(checked) => onToggleOffer(product, checked)}
-                    aria-label={`${product.name} op aanbod`}
+            {offeredProducts.map((product) => (
+              <div
+                key={product.id}
+                className="flex items-center gap-4 px-5 py-3.5 bg-card"
+              >
+                {product.image_url ? (
+                  <img
+                    src={product.image_url}
+                    alt=""
+                    className="h-12 w-12 flex-shrink-0 rounded-[calc(var(--radius)-4px)] object-cover shadow-paper"
                   />
+                ) : (
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[calc(var(--radius)-4px)] bg-muted/60">
+                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm text-foreground">{product.name}</div>
+                  <div className="text-[11px] tracking-[0.04em] text-muted-foreground mt-0.5 tabular-nums">
+                    {euro(product.selling_price)}{" "}
+                    <span className="text-muted-foreground/80">{sellUnitLabel(product)}</span>
+                  </div>
                 </div>
-              );
-            })}
+
+                <div className="hidden sm:flex items-center gap-2">
+                  <span className="text-[11px] tracking-[0.06em] uppercase text-muted-foreground">
+                    Weekprijs
+                  </span>
+                  <div className="flex items-center">
+                    <span className="mr-1 text-sm text-muted-foreground">€</span>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0"
+                      placeholder={Number(product.selling_price).toFixed(2)}
+                      value={overrideDrafts[product.id] ?? ""}
+                      onChange={(e) =>
+                        setOverrideDrafts((prev) => ({
+                          ...prev,
+                          [product.id]: e.target.value,
+                        }))
+                      }
+                      onBlur={() => saveOverride(product)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      }}
+                      className="h-8 w-24 tabular-nums"
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onToggleOffer(product, false)}
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  aria-label={`${product.name} van aanbod halen`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
           </div>
         )}
       </div>
+
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader className="space-y-1">
+            <p className="bakery-eyebrow">Weekaanbod</p>
+            <DialogTitle
+              className="font-serif text-2xl font-medium leading-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              Product toevoegen
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              Zoek een product en tik om het aan {selectedLabel.week.toLowerCase()} toe te voegen.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative mt-2">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              autoFocus
+              type="search"
+              value={addSearchQuery}
+              onChange={(e) => setAddSearchQuery(e.target.value)}
+              placeholder="Zoek product…"
+              className="h-9 pl-9 pr-9"
+            />
+            {addSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setAddSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                aria-label="Zoekveld leegmaken"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 mt-3 min-h-0">
+            {addableProducts.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                {normalizedAddQuery
+                  ? <>Geen product gevonden voor &ldquo;{addSearchQuery}&rdquo;.</>
+                  : "Alle producten staan al op het aanbod deze week."}
+              </div>
+            ) : (
+              <div className="divide-y divide-border/60">
+                {addableProducts.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => handleAddProduct(product)}
+                    className="flex w-full items-center gap-3 px-2 py-2.5 text-left transition-colors hover:bg-muted/50 rounded-[calc(var(--radius)-4px)]"
+                  >
+                    {product.image_url ? (
+                      <img
+                        src={product.image_url}
+                        alt=""
+                        className="h-10 w-10 flex-shrink-0 rounded-[calc(var(--radius)-4px)] object-cover shadow-paper"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[calc(var(--radius)-4px)] bg-muted/60">
+                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm text-foreground">{product.name}</div>
+                      <div className="text-[11px] tracking-[0.04em] text-muted-foreground mt-0.5 tabular-nums">
+                        {euro(product.selling_price)}{" "}
+                        <span className="text-muted-foreground/80">{sellUnitLabel(product)}</span>
+                      </div>
+                    </div>
+                    <Plus className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
