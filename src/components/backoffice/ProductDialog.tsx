@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -116,7 +115,6 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
     sell_unit_quantity: "1",
     sell_unit_unit: "stuks" as MeasurementUnit,
     selling_price: "",
-    is_orderable: false,
     image_url: "",
   });
 
@@ -164,7 +162,6 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
           sell_unit_quantity: "1",
           sell_unit_unit: "stuks",
           selling_price: "",
-          is_orderable: false,
           image_url: "",
         });
         setRecipeIngredients([]);
@@ -193,7 +190,6 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
         sell_unit_unit: (editingProduct.sell_unit_unit ??
           editingProduct.yield_unit) as MeasurementUnit,
         selling_price: String(editingProduct.selling_price),
-        is_orderable: editingProduct.is_orderable,
         image_url: editingProduct.image_url || "",
       });
       setImagePreview(editingProduct.image_url || null);
@@ -317,7 +313,9 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
       yield_quantity: recipeYieldQty,
       yield_unit: formData.recipe_yield_unit,
       selling_price: parseFloat(formData.selling_price) || 0,
-      is_orderable: formData.is_orderable,
+      // Legacy flag — we now steer availability via weekly offerings.
+      // Always set to true so products aren't silently filtered out anywhere.
+      is_orderable: true,
       image_url: imageUrl || null,
     };
 
@@ -674,16 +672,6 @@ const ProductDialog = ({ open, onOpenChange, editingProduct, onSave }: ProductDi
               )}
             </div>
 
-            <div className="flex items-center space-x-2 pt-2">
-              <Checkbox
-                id="is_orderable"
-                checked={formData.is_orderable}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_orderable: checked === true })}
-              />
-              <Label htmlFor="is_orderable" className="text-sm font-normal">
-                Separaat te bestellen door klanten
-              </Label>
-            </div>
           </TabsContent>
 
           <TabsContent value="recipe" className="space-y-4 mt-4">

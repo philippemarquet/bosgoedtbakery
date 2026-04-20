@@ -155,7 +155,6 @@ const CustomerPlaceOrderTab = ({
         .select(
           "id, name, selling_price, recipe_yield_quantity, recipe_yield_unit, sell_unit_quantity, sell_unit_unit, image_url, category_id",
         )
-        .eq("is_orderable", true)
         .order("name"),
       supabase.from("categories").select("id, name").order("name"),
       supabase.from("product_price_tiers").select("product_id, min_quantity, price"),

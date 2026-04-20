@@ -168,7 +168,6 @@ const CustomerOrderDialog = ({ open, onOpenChange, order, onSave }: CustomerOrde
       const { data, error } = await supabase
         .from("products")
         .select("id, name, selling_price")
-        .eq("is_orderable", true)
         .order("name");
       if (!error && data) {
         setProducts(

@@ -59,7 +59,6 @@ const DiscountGroupDialog = ({ open, onOpenChange, editingGroup, onSave }: Disco
       const { data } = await supabase
         .from("products")
         .select("id, name, category:categories(name)")
-        .eq("is_orderable", true)
         .order("name");
       
       if (data) {

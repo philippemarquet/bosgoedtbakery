@@ -4,7 +4,6 @@ import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -248,9 +247,6 @@ const ProductsTab = () => {
                 <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground text-right">
                   Marge
                 </TableHead>
-                <TableHead className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground text-center">
-                  Bestelbaar
-                </TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
@@ -258,7 +254,7 @@ const ProductsTab = () => {
               {loading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={7}
                     className="text-center py-16 text-muted-foreground"
                   >
                     <div className="mx-auto mb-3 h-5 w-5 animate-spin rounded-full border border-foreground/20 border-t-foreground/70" />
@@ -268,7 +264,7 @@ const ProductsTab = () => {
               ) : groupedProducts.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={7}
                     className="text-center py-16 text-muted-foreground text-sm"
                   >
                     {searchQuery
@@ -283,7 +279,7 @@ const ProductsTab = () => {
                       key={`category-${categoryName}`}
                       className="hover:bg-transparent border-0"
                     >
-                      <TableCell colSpan={8} className="pt-7 pb-2 px-6">
+                      <TableCell colSpan={7} className="pt-7 pb-2 px-6">
                         <div className="flex items-baseline gap-3">
                           <span className="bakery-eyebrow text-foreground">
                             {categoryName}
@@ -336,13 +332,6 @@ const ProductsTab = () => {
                               Number(product.selling_price),
                             )}
                           </span>
-                        </TableCell>
-                        <TableCell className="py-3 text-center">
-                          <Checkbox
-                            checked={product.is_orderable}
-                            disabled
-                            className="opacity-70"
-                          />
                         </TableCell>
                         <TableCell className="py-3 w-10 pr-6">
                           <Button

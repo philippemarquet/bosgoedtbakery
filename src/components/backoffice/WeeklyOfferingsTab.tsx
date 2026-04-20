@@ -7,7 +7,7 @@ import {
   subWeeks,
 } from "date-fns";
 import { nl } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Image as ImageIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Image as ImageIcon, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,6 @@ type Product = Pick<
   | "sell_unit_quantity"
   | "sell_unit_unit"
   | "image_url"
-  | "is_orderable"
 >;
 
 type Offering = Database["public"]["Tables"]["weekly_product_offerings"]["Row"];
@@ -65,6 +64,7 @@ const WeeklyOfferingsTab = () => {
   const [offeringsByProductId, setOfferingsByProductId] = useState<Record<string, Offering>>({});
   const [overrideDrafts, setOverrideDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
 
   const selectedIso = toISODate(selectedMonday);
@@ -73,9 +73,8 @@ const WeeklyOfferingsTab = () => {
     const { data, error } = await supabase
       .from("products")
       .select(
-        "id, name, selling_price, sell_unit_quantity, sell_unit_unit, image_url, is_orderable",
+        "id, name, selling_price, sell_unit_quantity, sell_unit_unit, image_url",
       )
-      .eq("is_orderable", true)
       .order("name");
     if (error) {
       toast({
@@ -227,6 +226,12 @@ const WeeklyOfferingsTab = () => {
   const selectedLabel = formatWeekLabel(selectedMonday);
   const countOnOffer = Object.keys(offeringsByProductId).length;
 
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const visibleProducts = useMemo(() => {
+    if (!normalizedQuery) return products;
+    return products.filter((p) => p.name.toLowerCase().includes(normalizedQuery));
+  }, [products, normalizedQuery]);
+
   return (
     <div className="space-y-8">
       <div>
@@ -238,7 +243,8 @@ const WeeklyOfferingsTab = () => {
           Weekaanbod
         </h2>
         <p className="text-sm text-muted-foreground mt-2">
-          Zet per week producten op het aanbod. Laat de weekprijs leeg om de standaardprijs te gebruiken.
+          Kies per week welke producten op de lijst staan. Zoek hieronder en zet
+          ze op aanbod — laat de weekprijs leeg om de standaardprijs te gebruiken.
         </p>
       </div>
 
@@ -292,16 +298,29 @@ const WeeklyOfferingsTab = () => {
           </Button>
         </div>
 
-        <p className="text-[11px] tracking-[0.08em] uppercase text-muted-foreground">
-          {selectedLabel.week} ·{" "}
-          <span className="normal-case tracking-normal">
-            {countOnOffer === 0
-              ? "nog niks op aanbod"
-              : countOnOffer === 1
-                ? "1 product op aanbod"
-                : `${countOnOffer} producten op aanbod`}
-          </span>
-        </p>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <p className="text-[11px] tracking-[0.08em] uppercase text-muted-foreground">
+            {selectedLabel.week} ·{" "}
+            <span className="normal-case tracking-normal">
+              {countOnOffer === 0
+                ? "nog niks op aanbod"
+                : countOnOffer === 1
+                  ? "1 product op aanbod"
+                  : `${countOnOffer} producten op aanbod`}
+            </span>
+          </p>
+
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Zoek product…"
+              className="h-9 pl-9"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="paper-card overflow-hidden">
@@ -312,11 +331,15 @@ const WeeklyOfferingsTab = () => {
           </div>
         ) : products.length === 0 ? (
           <div className="py-16 text-center text-sm text-muted-foreground px-6">
-            Nog geen bestelbare producten. Zet producten op “separaat bestelbaar” om ze hier te zien.
+            Nog geen producten. Voeg er een toe via Back-office → Producten.
+          </div>
+        ) : visibleProducts.length === 0 ? (
+          <div className="py-16 text-center text-sm text-muted-foreground px-6">
+            Geen product gevonden voor &ldquo;{searchQuery}&rdquo;.
           </div>
         ) : (
           <div className="divide-y divide-border/60">
-            {products.map((product) => {
+            {visibleProducts.map((product) => {
               const offering = offeringsByProductId[product.id];
               const isOn = Boolean(offering);
               return (
