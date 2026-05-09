@@ -224,13 +224,18 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          customer_email_snapshot: string | null
           customer_id: string
+          customer_name_snapshot: string | null
+          customer_phone_snapshot: string | null
           discount_amount: number
           id: string
           invoice_date: string
           notes: string | null
           order_number: number
+          order_source: string
           pickup_location_id: string | null
+          popup_event_id: string | null
           status: string
           subtotal: number
           total: number
@@ -241,13 +246,18 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by: string
+          customer_email_snapshot?: string | null
           customer_id: string
+          customer_name_snapshot?: string | null
+          customer_phone_snapshot?: string | null
           discount_amount?: number
           id?: string
           invoice_date?: string
           notes?: string | null
           order_number?: number
+          order_source?: string
           pickup_location_id?: string | null
+          popup_event_id?: string | null
           status?: string
           subtotal?: number
           total?: number
@@ -258,13 +268,18 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string
+          customer_email_snapshot?: string | null
           customer_id?: string
+          customer_name_snapshot?: string | null
+          customer_phone_snapshot?: string | null
           discount_amount?: number
           id?: string
           invoice_date?: string
           notes?: string | null
           order_number?: number
+          order_source?: string
           pickup_location_id?: string | null
+          popup_event_id?: string | null
           status?: string
           subtotal?: number
           total?: number
@@ -285,6 +300,13 @@ export type Database = {
             columns: ["pickup_location_id"]
             isOneToOne: false
             referencedRelation: "pickup_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_popup_event_id_fkey"
+            columns: ["popup_event_id"]
+            isOneToOne: false
+            referencedRelation: "popup_events"
             referencedColumns: ["id"]
           },
           {
@@ -375,6 +397,102 @@ export type Database = {
           postal_code?: string
           street?: string
           title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      popup_event_products: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          id: string
+          max_quantity: number | null
+          popup_event_id: string
+          price_override: number | null
+          product_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          max_quantity?: number | null
+          popup_event_id: string
+          price_override?: number | null
+          product_id: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          max_quantity?: number | null
+          popup_event_id?: string
+          price_override?: number | null
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "popup_event_products_popup_event_id_fkey"
+            columns: ["popup_event_id"]
+            isOneToOne: false
+            referencedRelation: "popup_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "popup_event_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      popup_events: {
+        Row: {
+          created_at: string
+          description: string | null
+          event_date: string
+          id: string
+          is_published: boolean
+          location_address: string | null
+          location_name: string | null
+          name: string
+          ordering_closes_at: string
+          ordering_opens_at: string
+          pickup_end_time: string
+          pickup_start_time: string
+          slug: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          event_date: string
+          id?: string
+          is_published?: boolean
+          location_address?: string | null
+          location_name?: string | null
+          name: string
+          ordering_closes_at: string
+          ordering_opens_at?: string
+          pickup_end_time: string
+          pickup_start_time: string
+          slug?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          event_date?: string
+          id?: string
+          is_published?: boolean
+          location_address?: string | null
+          location_name?: string | null
+          name?: string
+          ordering_closes_at?: string
+          ordering_opens_at?: string
+          pickup_end_time?: string
+          pickup_start_time?: string
+          slug?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -548,7 +666,6 @@ export type Database = {
           house_number: string | null
           id: string
           is_archived: boolean
-          password_set: boolean
           phone: string | null
           postal_code: string | null
           street: string | null
@@ -564,7 +681,6 @@ export type Database = {
           house_number?: string | null
           id?: string
           is_archived?: boolean
-          password_set?: boolean
           phone?: string | null
           postal_code?: string | null
           street?: string | null
@@ -580,7 +696,6 @@ export type Database = {
           house_number?: string | null
           id?: string
           is_archived?: boolean
-          password_set?: boolean
           phone?: string | null
           postal_code?: string | null
           street?: string | null
@@ -745,6 +860,51 @@ export type Database = {
         }
         Relationships: []
       }
+      subscribers: {
+        Row: {
+          consent_marketing: boolean
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          is_active: boolean
+          notes: string | null
+          phone: string | null
+          source: string | null
+          unsubscribe_token: string
+          unsubscribed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          consent_marketing?: boolean
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          unsubscribe_token?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          consent_marketing?: boolean
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          unsubscribe_token?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -895,6 +1055,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      unsubscribe_via_token: { Args: { p_token: string }; Returns: Json }
     }
     Enums: {
       app_role: "baker" | "customer"
