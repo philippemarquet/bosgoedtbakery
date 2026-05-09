@@ -47,6 +47,11 @@ interface Order {
   updated_at: string;
   pickup_location_id: string | null;
   invoice_date: string;
+  order_source: string;
+  popup_event_id: string | null;
+  customer_name_snapshot: string | null;
+  customer_email_snapshot: string | null;
+  customer_phone_snapshot: string | null;
   customer: {
     id: string;
     full_name: string | null;
@@ -61,7 +66,46 @@ interface Order {
     id: string;
     title: string;
   } | null;
+  popup_event: {
+    id: string;
+    name: string;
+    slug: string | null;
+  } | null;
 }
+
+const ORDER_SOURCES = [
+  { value: "all", label: "Alle bronnen" },
+  { value: "internal", label: "Intern" },
+  { value: "public_popup", label: "Pop-up" },
+  { value: "public_weekly", label: "Web" },
+] as const;
+
+const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
+  internal: {
+    label: "Intern",
+    cls: "bg-muted/60 text-muted-foreground ring-1 ring-inset ring-border/70",
+  },
+  public_popup: {
+    label: "Pop-up",
+    cls: "bg-[hsl(var(--ember))]/10 text-[hsl(var(--ember))] ring-1 ring-inset ring-[hsl(var(--ember))]/30",
+  },
+  public_weekly: {
+    label: "Web",
+    cls: "bg-accent/10 text-foreground ring-1 ring-inset ring-accent/40",
+  },
+};
+
+const SourceBadge = ({ source }: { source: string }) => {
+  const cfg = SOURCE_BADGE[source];
+  if (!cfg) return null;
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 text-[9px] tracking-[0.08em] uppercase rounded-[calc(var(--radius)-4px)] ${cfg.cls}`}
+    >
+      {cfg.label}
+    </span>
+  );
+};
 
 const ORDER_STATUSES = [
   { value: "confirmed", label: "Bevestigd" },
