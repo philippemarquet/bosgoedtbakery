@@ -2,3 +2,15 @@ project_id = "jchxlfdcwdmuwnrqlyae"
 
 [functions.process-payment]
 verify_jwt = false
+
+[functions.send-welcome-email]
+verify_jwt = false
+
+[functions.send-order-confirmation]
+verify_jwt = false
+
+[functions.send-popup-reminders]
+verify_jwt = false
+
+[functions.send-menu-broadcast]
+verify_jwt = true

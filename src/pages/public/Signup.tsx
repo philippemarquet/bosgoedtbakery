@@ -59,32 +59,37 @@ const Signup = () => {
 
     setLoading(true);
     const source = form.source || "aanmeldpagina";
-    const { error } = await supabase.from("subscribers").insert({
-      full_name: form.full_name.trim(),
-      email: form.email.trim().toLowerCase(),
-      phone: form.phone.trim() || null,
-      source,
-      consent_marketing: true,
-    });
+    const { data: subRow, error } = await supabase
+      .from("subscribers")
+      .insert({
+        full_name: form.full_name.trim(),
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim() || null,
+        source,
+        consent_marketing: true,
+      })
+      .select("id")
+      .single();
 
     setLoading(false);
 
     if (error) {
-      // Duplicate email — friendly handling
       if (error.code === "23505" || /duplicate/i.test(error.message)) {
         setSubmitted(true);
         toast({ title: "Je bent al ingeschreven 🍞" });
         return;
       }
-      toast({
-        title: "Er ging iets mis",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Er ging iets mis", description: error.message, variant: "destructive" });
       return;
     }
 
-    // TODO: Resend welkomstmail
+    // Fire-and-forget welcome mail
+    if (subRow?.id) {
+      void supabase.functions
+        .invoke("send-welcome-email", { body: { subscriber_id: subRow.id } })
+        .then((r) => r.error && console.error("welcome mail failed", r.error));
+    }
+
     setSubmitted(true);
   };
 
