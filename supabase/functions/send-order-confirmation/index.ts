@@ -1,12 +1,11 @@
 import { corsHeaders, getServiceClient, sendEmail } from "../_shared/email-client.ts";
-import { orderConfirmationTemplate, type OrderItemLine } from "../_shared/email-templates.ts";
+import { renderEmail, eur, dateLong, time } from "../_shared/email-templates.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -14,8 +13,7 @@ Deno.serve(async (req) => {
     const { order_id } = await req.json().catch(() => ({}));
     if (!order_id || typeof order_id !== "string") {
       return new Response(JSON.stringify({ error: "order_id is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -32,50 +30,42 @@ Deno.serve(async (req) => {
 
     if (error || !order) {
       return new Response(JSON.stringify({ error: "order not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
     if (!order.customer_email_snapshot) {
       return new Response(JSON.stringify({ error: "no email on order" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
     const ev = order.popup_event as any;
     if (!ev) {
       return new Response(JSON.stringify({ error: "order has no popup event" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const items: OrderItemLine[] = (order.order_items ?? []).map((it: any) => ({
-      name: it.product?.name ?? "Product",
+    const items = (order.order_items as any[] ?? []).map((it) => ({
       quantity: Number(it.quantity),
-      unit_price: Number(it.unit_price),
-      total: Number(it.total),
+      product_name: it.product?.name ?? "Product",
+      unit_price: eur(Number(it.unit_price)),
+      line_total: eur(Number(it.total)),
     }));
 
-    const tpl = orderConfirmationTemplate({
-      fullName: order.customer_name_snapshot ?? "klant",
-      orderNumber: order.order_number,
-      items,
-      total: Number(order.total),
-      eventDate: ev.event_date,
-      pickupStart: ev.pickup_start_time,
-      pickupEnd: ev.pickup_end_time,
-      locationName: ev.location_name,
-      locationAddress: ev.location_address,
-    });
+    const tpl = await renderEmail("order_confirmation", {
+      full_name: order.customer_name_snapshot ?? "klant",
+      order_number: order.order_number,
+      total: eur(Number(order.total)),
+      event_date_long: dateLong(ev.event_date),
+      pickup_start: time(ev.pickup_start_time),
+      pickup_end: time(ev.pickup_end_time),
+      location_name: ev.location_name ?? "",
+      location_address: ev.location_address ?? "",
+    }, items);
 
     const result = await sendEmail({
       to: order.customer_email_snapshot,
-      subject: tpl.subject,
-      html: tpl.html,
-      text: tpl.text,
+      subject: tpl.subject, html: tpl.html, text: tpl.text,
       emailType: "order_confirmation",
       recipientName: order.customer_name_snapshot,
       relatedOrderId: order.id,
@@ -91,8 +81,7 @@ Deno.serve(async (req) => {
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("send-order-confirmation error", msg);
     return new Response(JSON.stringify({ error: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
