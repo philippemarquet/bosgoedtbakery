@@ -619,6 +619,19 @@ const OrderOverview = () => {
                     </button>
                   );
                 })}
+
+                <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                  <SelectTrigger className="h-8 w-auto min-w-[110px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {ORDER_SOURCES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
