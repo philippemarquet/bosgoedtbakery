@@ -349,15 +349,24 @@ const Order = () => {
       toast({ title: "Vul je naam en e-mail in", variant: "destructive" });
       return;
     }
-    const { error } = await supabase.from("subscribers").insert({
-      full_name: bannerForm.name.trim(),
-      email: bannerForm.email.trim().toLowerCase(),
-      source: "bestelpagina_banner",
-      consent_marketing: true,
-    });
+    const { data: subRow, error } = await supabase
+      .from("subscribers")
+      .insert({
+        full_name: bannerForm.name.trim(),
+        email: bannerForm.email.trim().toLowerCase(),
+        source: "bestelpagina_banner",
+        consent_marketing: true,
+      })
+      .select("id")
+      .single();
     if (error && error.code !== "23505" && !/duplicate/i.test(error.message)) {
       toast({ title: "Er ging iets mis", description: error.message, variant: "destructive" });
       return;
+    }
+    if (subRow?.id) {
+      void supabase.functions
+        .invoke("send-welcome-email", { body: { subscriber_id: subRow.id } })
+        .then((r) => r.error && console.error("welcome mail failed", r.error));
     }
     setBannerSubmitted(true);
   };
