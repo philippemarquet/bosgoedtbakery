@@ -46,8 +46,35 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("Bestellingen");
   const [userName, setUserName] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, signOut, isBaker } = useAuth();
   const isMobile = useIsMobile();
+
+  const tabSlug = searchParams.get("tab");
+  const eventIdParam = searchParams.get("event");
+
+  useEffect(() => {
+    if (tabSlug && TAB_SLUGS[tabSlug]) {
+      setActiveTab(TAB_SLUGS[tabSlug]);
+    }
+  }, [tabSlug]);
+
+  const handleTabChange = (name: string) => {
+    setActiveTab(name);
+    const slug = NAME_TO_SLUG[name];
+    const next = new URLSearchParams(searchParams);
+    if (slug) next.set("tab", slug);
+    else next.delete("tab");
+    if (name !== "Pop-up events") next.delete("event");
+    setSearchParams(next, { replace: true });
+  };
+
+  const handleEventDeeplinkChange = (eventId: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (eventId) next.set("event", eventId);
+    else next.delete("event");
+    setSearchParams(next, { replace: true });
+  };
 
   useEffect(() => {
     const fetchUserName = async () => {
