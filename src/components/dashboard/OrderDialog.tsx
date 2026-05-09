@@ -690,6 +690,38 @@ const OrderDialog = ({
           </div>
         </DialogHeader>
 
+        {editingOrder?.order_source === "public_popup" && (
+          <div className="rounded-[calc(var(--radius)-2px)] border border-[hsl(var(--ember))]/30 bg-[hsl(var(--ember))]/5 px-4 py-3 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="bakery-eyebrow">Klantgegevens (snapshot)</p>
+              {editingOrder.popup_event?.slug && (
+                <a
+                  href={`/bestellen?event=${editingOrder.popup_event.slug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] underline text-foreground/70 hover:text-foreground"
+                >
+                  Bekijk pop-up: {editingOrder.popup_event.name}
+                </a>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Naam</p>
+                <p>{editingOrder.customer_name_snapshot || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">E-mail</p>
+                <p className="break-all">{editingOrder.customer_email_snapshot || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Telefoon</p>
+                <p>{editingOrder.customer_phone_snapshot || "—"}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {isReadOnly && (
           <div className="flex items-center justify-between gap-4 rounded-[calc(var(--radius)-2px)] border border-border/60 bg-muted/40 px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
