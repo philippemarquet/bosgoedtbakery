@@ -242,8 +242,9 @@ const OrderRow = ({
       <td className="py-3.5 pl-6">
         <div className="flex items-center gap-2">
           <span className="text-foreground text-sm">
-            {order.customer?.full_name || "Onbekend"}
+            {order.customer?.full_name || order.customer_name_snapshot || "Onbekend"}
           </span>
+          <SourceBadge source={order.order_source} />
           {order.notes && (
             <Popover>
               <PopoverTrigger asChild>
