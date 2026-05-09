@@ -301,18 +301,34 @@ const Order = () => {
       const { error: itemErr } = await supabase.from("order_items").insert(items);
       if (itemErr) throw itemErr;
 
+      let newSubscriberId: string | null = null;
       if (form.optIn) {
-        await supabase.from("subscribers").insert({
-          full_name: form.full_name.trim(),
-          email: form.email.trim().toLowerCase(),
-          phone: form.phone.trim() || null,
-          source: "bestelpagina_optin",
-          consent_marketing: true,
-        });
-        // ignore duplicate errors silently
+        const { data: subRow, error: subErr } = await supabase
+          .from("subscribers")
+          .insert({
+            full_name: form.full_name.trim(),
+            email: form.email.trim().toLowerCase(),
+            phone: form.phone.trim() || null,
+            source: "bestelpagina_optin",
+            consent_marketing: true,
+          })
+          .select("id")
+          .single();
+        if (!subErr && subRow) newSubscriberId = subRow.id;
+        // duplicate (23505) → skip welcome silently
       }
 
-      // TODO: Resend bevestigingsmail
+      // Fire-and-forget: order confirmation + (optional) welcome
+      void supabase.functions
+        .invoke("send-order-confirmation", { body: { order_id: orderRow.id } })
+        .then((r) => r.error && console.error("order confirmation mail failed", r.error));
+
+      if (newSubscriberId) {
+        void supabase.functions
+          .invoke("send-welcome-email", { body: { subscriber_id: newSubscriberId } })
+          .then((r) => r.error && console.error("welcome mail failed", r.error));
+      }
+
       setConfirmation({ orderNumber: orderRow.order_number, email: form.email.trim().toLowerCase() });
       setCheckoutOpen(false);
       setCart({});
