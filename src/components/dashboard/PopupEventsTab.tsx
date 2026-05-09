@@ -676,15 +676,117 @@ const PopupEventDetail = ({
         </TabsContent>
 
         <TabsContent value="actions" className="mt-4 space-y-3">
-          <Button
-            onClick={() => toast({ title: "Resend integratie volgt" })}
-            variant="outline"
-          >
-            <Send className="h-4 w-4 mr-2" /> Verzend menu naar subscribers
-          </Button>
+          <BroadcastSection event={event} />
         </TabsContent>
       </Tabs>
     </div>
+  );
+};
+
+const BroadcastSection = ({ event }: { event: PopupEvent }) => {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<"config" | "preview" | "confirm" | "sending" | "done">("config");
+  const [intro, setIntro] = useState("");
+  const [activeSubs, setActiveSubs] = useState<number>(0);
+  const [lastBroadcast, setLastBroadcast] = useState<{ at: string; sent: number; failed: number } | null>(null);
+  const [result, setResult] = useState<{ recipients_count: number; emails_sent: number; emails_failed: number } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { count } = await supabase
+        .from("subscribers").select("id", { count: "exact", head: true }).eq("is_active", true);
+      setActiveSubs(count ?? 0);
+      const { data: last } = await supabase
+        .from("email_logs")
+        .select("created_at, status, metadata")
+        .eq("email_type", "menu_broadcast")
+        .eq("related_popup_event_id", event.id)
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      if (last && last.length > 0) {
+        const sent = last.filter((l: any) => l.status === "sent").length;
+        const failed = last.filter((l: any) => l.status === "failed").length;
+        setLastBroadcast({ at: last[0].created_at, sent, failed });
+      }
+    })();
+  }, [event.id]);
+
+  const send = async () => {
+    setStep("sending");
+    const { data, error } = await supabase.functions.invoke("send-menu-broadcast", {
+      body: { popup_event_id: event.id, custom_intro: intro || null },
+    });
+    if (error) {
+      toast({ title: "Fout", description: error.message, variant: "destructive" });
+      setStep("confirm");
+      return;
+    }
+    setResult(data as any);
+    setStep("done");
+  };
+
+  if (!event.is_published) {
+    return <p className="text-sm text-muted-foreground">Publiceer dit event eerst om de menu-broadcast te kunnen sturen.</p>;
+  }
+
+  return (
+    <>
+      <Button onClick={() => { setOpen(true); setStep("config"); setIntro(""); setResult(null); }}>
+        <Send className="h-4 w-4 mr-2" /> Verzend menu naar subscribers
+      </Button>
+      {lastBroadcast && (
+        <p className="text-xs text-muted-foreground">
+          Laatste broadcast: {format(parseISO(lastBroadcast.at), "d MMM HH:mm", { locale: nl })}
+          {" · "}{lastBroadcast.sent} verzonden, {lastBroadcast.failed} gefaald
+        </p>
+      )}
+
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setStep("config"); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Menu broadcast — {event.name}</DialogTitle>
+          </DialogHeader>
+
+          {step === "config" && (
+            <div className="space-y-4">
+              <p className="text-sm">Verstuurt naar <strong>{activeSubs}</strong> actieve subscribers.</p>
+              <div className="space-y-2">
+                <Label>Optionele intro tekst (overschrijft de standaard intro)</Label>
+                <Textarea rows={3} value={intro} onChange={(e) => setIntro(e.target.value)} placeholder="Bv. Speciale paas-editie!" />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)}>Annuleren</Button>
+                <Button disabled={activeSubs === 0} onClick={() => setStep("confirm")}>Volgende</Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {step === "confirm" && (
+            <div className="space-y-4">
+              <p className="text-sm">Weet je het zeker? Dit verstuurt naar <strong>{activeSubs}</strong> subscribers en kan niet ongedaan worden gemaakt.</p>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setStep("config")}>Terug</Button>
+                <Button onClick={send}>Verzend nu</Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {step === "sending" && <p className="text-sm py-6 text-center text-muted-foreground">Verzenden…</p>}
+
+          {step === "done" && result && (
+            <div className="space-y-4">
+              <p className="text-sm">
+                <strong>{result.emails_sent}</strong> verzonden, <strong>{result.emails_failed}</strong> gefaald (van {result.recipients_count}).
+              </p>
+              <DialogFooter>
+                <Button onClick={() => setOpen(false)}>Sluiten</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

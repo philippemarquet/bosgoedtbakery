@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Users, ClipboardList, ShoppingCart, Euro, Factory, CalendarHeart, Mail } from "lucide-react";
+import { Users, ClipboardList, ShoppingCart, Euro, Factory, CalendarHeart, Mail, Inbox } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ import Financials from "@/components/dashboard/Financials";
 import Production from "@/components/dashboard/Production";
 import PopupEventsTab from "@/components/dashboard/PopupEventsTab";
 import SubscribersTab from "@/components/dashboard/SubscribersTab";
+import EmailsTab from "@/components/dashboard/EmailsTab";
 
 type NavItem = ShellNavItem & {
   bakerOnly?: boolean;
@@ -26,6 +27,7 @@ const navigationItems: NavItem[] = [
   { name: "Bestellingen", icon: ShoppingCart },
   { name: "Productie", icon: Factory, bakerOnly: true },
   { name: "Subscribers", icon: Mail, bakerOnly: true, mobileHidden: true },
+  { name: "E-mails", icon: Inbox, bakerOnly: true, mobileHidden: true },
   { name: "Financieel", icon: Euro, bakerOnly: true, mobileHidden: true },
 ];
 
@@ -36,6 +38,7 @@ const TAB_SLUGS: Record<string, string> = {
   "bestellingen": "Bestellingen",
   "productie": "Productie",
   "subscribers": "Subscribers",
+  "emails": "E-mails",
   "financieel": "Financieel",
 };
 const NAME_TO_SLUG: Record<string, string> = Object.fromEntries(
@@ -130,6 +133,8 @@ const Dashboard = () => {
         return <Production />;
       case "Subscribers":
         return <SubscribersTab />;
+      case "E-mails":
+        return <EmailsTab />;
       case "Financieel":
         return <Financials />;
       default:
