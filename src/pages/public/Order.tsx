@@ -228,18 +228,42 @@ const Order = () => {
         return;
       }
 
-      // Maak guest profile (snapshots zijn leidend)
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .insert({
-          user_id: null,
-          full_name: form.full_name.trim(),
-          phone: form.phone.trim(),
-        })
-        .select("id")
-        .single();
+      // Profile dedup op email — hergebruik bestaand guest profile of maak nieuw aan
+      const emailNorm = form.email.trim().toLowerCase();
+      const fullNameTrim = form.full_name.trim();
+      const phoneTrim = form.phone.trim();
 
-      if (profileError || !profile) throw profileError ?? new Error("Profiel aanmaken mislukt");
+      let profileId: string | null = null;
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("id, full_name, phone")
+        .is("user_id", null)
+        .ilike("email", emailNorm)
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        profileId = existing.id;
+        const updates: { full_name?: string; phone?: string } = {};
+        if (existing.full_name !== fullNameTrim) updates.full_name = fullNameTrim;
+        if (existing.phone !== phoneTrim) updates.phone = phoneTrim;
+        if (Object.keys(updates).length > 0) {
+          await supabase.from("profiles").update(updates).eq("id", profileId);
+        }
+      } else {
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .insert({
+            user_id: null,
+            full_name: fullNameTrim,
+            phone: phoneTrim,
+            email: emailNorm,
+          })
+          .select("id")
+          .single();
+        if (profileError || !profile) throw profileError ?? new Error("Profiel aanmaken mislukt");
+        profileId = profile.id;
+      }
 
       const subtotal = cartTotal;
       const total = cartTotal;
