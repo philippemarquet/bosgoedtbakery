@@ -719,7 +719,7 @@ const Order = () => {
 
             {selectedEvent && (
               <p className="text-xs text-muted-foreground border-t border-border/50 pt-3">
-                Je betaalt ter plekke met Bunq (QR-code) of cash bij ophalen op{" "}
+                Je betaalt ter plekke met overboeking of cash bij ophalen op{" "}
                 {formatLongDate(selectedEvent.event_date)}, tussen {formatTime(selectedEvent.pickup_start_time)} en{" "}
                 {formatTime(selectedEvent.pickup_end_time)}.
               </p>
