@@ -3,10 +3,9 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requireBaker?: boolean;
 }
 
-const ProtectedRoute = ({ children, requireBaker = false }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { user, isLoading, isBaker } = useAuth();
 
   if (isLoading) {
@@ -20,12 +19,8 @@ const ProtectedRoute = ({ children, requireBaker = false }: ProtectedRouteProps)
     );
   }
 
-  if (!user) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (requireBaker && !isBaker) {
-    return <Navigate to="/dashboard" replace />;
+  if (!user || !isBaker) {
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
