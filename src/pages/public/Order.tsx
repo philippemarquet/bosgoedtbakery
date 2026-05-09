@@ -712,7 +712,7 @@ const Order = () => {
               <span>
                 Ja, houd me op de hoogte van toekomstige Bosgoedt Bakery pop-ups via e-mail.
                 <span className="block text-xs text-muted-foreground mt-0.5">
-                  Maximaal 1 mail per maand, je kunt je altijd uitschrijven.
+                  Maximaal 1 mail per pop-up event, je kunt je altijd uitschrijven.
                 </span>
               </span>
             </label>
