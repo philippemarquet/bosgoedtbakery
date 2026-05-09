@@ -11,6 +11,7 @@ import Order from "./pages/public/Order";
 import Signup from "./pages/public/Signup";
 import About from "./pages/public/About";
 import Privacy from "./pages/public/Privacy";
+import Unsubscribe from "./pages/public/Unsubscribe";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
