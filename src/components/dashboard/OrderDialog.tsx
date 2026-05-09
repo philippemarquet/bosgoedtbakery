@@ -94,6 +94,12 @@ interface Order {
   weekly_menu: { id: string; name: string; delivery_date: string | null } | null;
   weekly_menu_quantity?: number;
   pickup_location_id?: string | null;
+  order_source?: string;
+  popup_event_id?: string | null;
+  customer_name_snapshot?: string | null;
+  customer_email_snapshot?: string | null;
+  customer_phone_snapshot?: string | null;
+  popup_event?: { id: string; name: string; slug: string | null } | null;
 }
 
 type Profile = Pick<
