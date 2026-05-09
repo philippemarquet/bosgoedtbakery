@@ -333,6 +333,7 @@ const OrderOverview = () => {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState("orders");
   const [statusFilter, setStatusFilter] = useState<string>("confirmed");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [sortOption, setSortOption] = useState<SortOption>("date-desc");
   const [groupOption, setGroupOption] = useState<GroupOption>("none");
   const [whatsappTemplate, setWhatsappTemplate] = useState("");
