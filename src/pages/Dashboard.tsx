@@ -29,7 +29,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("Gebruikersbeheer");
   const [userName, setUserName] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { user, signOut, isBaker, role } = useAuth();
+  const { user, signOut, isBaker } = useAuth();
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -99,7 +99,7 @@ const Dashboard = () => {
   };
 
   const displayName = userName || user?.email || "Gebruiker";
-  const roleLabel = role === "baker" ? "Bakker" : role === "customer" ? "Klant" : "Geen rol";
+  const roleLabel = isBaker ? "Bakker" : "Geen rol";
 
   return (
     <DashboardShell
