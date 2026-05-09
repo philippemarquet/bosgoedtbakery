@@ -223,7 +223,7 @@ export type Database = {
       orders: {
         Row: {
           created_at: string
-          created_by: string
+          created_by: string | null
           customer_email_snapshot: string | null
           customer_id: string
           customer_name_snapshot: string | null
@@ -245,7 +245,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          created_by: string
+          created_by?: string | null
           customer_email_snapshot?: string | null
           customer_id: string
           customer_name_snapshot?: string | null
@@ -267,7 +267,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           customer_email_snapshot?: string | null
           customer_id?: string
           customer_name_snapshot?: string | null
@@ -662,6 +662,7 @@ export type Database = {
           country: string | null
           created_at: string
           discount_percentage: number
+          email: string | null
           full_name: string | null
           house_number: string | null
           id: string
@@ -677,6 +678,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           discount_percentage?: number
+          email?: string | null
           full_name?: string | null
           house_number?: string | null
           id?: string
@@ -692,6 +694,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           discount_percentage?: number
+          email?: string | null
           full_name?: string | null
           house_number?: string | null
           id?: string
