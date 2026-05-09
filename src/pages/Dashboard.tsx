@@ -29,6 +29,19 @@ const navigationItems: NavItem[] = [
   { name: "Financieel", icon: Euro, bakerOnly: true, mobileHidden: true },
 ];
 
+const TAB_SLUGS: Record<string, string> = {
+  "gebruikersbeheer": "Gebruikersbeheer",
+  "back-office": "Back-office",
+  "popup-events": "Pop-up events",
+  "bestellingen": "Bestellingen",
+  "productie": "Productie",
+  "subscribers": "Subscribers",
+  "financieel": "Financieel",
+};
+const NAME_TO_SLUG: Record<string, string> = Object.fromEntries(
+  Object.entries(TAB_SLUGS).map(([s, n]) => [n, s])
+);
+
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("Bestellingen");
   const [userName, setUserName] = useState<string | null>(null);
