@@ -271,19 +271,19 @@ const Order = () => {
       const { data: orderRow, error: orderErr } = await supabase
         .from("orders")
         .insert({
-          customer_id: profile.id,
+          customer_id: profileId!,
           popup_event_id: selectedEvent.id,
           status: "confirmed",
           order_source: "public_popup",
-          customer_name_snapshot: form.full_name.trim(),
-          customer_email_snapshot: form.email.trim().toLowerCase(),
-          customer_phone_snapshot: form.phone.trim(),
+          customer_name_snapshot: fullNameTrim,
+          customer_email_snapshot: emailNorm,
+          customer_phone_snapshot: phoneTrim,
           notes: form.notes.trim() || null,
           subtotal,
           discount_amount: 0,
           total,
           invoice_date: selectedEvent.event_date,
-          created_by: profile.id, // RLS: created_by NOT NULL; for public order we use profile id (no auth user)
+          created_by: null,
         })
         .select("id, order_number")
         .single();
