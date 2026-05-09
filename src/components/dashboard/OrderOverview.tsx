@@ -47,6 +47,11 @@ interface Order {
   updated_at: string;
   pickup_location_id: string | null;
   invoice_date: string;
+  order_source: string;
+  popup_event_id: string | null;
+  customer_name_snapshot: string | null;
+  customer_email_snapshot: string | null;
+  customer_phone_snapshot: string | null;
   customer: {
     id: string;
     full_name: string | null;
@@ -61,7 +66,46 @@ interface Order {
     id: string;
     title: string;
   } | null;
+  popup_event: {
+    id: string;
+    name: string;
+    slug: string | null;
+  } | null;
 }
+
+const ORDER_SOURCES = [
+  { value: "all", label: "Alle bronnen" },
+  { value: "internal", label: "Intern" },
+  { value: "public_popup", label: "Pop-up" },
+  { value: "public_weekly", label: "Web" },
+] as const;
+
+const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
+  internal: {
+    label: "Intern",
+    cls: "bg-muted/60 text-muted-foreground ring-1 ring-inset ring-border/70",
+  },
+  public_popup: {
+    label: "Pop-up",
+    cls: "bg-[hsl(var(--ember))]/10 text-[hsl(var(--ember))] ring-1 ring-inset ring-[hsl(var(--ember))]/30",
+  },
+  public_weekly: {
+    label: "Web",
+    cls: "bg-accent/10 text-foreground ring-1 ring-inset ring-accent/40",
+  },
+};
+
+const SourceBadge = ({ source }: { source: string }) => {
+  const cfg = SOURCE_BADGE[source];
+  if (!cfg) return null;
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 text-[9px] tracking-[0.08em] uppercase rounded-[calc(var(--radius)-4px)] ${cfg.cls}`}
+    >
+      {cfg.label}
+    </span>
+  );
+};
 
 const ORDER_STATUSES = [
   { value: "confirmed", label: "Bevestigd" },
@@ -123,8 +167,11 @@ const OrderRow = ({
       >
         <td className="py-3 pl-4">
           <div className="flex flex-col gap-0.5">
-            <span className="text-foreground text-sm">
-              {order.customer?.full_name || "Onbekend"}
+            <span className="text-foreground text-sm flex items-center gap-1.5">
+              <span className="truncate">
+                {order.customer?.full_name || order.customer_name_snapshot || "Onbekend"}
+              </span>
+              <SourceBadge source={order.order_source} />
             </span>
             <span className="text-[11px] tracking-[0.04em] text-muted-foreground">
               {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
@@ -195,8 +242,9 @@ const OrderRow = ({
       <td className="py-3.5 pl-6">
         <div className="flex items-center gap-2">
           <span className="text-foreground text-sm">
-            {order.customer?.full_name || "Onbekend"}
+            {order.customer?.full_name || order.customer_name_snapshot || "Onbekend"}
           </span>
+          <SourceBadge source={order.order_source} />
           {order.notes && (
             <Popover>
               <PopoverTrigger asChild>
@@ -289,6 +337,7 @@ const OrderOverview = () => {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState("orders");
   const [statusFilter, setStatusFilter] = useState<string>("confirmed");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [sortOption, setSortOption] = useState<SortOption>("date-desc");
   const [groupOption, setGroupOption] = useState<GroupOption>("none");
   const [whatsappTemplate, setWhatsappTemplate] = useState("");
@@ -305,7 +354,8 @@ const OrderOverview = () => {
           *,
           customer:profiles!orders_customer_id_fkey(id, full_name, phone),
           weekly_menu:weekly_menus(id, name, delivery_date),
-          pickup_location:pickup_locations(id, title)
+          pickup_location:pickup_locations(id, title),
+          popup_event:popup_events(id, name, slug)
         `)
         .order("created_at", { ascending: false }),
       supabase
@@ -356,12 +406,14 @@ const OrderOverview = () => {
 
   const { processedOrders, groupedOrders } = useMemo(() => {
     let filtered = orders.filter((o) => {
-      const customerName = o.customer?.full_name?.toLowerCase() || "";
+      const customerName =
+        o.customer?.full_name?.toLowerCase() || o.customer_name_snapshot?.toLowerCase() || "";
       const menuName = o.weekly_menu?.name?.toLowerCase() || "";
       const query = searchQuery.toLowerCase();
       const matchesSearch = customerName.includes(query) || menuName.includes(query);
       const matchesStatus = o.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesSource = sourceFilter === "all" || o.order_source === sourceFilter;
+      return matchesSearch && matchesStatus && matchesSource;
     });
 
     filtered.sort((a, b) => {
@@ -411,7 +463,7 @@ const OrderOverview = () => {
     });
 
     return { processedOrders: filtered, groupedOrders: sortedGroups };
-  }, [orders, searchQuery, statusFilter, sortOption, groupOption]);
+  }, [orders, searchQuery, statusFilter, sourceFilter, sortOption, groupOption]);
 
   const getOrderCountByStatus = (status: string) => {
     return orders.filter((o) => o.status === status).length;
@@ -571,6 +623,19 @@ const OrderOverview = () => {
                     </button>
                   );
                 })}
+
+                <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                  <SelectTrigger className="h-8 w-auto min-w-[110px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {ORDER_SOURCES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
