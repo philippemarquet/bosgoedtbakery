@@ -81,14 +81,35 @@ const emptyEvent: Partial<PopupEvent> = {
   is_published: false,
 };
 
-const PopupEventsTab = () => {
+interface PopupEventsTabProps {
+  initialEventId?: string | null;
+  onSelectionChange?: (eventId: string | null) => void;
+}
+
+const PopupEventsTab = ({ initialEventId, onSelectionChange }: PopupEventsTabProps = {}) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<PopupEvent[]>([]);
   const [stats, setStats] = useState<Record<string, { orders: number; revenue: number }>>({});
-  const [selected, setSelected] = useState<PopupEvent | null>(null);
+  const [selected, setSelectedState] = useState<PopupEvent | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<PopupEvent> | null>(null);
+
+  const setSelected = useCallback(
+    (ev: PopupEvent | null) => {
+      setSelectedState(ev);
+      onSelectionChange?.(ev?.id ?? null);
+    },
+    [onSelectionChange]
+  );
+
+  // Auto-select event when deeplinked via initialEventId
+  useEffect(() => {
+    if (!initialEventId || events.length === 0) return;
+    if (selected?.id === initialEventId) return;
+    const match = events.find((e) => e.id === initialEventId);
+    if (match) setSelectedState(match);
+  }, [initialEventId, events, selected?.id]);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
