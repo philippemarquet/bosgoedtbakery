@@ -459,7 +459,7 @@ const OrderOverview = () => {
     });
 
     return { processedOrders: filtered, groupedOrders: sortedGroups };
-  }, [orders, searchQuery, statusFilter, sortOption, groupOption]);
+  }, [orders, searchQuery, statusFilter, sourceFilter, sortOption, groupOption]);
 
   const getOrderCountByStatus = (status: string) => {
     return orders.filter((o) => o.status === status).length;
