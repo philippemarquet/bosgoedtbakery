@@ -188,6 +188,60 @@ export type Database = {
           },
         ]
       }
+      email_templates: {
+        Row: {
+          available_variables: Json | null
+          created_at: string
+          description: string | null
+          html_body: string
+          id: string
+          is_active: boolean
+          item_html_template: string | null
+          item_text_template: string | null
+          item_variables: Json | null
+          name: string
+          subject: string
+          template_key: string
+          text_body: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          available_variables?: Json | null
+          created_at?: string
+          description?: string | null
+          html_body: string
+          id?: string
+          is_active?: boolean
+          item_html_template?: string | null
+          item_text_template?: string | null
+          item_variables?: Json | null
+          name: string
+          subject: string
+          template_key: string
+          text_body: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          available_variables?: Json | null
+          created_at?: string
+          description?: string | null
+          html_body?: string
+          id?: string
+          is_active?: boolean
+          item_html_template?: string | null
+          item_text_template?: string | null
+          item_variables?: Json | null
+          name?: string
+          subject?: string
+          template_key?: string
+          text_body?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       fixed_costs: {
         Row: {
           created_at: string
