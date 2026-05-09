@@ -595,7 +595,7 @@ const Order = () => {
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
         <div className="rounded-[var(--radius)] border border-border/60 bg-muted/30 p-6 sm:p-8">
           <h2 className="font-serif text-2xl sm:text-3xl mb-2" style={{ letterSpacing: "-0.02em" }}>
-            Niet vandaag? Geen probleem.
+            Wil je op de hoogte worden gehouden van aankomende pop-ups?
           </h2>
           <p className="text-foreground/80 mb-5 max-w-xl">
             Laat je e-mail achter en je krijgt het menu van onze volgende pop-up direct in je
