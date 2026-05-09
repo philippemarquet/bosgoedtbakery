@@ -118,7 +118,12 @@ const Dashboard = () => {
       case "Back-office":
         return <BackOffice />;
       case "Pop-up events":
-        return <PopupEventsTab />;
+        return (
+          <PopupEventsTab
+            initialEventId={eventIdParam}
+            onSelectionChange={handleEventDeeplinkChange}
+          />
+        );
       case "Bestellingen":
         return <OrderOverview />;
       case "Productie":
