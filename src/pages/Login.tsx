@@ -81,7 +81,7 @@ const Login = () => {
         />
         <div className="absolute bottom-12 left-12 right-12 z-10">
           <p className="font-serif text-background text-3xl leading-snug max-w-lg">
-            Brood dat de tijd krijgt — stil rijzend, op hout gebakken.
+            {"\n"}
           </p>
         </div>
       </div>

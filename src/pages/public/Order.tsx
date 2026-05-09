@@ -408,7 +408,7 @@ const Order = () => {
             </p>
             <p className="text-sm text-foreground/80">
               We hebben je een bevestigingsmail gestuurd op <strong>{confirmation.email}</strong>. Bij ophalen
-              kun je betalen via Bunq (QR-code aanwezig) of cash.
+              kun je betalen via overboeking of cash.
             </p>
             <Button variant="outline" onClick={() => setConfirmation(null)}>
               Nog een bestelling plaatsen
