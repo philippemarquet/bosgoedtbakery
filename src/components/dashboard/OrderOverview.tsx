@@ -349,7 +349,8 @@ const OrderOverview = () => {
           *,
           customer:profiles!orders_customer_id_fkey(id, full_name, phone),
           weekly_menu:weekly_menus(id, name, delivery_date),
-          pickup_location:pickup_locations(id, title)
+          pickup_location:pickup_locations(id, title),
+          popup_event:popup_events(id, name, slug)
         `)
         .order("created_at", { ascending: false }),
       supabase
