@@ -402,12 +402,14 @@ const OrderOverview = () => {
 
   const { processedOrders, groupedOrders } = useMemo(() => {
     let filtered = orders.filter((o) => {
-      const customerName = o.customer?.full_name?.toLowerCase() || "";
+      const customerName =
+        o.customer?.full_name?.toLowerCase() || o.customer_name_snapshot?.toLowerCase() || "";
       const menuName = o.weekly_menu?.name?.toLowerCase() || "";
       const query = searchQuery.toLowerCase();
       const matchesSearch = customerName.includes(query) || menuName.includes(query);
       const matchesStatus = o.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesSource = sourceFilter === "all" || o.order_source === sourceFilter;
+      return matchesSearch && matchesStatus && matchesSource;
     });
 
     filtered.sort((a, b) => {
