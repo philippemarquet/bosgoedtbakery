@@ -167,8 +167,11 @@ const OrderRow = ({
       >
         <td className="py-3 pl-4">
           <div className="flex flex-col gap-0.5">
-            <span className="text-foreground text-sm">
-              {order.customer?.full_name || "Onbekend"}
+            <span className="text-foreground text-sm flex items-center gap-1.5">
+              <span className="truncate">
+                {order.customer?.full_name || order.customer_name_snapshot || "Onbekend"}
+              </span>
+              <SourceBadge source={order.order_source} />
             </span>
             <span className="text-[11px] tracking-[0.04em] text-muted-foreground">
               {format(parseISO(order.invoice_date), "d MMM", { locale: nl })}
