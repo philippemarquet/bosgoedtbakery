@@ -115,6 +115,79 @@ export type Database = {
         }
         Relationships: []
       }
+      email_logs: {
+        Row: {
+          created_at: string
+          email_type: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          recipient_email: string
+          recipient_name: string | null
+          related_order_id: string | null
+          related_popup_event_id: string | null
+          related_subscriber_id: string | null
+          resend_id: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          email_type: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          recipient_email: string
+          recipient_name?: string | null
+          related_order_id?: string | null
+          related_popup_event_id?: string | null
+          related_subscriber_id?: string | null
+          resend_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          email_type?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          recipient_email?: string
+          recipient_name?: string | null
+          related_order_id?: string | null
+          related_popup_event_id?: string | null
+          related_subscriber_id?: string | null
+          resend_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_related_order_id_fkey"
+            columns: ["related_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_logs_related_popup_event_id_fkey"
+            columns: ["related_popup_event_id"]
+            isOneToOne: false
+            referencedRelation: "popup_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_logs_related_subscriber_id_fkey"
+            columns: ["related_subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "subscribers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fixed_costs: {
         Row: {
           created_at: string
