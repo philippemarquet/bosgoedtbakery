@@ -301,21 +301,21 @@ const Order = () => {
       const { error: itemErr } = await supabase.from("order_items").insert(items);
       if (itemErr) throw itemErr;
 
-      let newSubscriberId: string | null = null;
+      let welcomeSubscriberId: string | null = null;
       if (form.optIn) {
-        const { data: subRow, error: subErr } = await supabase
-          .from("subscribers")
-          .insert({
-            full_name: form.full_name.trim(),
-            email: form.email.trim().toLowerCase(),
-            phone: form.phone.trim() || null,
-            source: "bestelpagina_optin",
-            consent_marketing: true,
-          })
-          .select("id")
-          .single();
-        if (!subErr && subRow) newSubscriberId = subRow.id;
-        // duplicate (23505) → skip welcome silently
+        const { data: subResult, error: subErr } = await supabase.rpc("subscribe_or_reactivate", {
+          p_full_name: form.full_name.trim(),
+          p_email: form.email.trim().toLowerCase(),
+          p_phone: form.phone.trim() || null,
+          p_source: "bestelpagina_optin",
+          p_consent_marketing: true,
+        });
+        if (!subErr && subResult && typeof subResult === "object") {
+          const r = subResult as { success?: boolean; status?: string; subscriber_id?: string };
+          if (r.success && (r.status === "created" || r.status === "reactivated") && r.subscriber_id) {
+            welcomeSubscriberId = r.subscriber_id;
+          }
+        }
       }
 
       // Fire-and-forget: order confirmation + (optional) welcome
@@ -323,9 +323,9 @@ const Order = () => {
         .invoke("send-order-confirmation", { body: { order_id: orderRow.id } })
         .then((r) => r.error && console.error("order confirmation mail failed", r.error));
 
-      if (newSubscriberId) {
+      if (welcomeSubscriberId) {
         void supabase.functions
-          .invoke("send-welcome-email", { body: { subscriber_id: newSubscriberId } })
+          .invoke("send-welcome-email", { body: { subscriber_id: welcomeSubscriberId } })
           .then((r) => r.error && console.error("welcome mail failed", r.error));
       }
 
@@ -349,24 +349,29 @@ const Order = () => {
       toast({ title: "Vul je naam en e-mail in", variant: "destructive" });
       return;
     }
-    const { data: subRow, error } = await supabase
-      .from("subscribers")
-      .insert({
-        full_name: bannerForm.name.trim(),
-        email: bannerForm.email.trim().toLowerCase(),
-        source: "bestelpagina_banner",
-        consent_marketing: true,
-      })
-      .select("id")
-      .single();
-    if (error && error.code !== "23505" && !/duplicate/i.test(error.message)) {
+    const { data: subResult, error } = await supabase.rpc("subscribe_or_reactivate", {
+      p_full_name: bannerForm.name.trim(),
+      p_email: bannerForm.email.trim().toLowerCase(),
+      p_phone: null,
+      p_source: "bestelpagina_banner",
+      p_consent_marketing: true,
+    });
+    if (error) {
       toast({ title: "Er ging iets mis", description: error.message, variant: "destructive" });
       return;
     }
-    if (subRow?.id) {
+    const r = (subResult ?? {}) as { success?: boolean; status?: string; subscriber_id?: string; message?: string };
+    if (!r.success) {
+      toast({ title: "Er ging iets mis", description: r.message ?? "Probeer het opnieuw", variant: "destructive" });
+      return;
+    }
+    if ((r.status === "created" || r.status === "reactivated") && r.subscriber_id) {
       void supabase.functions
-        .invoke("send-welcome-email", { body: { subscriber_id: subRow.id } })
-        .then((r) => r.error && console.error("welcome mail failed", r.error));
+        .invoke("send-welcome-email", { body: { subscriber_id: r.subscriber_id } })
+        .then((res) => res.error && console.error("welcome mail failed", res.error));
+      toast({ title: r.status === "reactivated" ? "Welkom terug! 🍞" : "Bedankt voor je aanmelding!" });
+    } else {
+      toast({ title: "Je bent al ingeschreven 🍞" });
     }
     setBannerSubmitted(true);
   };

@@ -1185,6 +1185,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      subscribe_or_reactivate: {
+        Args: {
+          p_consent_marketing?: boolean
+          p_email: string
+          p_full_name: string
+          p_phone?: string
+          p_source?: string
+        }
+        Returns: Json
+      }
       unsubscribe_via_token: { Args: { p_token: string }; Returns: Json }
     }
     Enums: {

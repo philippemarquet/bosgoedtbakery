@@ -59,35 +59,34 @@ const Signup = () => {
 
     setLoading(true);
     const source = form.source || "aanmeldpagina";
-    const { data: subRow, error } = await supabase
-      .from("subscribers")
-      .insert({
-        full_name: form.full_name.trim(),
-        email: form.email.trim().toLowerCase(),
-        phone: form.phone.trim() || null,
-        source,
-        consent_marketing: true,
-      })
-      .select("id")
-      .single();
+    const { data: subResult, error } = await supabase.rpc("subscribe_or_reactivate", {
+      p_full_name: form.full_name.trim(),
+      p_email: form.email.trim().toLowerCase(),
+      p_phone: form.phone.trim() || null,
+      p_source: source,
+      p_consent_marketing: true,
+    });
 
     setLoading(false);
 
     if (error) {
-      if (error.code === "23505" || /duplicate/i.test(error.message)) {
-        setSubmitted(true);
-        toast({ title: "Je bent al ingeschreven 🍞" });
-        return;
-      }
       toast({ title: "Er ging iets mis", description: error.message, variant: "destructive" });
       return;
     }
 
-    // Fire-and-forget welcome mail
-    if (subRow?.id) {
+    const r = (subResult ?? {}) as { success?: boolean; status?: string; subscriber_id?: string; message?: string };
+    if (!r.success) {
+      toast({ title: "Oeps", description: r.message ?? "Probeer het opnieuw", variant: "destructive" });
+      return;
+    }
+
+    if ((r.status === "created" || r.status === "reactivated") && r.subscriber_id) {
       void supabase.functions
-        .invoke("send-welcome-email", { body: { subscriber_id: subRow.id } })
-        .then((r) => r.error && console.error("welcome mail failed", r.error));
+        .invoke("send-welcome-email", { body: { subscriber_id: r.subscriber_id } })
+        .then((res) => res.error && console.error("welcome mail failed", res.error));
+      toast({ title: r.status === "reactivated" ? "Welkom terug! 🍞" : "Bedankt voor je aanmelding!" });
+    } else {
+      toast({ title: "Je bent al ingeschreven 🍞" });
     }
 
     setSubmitted(true);
