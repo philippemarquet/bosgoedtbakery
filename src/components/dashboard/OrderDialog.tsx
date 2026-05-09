@@ -692,17 +692,27 @@ const OrderDialog = ({
 
         {editingOrder?.order_source === "public_popup" && (
           <div className="rounded-[calc(var(--radius)-2px)] border border-[hsl(var(--ember))]/30 bg-[hsl(var(--ember))]/5 px-4 py-3 space-y-2">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="bakery-eyebrow">Klantgegevens (snapshot)</p>
-              {editingOrder.popup_event?.slug && (
-                <a
-                  href={`/bestellen?event=${editingOrder.popup_event.slug}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] underline text-foreground/70 hover:text-foreground"
-                >
-                  Bekijk pop-up: {editingOrder.popup_event.name}
-                </a>
+              {editingOrder.popup_event && (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`/dashboard?tab=popup-events&event=${editingOrder.popup_event.id}`}
+                    className="text-xs font-medium underline text-foreground hover:text-foreground/80"
+                  >
+                    Bekijk pop-up: {editingOrder.popup_event.name}
+                  </a>
+                  {editingOrder.popup_event.slug && (
+                    <a
+                      href={`/bestellen?event=${editingOrder.popup_event.slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-muted-foreground hover:text-foreground underline"
+                    >
+                      Bekijk publieke pagina
+                    </a>
+                  )}
+                </div>
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
