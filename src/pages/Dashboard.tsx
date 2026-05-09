@@ -144,7 +144,7 @@ const Dashboard = () => {
     <DashboardShell
       navItems={visibleNavItems.map(({ name, icon }) => ({ name, icon }))}
       currentTab={currentTab}
-      onTabChange={setActiveTab}
+      onTabChange={handleTabChange}
       userName={displayName}
       roleLabel={roleLabel}
       user={user}
