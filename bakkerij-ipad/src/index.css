@@ -1,0 +1,391 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+   Bosgoedt Bakery — Japandi Design System
+   --------------------------------------------------------------------------
+   Warme, rustige aarde-tonen. Papier als metafoor: zacht wit, inkt-zwart,
+   natuurlijke schaduwen. Manrope als werk-font, Cormorant Garamond voor
+   sfeer en titels. Geen felle kleuren, geen zware schaduwen — alles mag
+   ruimte en licht krijgen.
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Paper — crèmewit met een zweem warmte */
+    --background: 36 30% 97%;
+    --foreground: 28 14% 16%;
+
+    /* Kaarten — strak papier, net iets lichter dan background */
+    --card: 40 30% 99%;
+    --card-foreground: 28 14% 16%;
+
+    /* Popover — zelfde als card */
+    --popover: 40 30% 99%;
+    --popover-foreground: 28 14% 16%;
+
+    /* Primary — donkere inkt (sumi-e), warm genoeg om niet klinisch te ogen */
+    --primary: 28 18% 20%;
+    --primary-foreground: 36 30% 97%;
+
+    /* Secondary — zachte steen */
+    --secondary: 34 14% 92%;
+    --secondary-foreground: 28 14% 22%;
+
+    /* Muted — klei, voor rustige achtergronden */
+    --muted: 34 12% 94%;
+    --muted-foreground: 28 8% 42%;
+
+    /* Accent — matcha / wabi sage. Rustige groen-grijs voor CTAs & highlights. */
+    --accent: 96 14% 48%;
+    --accent-foreground: 36 30% 97%;
+
+    /* Destructive — terracotta, niet kerst-rood */
+    --destructive: 10 48% 46%;
+    --destructive-foreground: 36 30% 97%;
+
+    /* Borders — onnadrukkelijk */
+    --border: 32 14% 88%;
+    --input: 32 14% 88%;
+    --ring: 96 14% 48%;
+
+    --radius: 0.625rem;
+
+    /* Sidebar — iets warmer dan de main background voor subtiel contrast */
+    --sidebar-background: 34 22% 95%;
+    --sidebar-foreground: 28 14% 22%;
+    --sidebar-primary: 28 18% 20%;
+    --sidebar-primary-foreground: 36 30% 97%;
+    --sidebar-accent: 34 18% 90%;
+    --sidebar-accent-foreground: 28 14% 20%;
+    --sidebar-border: 32 14% 86%;
+    --sidebar-ring: 96 14% 48%;
+
+    /* Japandi-specifieke tokens */
+    --paper: 36 30% 97%;
+    --ink: 28 18% 20%;
+    --stone: 34 14% 92%;
+    --clay: 28 16% 82%;
+    --sage: 96 14% 48%;
+    --ember: 20 42% 52%;
+  }
+
+  .dark {
+    /* Avond-modus — nachtelijke inkt met warme lampen */
+    --background: 28 12% 10%;
+    --foreground: 36 20% 92%;
+
+    --card: 28 12% 13%;
+    --card-foreground: 36 20% 92%;
+
+    --popover: 28 12% 13%;
+    --popover-foreground: 36 20% 92%;
+
+    --primary: 36 24% 86%;
+    --primary-foreground: 28 14% 14%;
+
+    --secondary: 28 10% 18%;
+    --secondary-foreground: 36 20% 90%;
+
+    --muted: 28 10% 16%;
+    --muted-foreground: 34 10% 62%;
+
+    --accent: 96 18% 58%;
+    --accent-foreground: 28 14% 12%;
+
+    --destructive: 10 50% 52%;
+    --destructive-foreground: 36 20% 92%;
+
+    --border: 28 10% 20%;
+    --input: 28 10% 20%;
+    --ring: 96 18% 58%;
+
+    --sidebar-background: 28 12% 8%;
+    --sidebar-foreground: 36 20% 88%;
+    --sidebar-primary: 36 24% 86%;
+    --sidebar-primary-foreground: 28 14% 12%;
+    --sidebar-accent: 28 10% 14%;
+    --sidebar-accent-foreground: 36 20% 90%;
+    --sidebar-border: 28 10% 16%;
+    --sidebar-ring: 96 18% 58%;
+
+    --paper: 28 12% 10%;
+    --ink: 36 20% 92%;
+    --stone: 28 10% 18%;
+    --clay: 28 8% 28%;
+    --sage: 96 18% 58%;
+    --ember: 20 42% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-feature-settings: "ss01" on, "cv11" on, "calt" on;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Manrope', system-ui, sans-serif;
+    font-weight: 400;
+    letter-spacing: -0.008em;
+    /* Zachte papier-textuur — bijna niet zichtbaar, geeft diepte */
+    background-image:
+      radial-gradient(
+        1200px 600px at 100% -10%,
+        hsl(var(--clay) / 0.18),
+        transparent 60%
+      ),
+      radial-gradient(
+        900px 500px at -10% 110%,
+        hsl(var(--sage) / 0.08),
+        transparent 60%
+      );
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    @apply font-medium tracking-tight text-foreground;
+    letter-spacing: -0.015em;
+  }
+
+  /* Default-typografie voor tabellen */
+  th {
+    @apply text-[0.7rem] font-medium text-muted-foreground uppercase tracking-[0.08em];
+  }
+
+  td {
+    @apply text-sm;
+  }
+
+  /* Inputs krijgen een rustigere cursor-vibe */
+  input, textarea, select {
+    font-family: inherit;
+  }
+
+  /* Selection — warme sage-tint */
+  ::selection {
+    background: hsl(var(--accent) / 0.25);
+    color: hsl(var(--foreground));
+  }
+
+  /* Focus ring — zacht, kleine offset */
+  :focus-visible {
+    outline: none;
+  }
+}
+
+@layer components {
+  /* ---- Typografie-helpers ---- */
+  .bakery-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    @apply text-4xl md:text-5xl lg:text-6xl font-medium tracking-tight text-foreground;
+    letter-spacing: -0.02em;
+  }
+
+  .bakery-eyebrow {
+    font-family: 'Manrope', sans-serif;
+    @apply text-[0.68rem] font-medium tracking-[0.22em] uppercase text-muted-foreground;
+  }
+
+  .bakery-subtitle {
+    font-family: 'Manrope', sans-serif;
+    @apply text-sm font-light tracking-[0.18em] uppercase text-muted-foreground;
+  }
+
+  .section-heading {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    @apply text-2xl md:text-3xl font-medium tracking-tight;
+    letter-spacing: -0.015em;
+  }
+
+  /* ---- Kaart-varianten ---- */
+  .paper-card {
+    @apply bg-card rounded-[var(--radius)] border border-border/70;
+    box-shadow: 0 1px 2px 0 hsl(28 14% 20% / 0.04);
+  }
+
+  .paper-card-flat {
+    @apply bg-card rounded-[var(--radius)];
+  }
+
+  /* ---- Inputs ---- */
+  .bakery-input {
+    @apply bg-transparent border-0 border-b border-border rounded-none px-0 py-2 text-foreground
+           placeholder:text-muted-foreground focus:outline-none focus:border-foreground/60
+           transition-colors duration-200;
+  }
+
+  /* ---- Knoppen ---- */
+  .bakery-button-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground
+           px-6 py-2.5 rounded-[var(--radius)] font-medium tracking-wide text-sm
+           transition-all duration-200 hover:bg-primary/90
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
+           focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .bakery-button-secondary {
+    @apply inline-flex items-center justify-center gap-2 bg-secondary text-secondary-foreground
+           px-6 py-2.5 rounded-[var(--radius)] font-medium tracking-wide text-sm
+           transition-all duration-200 hover:bg-secondary/70
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
+           focus-visible:ring-offset-background;
+  }
+
+  .bakery-button-ghost {
+    @apply inline-flex items-center justify-center gap-2 text-foreground
+           px-4 py-2 rounded-[var(--radius)] font-medium text-sm
+           transition-colors duration-200 hover:bg-muted/60;
+  }
+
+  /* ---- Stats & data display ---- */
+  .stat-value {
+    @apply text-3xl font-light tabular-nums tracking-tight text-foreground;
+    letter-spacing: -0.025em;
+  }
+
+  .stat-label {
+    @apply text-[0.7rem] font-medium text-muted-foreground uppercase tracking-[0.14em];
+  }
+
+  /* ---- Tabel-rows met rustige hover ---- */
+  .clean-row {
+    @apply border-b border-border/60 last:border-0 transition-colors;
+  }
+
+  .clean-row:hover {
+    @apply bg-muted/40;
+  }
+
+  /* ---- Scheidingslijn met label ("—  LABEL  —") ---- */
+  .rule-label {
+    @apply relative flex items-center gap-4 py-4 text-muted-foreground;
+  }
+  .rule-label::before,
+  .rule-label::after {
+    content: "";
+    @apply flex-1 h-px bg-border;
+  }
+
+  /* ---- Zachte sectie-wrapper met binnen-padding ---- */
+  .section-block {
+    @apply space-y-6;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  /* Focus ring variant voor custom elementen */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
+           focus-visible:ring-offset-background;
+  }
+
+  /* Subtiele scrollbar in dezelfde toon */
+  .scroll-soft {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--clay)) transparent;
+  }
+  .scroll-soft::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scroll-soft::-webkit-scrollbar-thumb {
+    background: hsl(var(--clay) / 0.6);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  .scroll-soft::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* =========================================================================
+   iPad en andere aanraakschermen
+   --------------------------------------------------------------------------
+   - Geen inzoomen bij het tikken in een invoerveld (iOS zoomt in onder 16px).
+   - Knoppen, keuzelijsten en menu-items minstens ~40-44px hoog: makkelijk raak te tikken.
+   - Geen grijze tik-flits en geen vertraging/dubbeltik-zoom op knoppen.
+   - Bedragen en datums breken niet midden in ("€" en "22.00" op twee regels).
+   ========================================================================= */
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+label,
+summary,
+[role="button"],
+[role="tab"],
+[role="option"],
+[role="menuitem"],
+[role="checkbox"],
+[role="switch"],
+[role="combobox"] {
+  touch-action: manipulation;
+}
+
+.tabular-nums {
+  white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  /* iOS negeert background-attachment: fixed en tekent dan onrustig bij scrollen */
+  body {
+    background-attachment: scroll;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  button:not([role="checkbox"]):not([role="switch"]):not([role="radio"]):not([role="tab"]),
+  [role="combobox"] {
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+  }
+
+  [role="tab"] {
+    min-height: 2.5rem;
+  }
+
+  [role="option"],
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [cmdk-item] {
+    min-height: 2.75rem;
+  }
+
+  [role="checkbox"] {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  /* lange lijsten in keuzemenu's: soepel en volledig scrollbaar */
+  [cmdk-list],
+  [data-radix-select-viewport] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
