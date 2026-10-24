@@ -43,7 +43,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<RootRedirect />} />
-            <Route path="/bestellen" element={<Order />} />
+            <Route path="/bestellen" element={<PublicOrderRoute />} />
             <Route path="/aanmelden" element={<Signup />} />
             <Route path="/over" element={<About />} />
             <Route path="/privacy" element={<Privacy />} />
