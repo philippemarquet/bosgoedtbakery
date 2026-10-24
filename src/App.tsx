@@ -16,12 +16,23 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// De publieke bestelpagina is vooralsnog niet geopend voor klanten.
+// Zolang dat zo is, stuurt alles de back-office-login in.
+// (Bakkers die ingelogd zijn mogen /bestellen wél bekijken, om te testen.)
 const RootRedirect = () => {
   const { user, isBaker, isLoading } = useAuth();
   if (isLoading) return null;
   if (user && isBaker) return <Navigate to="/dashboard" replace />;
-  return <Navigate to="/bestellen" replace />;
+  return <Navigate to="/login" replace />;
 };
+
+const PublicOrderRoute = () => {
+  const { user, isBaker, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (user && isBaker) return <Order />;
+  return <Navigate to="/login" replace />;
+};
+
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
